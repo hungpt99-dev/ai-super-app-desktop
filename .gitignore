@@ -1,0 +1,14 @@
+node_modules/
+dist/
+build/
+.turbo/
+*.tsbuildinfo
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+
+# Rust / Tauri build artifacts
+apps/desktop/src-tauri/target/
+gen/

@@ -1,0 +1,9 @@
+{
+  "name": "crypto",
+  "version": "1.0.0",
+  "minCoreVersion": "1.0.0",
+  "maxCoreVersion": "2.x",
+  "permissions": ["ai.generate", "storage.read", "storage.write", "ui.dashboard", "ui.notify"],
+  "description": "Live crypto market analysis powered by AI",
+  "author": "AI SuperApp Team"
+}

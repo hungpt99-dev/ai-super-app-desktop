@@ -1,0 +1,11 @@
+{
+  "identifier": "default",
+  "description": "Default capabilities for AI SuperApp desktop",
+  "platforms": ["linux", "macOS", "windows"],
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "store:default"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/sdk" },
+    { "path": "packages/shared" },
+    { "path": "apps/desktop" },
+    { "path": "modules/crypto" },
+    { "path": "modules/writing-helper" }
+  ]
+}

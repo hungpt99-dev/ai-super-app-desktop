@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+        Screen Recording — required by the screenshots crate to capture pixels
+        from other applications. macOS 13+ will prompt on first capture.
+    -->
+    <key>NSScreenCaptureUsageDescription</key>
+    <string>AI SuperApp uses screen capture to help AI agents understand and interact with what is on your screen.</string>
+
+    <!--
+        Accessibility — required by enigo for programmatic mouse / keyboard
+        control. Grant in System Settings → Privacy &amp; Security → Accessibility.
+    -->
+    <key>NSAccessibilityUsageDescription</key>
+    <string>AI SuperApp uses Accessibility to let AI agents control the mouse and keyboard on your behalf.</string>
+</dict>
+</plist>

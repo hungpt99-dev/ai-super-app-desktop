@@ -1,0 +1,12 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Desktop: dev",
+			"type": "shell",
+			"command": "source \"$HOME/.cargo/env\" && cd apps/desktop && npm run dev",
+			"isBackground": true,
+			"problemMatcher": []
+		}
+	]
+}

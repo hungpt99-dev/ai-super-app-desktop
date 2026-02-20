@@ -1,0 +1,108 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Background layers */
+  --color-bg: #0b0b10;
+  --color-surface: #16161f;
+  --color-surface-2: #1e1e2a;
+
+  /* Borders */
+  --color-border: #252533;
+
+  /* Text */
+  --color-text-primary: #eeeef5;
+  --color-text-secondary: #7878a0;
+  --color-text-muted: #4a4a66;
+
+  /* Accent */
+  --color-accent: #6c63ff;
+  --color-accent-hover: #7b74ff;
+  --color-accent-dim: rgba(108, 99, 255, 0.15);
+
+  /* Status */
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
+  --color-danger: #f87171;
+
+  /* Sidebar width */
+  --sidebar-width: 220px;
+  --sidebar-collapsed-width: 64px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text-primary);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* Focus ring */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Light theme overrides */
+[data-theme="light"] {
+  --color-bg: #f3f3f8;
+  --color-surface: #ffffff;
+  --color-surface-2: #ebebf3;
+  --color-border: #dcdce8;
+  --color-text-primary: #18182a;
+  --color-text-secondary: #5c5c80;
+  --color-text-muted: #9898b8;
+  --color-accent: #6c63ff;
+  --color-accent-hover: #5a52ee;
+  --color-accent-dim: rgba(108, 99, 255, 0.12);
+  --color-success: #059669;
+  --color-warning: #d97706;
+  --color-danger: #dc2626;
+}
+
+/* Streaming cursor blink animation */
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1 }
+  50% { opacity: 0 }
+}
+.cursor-blink {
+  animation: cursor-blink 0.7s step-end infinite;
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@ai-super-app/module-crypto",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@ai-super-app/sdk": "*"
+  }
+}
