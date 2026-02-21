@@ -4,7 +4,7 @@ import { useAuthStore } from '../store/auth-store.js'
 import { useAgentStore } from '../store/agent-store.js'
 
 /** Views that map directly to a top-level nav item (excludes sub-views like crypto/writing-helper). */
-type INavView = 'chat' | 'features' | 'store' | 'api-keys' | 'settings'
+type INavView = 'dashboard' | 'chat' | 'features' | 'store' | 'api-keys' | 'settings'
 
 interface ISidebarProps {
   activeView: AppView
@@ -15,6 +15,18 @@ interface ISidebarProps {
 }
 
 const NAV_ITEMS: { id: INavView; label: string; icon: React.ReactNode }[] = [
+  {
+    id: 'dashboard',
+    label: 'Dashboard',
+    icon: (
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="7" height="9" rx="1" />
+        <rect x="14" y="3" width="7" height="5" rx="1" />
+        <rect x="14" y="12" width="7" height="9" rx="1" />
+        <rect x="3" y="16" width="7" height="5" rx="1" />
+      </svg>
+    ),
+  },
   {
     id: 'chat',
     label: 'Chat',
@@ -71,6 +83,7 @@ const NAV_ITEMS: { id: INavView; label: string; icon: React.ReactNode }[] = [
 /** Returns the matching top-level nav id for a given AppView (module sub-views map to 'features'). */
 function toNavView(view: AppView): INavView {
   if (view === 'crypto' || view === 'writing-helper' || view === 'bot-run') return 'features'
+  if (view === 'dashboard') return 'dashboard'
   return view as INavView
 }
 

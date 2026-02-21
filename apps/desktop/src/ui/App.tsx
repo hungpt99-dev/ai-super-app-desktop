@@ -8,6 +8,7 @@ import { SettingsPanel } from './components/SettingsPanel.js'
 import { CryptoPanel } from './components/modules/CryptoPanel.js'
 import { WritingHelperPanel } from './components/modules/WritingHelperPanel.js'
 import { BotsPanel } from './components/BotsPanel.js'
+import { DashboardPanel } from './components/DashboardPanel.js'
 import { APIKeysPanel } from './components/APIKeysPanel.js'
 import { PermissionRequestDialog } from './components/PermissionRequestDialog.js'
 import { NotificationCenter } from './components/NotificationCenter.js'
@@ -144,6 +145,7 @@ export function App(): React.JSX.Element {
       <NotificationCenter isOpen={notifOpen} onClose={() => { setNotifOpen(false) }} />
 
       <main className="flex h-full flex-1 flex-col overflow-hidden">
+        {activeView === 'dashboard' && <DashboardPanel onNavigate={setView} />}
         {activeView === 'chat' && <ChatWindow />}
         {activeView === 'features' && <FeatureGrid onOpenModule={handleOpenModule} />}
         {activeView === 'store' && <ModuleStore />}

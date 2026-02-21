@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { IToastNotification } from '../../shared/bridge-types.js'
 
-export type AppView = 'chat' | 'features' | 'store' | 'settings' | 'api-keys' | 'crypto' | 'writing-helper' | 'bot-run'
+export type AppView = 'dashboard' | 'chat' | 'features' | 'store' | 'settings' | 'api-keys' | 'crypto' | 'writing-helper' | 'bot-run'
 export type Theme = 'dark' | 'light' | 'system'
 export type { IToastNotification }
 
@@ -58,7 +58,7 @@ function applyTheme(theme: Theme): void {
 let notifCounter = 0
 
 export const useAppStore = create<IAppState>((set) => ({
-  activeView: 'chat',
+  activeView: 'dashboard' as AppView,
   notifications: [],
   notificationHistory: [],
   unreadCount: 0,

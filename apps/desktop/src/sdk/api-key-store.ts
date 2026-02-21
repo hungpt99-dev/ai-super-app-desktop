@@ -134,3 +134,45 @@ export async function getActiveKeyForProvider(provider: string): Promise<string 
   const match = keys.find((k) => k.provider === provider && k.isActive)
   return match?.rawKey ?? null
 }
+
+// ── Default provider for bot runs ─────────────────────────────────────────────
+
+const DEFAULT_PROVIDER_STORE_KEY = 'ai-superapp:default-provider'
+
+/**
+ * Returns the provider slug (e.g. "openai") chosen as the default for local
+ * bot runs, or null when none has been set (offline mode).
+ */
+export async function getDefaultProvider(): Promise<string | null> {
+  if (IS_TAURI) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const raw = await invoke<string | null>('store_get', { key: DEFAULT_PROVIDER_STORE_KEY })
+      return raw ?? null
+    } catch { /* fall through */ }
+  }
+  return localStorage.getItem(DEFAULT_PROVIDER_STORE_KEY)
+}
+
+/**
+ * Sets (or clears) the default provider for local bot runs.
+ * Pass `null` to reset to offline mode.
+ */
+export async function setDefaultProvider(provider: string | null): Promise<void> {
+  if (IS_TAURI) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      if (provider !== null) {
+        await invoke('store_set', { key: DEFAULT_PROVIDER_STORE_KEY, value: provider })
+      } else {
+        await invoke('store_del', { key: DEFAULT_PROVIDER_STORE_KEY })
+      }
+      return
+    } catch { /* fall through */ }
+  }
+  if (provider !== null) {
+    localStorage.setItem(DEFAULT_PROVIDER_STORE_KEY, provider)
+  } else {
+    localStorage.removeItem(DEFAULT_PROVIDER_STORE_KEY)
+  }
+}

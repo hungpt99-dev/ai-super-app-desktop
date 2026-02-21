@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useModules } from '../hooks/use-modules.js'
 import { useBotStore, type IDesktopBot } from '../store/bot-store.js'
 import { useAuthStore } from '../store/auth-store.js'
+import { BOT_TEMPLATES, TEMPLATE_CATEGORY_COLORS } from '../store/bot-templates.js'
 
 const BUILT_IN_FEATURES = [
   {
@@ -65,12 +66,25 @@ function CreateBotModal({
   onClose: () => void
   onSignIn: () => void
 }): React.JSX.Element {
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [goal, setGoal] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { user } = useAuthStore()
+  const bots = useBotStore((s) => s.bots)
+
+  // When a template is chosen, pre-fill name and goal.
+  const handlePickTemplate = (templateId: string): void => {
+    const t = BOT_TEMPLATES.find((t) => t.id === templateId)
+    if (!t) return
+    const instanceCount = bots.filter((b) => b.templateId === templateId).length
+    setSelectedTemplateId(templateId)
+    setName(instanceCount === 0 ? t.name : `${t.name} #${String(instanceCount + 1)}`)
+    setDescription(t.description)
+    setGoal(t.defaultGoal)
+  }
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
@@ -78,7 +92,12 @@ function CreateBotModal({
     setLoading(true)
     setError(null)
     try {
-      await useBotStore.getState().createBot({ name: name.trim(), description: description.trim(), goal: goal.trim() })
+      await useBotStore.getState().createBot({
+        name: name.trim(),
+        description: description.trim(),
+        goal: goal.trim(),
+        ...(selectedTemplateId !== null ? { templateId: selectedTemplateId } : {}),
+      })
       onClose()
     } catch (err) {
       setError((err as Error).message)
@@ -89,7 +108,7 @@ function CreateBotModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-2xl">
+      <div className="w-full max-w-lg rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-2xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-semibold text-[var(--color-text-primary)]">New Bot</h2>
           <button onClick={onClose} className="rounded-lg p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]">✕</button>
@@ -102,6 +121,48 @@ function CreateBotModal({
             {' '}to sync it across devices.
           </div>
         )}
+
+        {/* Template picker */}
+        <div className="mb-4">
+          <p className="mb-2 text-xs font-medium text-[var(--color-text-secondary)]">
+            Start from a template <span className="text-[var(--color-text-muted)]">(optional)</span>
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            {BOT_TEMPLATES.map((t) => {
+              const isSelected = selectedTemplateId === t.id
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => { handlePickTemplate(t.id) }}
+                  className={[
+                    'flex items-center gap-1.5 rounded-lg border px-2.5 py-2 text-left text-xs transition-colors',
+                    isSelected
+                      ? 'border-[var(--color-accent)] bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
+                      : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-accent)]/50 hover:text-[var(--color-text-primary)]',
+                  ].join(' ')}
+                >
+                  <span>{t.icon}</span>
+                  <span className="truncate">{t.name}</span>
+                </button>
+              )
+            })}
+          </div>
+          {selectedTemplateId && (
+            <div className="mt-1.5 flex items-center justify-between">
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${TEMPLATE_CATEGORY_COLORS[BOT_TEMPLATES.find((t) => t.id === selectedTemplateId)?.category ?? 'productivity']}`}>
+                {BOT_TEMPLATES.find((t) => t.id === selectedTemplateId)?.category}
+              </span>
+              <button
+                type="button"
+                onClick={() => { setSelectedTemplateId(null); setName(''); setDescription(''); setGoal('') }}
+                className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+              >
+                Clear template
+              </button>
+            </div>
+          )}
+        </div>
 
         <form onSubmit={(e) => { void handleSubmit(e) }} className="flex flex-col gap-3">
           <label className="flex flex-col gap-1">

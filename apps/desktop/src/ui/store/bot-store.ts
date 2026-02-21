@@ -60,6 +60,8 @@ export interface IDesktopBot {
   created_at: string
   /** true = this bot exists on the backend and is associated with the current account. */
   synced: boolean
+  /** The template this bot was created from, if any (local concept — not sent to server). */
+  templateId?: string
 }
 
 /** A run record — may live in localStorage or be fetched from the server. */
@@ -88,7 +90,7 @@ interface IBotStore {
   /** Load bots: local always; merged with cloud when authenticated. */
   loadBots(): Promise<void>
   /** Create a bot. On server when authenticated, otherwise local-only. */
-  createBot(input: ICreateBotInput): Promise<void>
+  createBot(input: ICreateBotInput & { templateId?: string }): Promise<void>
   /** Delete a bot. Removes from server when synced. */
   deleteBot(id: string): Promise<void>
   /** Toggle active ↔ paused. Updates server when synced. */
@@ -170,7 +172,11 @@ export const useBotStore = create<IBotStore>((set, get) => ({
     try {
       if (tokenStore.getToken()) {
         const cloud = await botApi.create(input)
-        const bot: IDesktopBot = { ...cloud, synced: true }
+        const bot: IDesktopBot = {
+          ...cloud,
+          synced: true,
+          ...(input.templateId !== undefined ? { templateId: input.templateId } : {}),
+        }
         const bots = [bot, ...get().bots]
         writeBots(bots)
         set({ bots, loading: false })
@@ -183,6 +189,7 @@ export const useBotStore = create<IBotStore>((set, get) => ({
           status: 'active',
           created_at: new Date().toISOString(),
           synced: false,
+          ...(input.templateId !== undefined ? { templateId: input.templateId } : {}),
         }
         const bots = [bot, ...get().bots]
         writeBots(bots)
