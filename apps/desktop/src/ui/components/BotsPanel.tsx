@@ -207,11 +207,8 @@ function ChatTab({ bot, botRuns }: IChatTabProps): React.JSX.Element {
   const messages   = useBotStore((s) => s.chatHistory[bot.id] ?? ([] as IChatMessage[]))
   const isThinking = useBotStore((s) => s.thinkingBotIds.includes(bot.id))
   const error      = useBotStore((s) => s.error)
-  const [input, setInput]             = useState('')
-  const [showGoal, setShowGoal]       = useState(false)
-  const [editingGoal, setEditingGoal] = useState(false)
-  const [goalDraft, setGoalDraft]     = useState('')
-  const bottomRef                     = useRef<HTMLDivElement>(null)
+  const [input, setInput] = useState('')
+  const bottomRef         = useRef<HTMLDivElement>(null)
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, isThinking])
 
@@ -220,12 +217,6 @@ function ChatTab({ bot, botRuns }: IChatTabProps): React.JSX.Element {
     if (!text || isThinking) return
     setInput('')
     void useBotStore.getState().sendMessage(bot.id, text)
-  }
-
-  const handleSaveGoal = async (): Promise<void> => {
-    if (!goalDraft.trim()) return
-    await useBotStore.getState().updateBot(bot.id, { goal: goalDraft.trim() })
-    setEditingGoal(false)
   }
 
   return (
@@ -247,50 +238,13 @@ function ChatTab({ bot, botRuns }: IChatTabProps): React.JSX.Element {
             {bot.status === 'active' ? 'Online · waiting for commands' : 'Paused · not responding'}
           </span>
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => { if (!showGoal) setGoalDraft(bot.goal); setShowGoal((v) => !v); setEditingGoal(false) }}
-            className="text-[10px] text-[var(--color-accent)] hover:underline"
-          >
-            {showGoal ? 'Hide goal' : 'View goal'}
-          </button>
-          <button
-            onClick={() => { useBotStore.getState().clearChat(bot.id) }}
-            className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
-          >
-            Clear
-          </button>
-        </div>
+        <button
+          onClick={() => { useBotStore.getState().clearChat(bot.id) }}
+          className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+        >
+          Clear
+        </button>
       </div>
-
-      {/* Collapsible goal / instructions strip */}
-      {showGoal && (
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
-          <div className="mb-1.5 flex items-center justify-between">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Goal / Instructions</p>
-            {!editingGoal && (
-              <button onClick={() => { setGoalDraft(bot.goal); setEditingGoal(true) }} className="text-[10px] text-[var(--color-accent)] hover:underline">Edit</button>
-            )}
-          </div>
-          {editingGoal ? (
-            <div className="space-y-2">
-              <textarea
-                autoFocus
-                value={goalDraft}
-                onChange={(e) => { setGoalDraft(e.target.value) }}
-                rows={4}
-                className="w-full resize-y rounded-lg border border-[var(--color-accent)] bg-[var(--color-surface-2)] px-3 py-2 text-sm leading-relaxed text-[var(--color-text-primary)] outline-none"
-              />
-              <div className="flex gap-2">
-                <button onClick={() => { void handleSaveGoal() }} disabled={!goalDraft.trim()} className="rounded-lg bg-[var(--color-accent)] px-3 py-1 text-xs font-medium text-white disabled:opacity-50">Save</button>
-                <button onClick={() => { setEditingGoal(false) }} className="rounded-lg border border-[var(--color-border)] px-3 py-1 text-xs text-[var(--color-text-secondary)]">Cancel</button>
-              </div>
-            </div>
-          ) : (
-            <p className="text-sm leading-relaxed text-[var(--color-text-secondary)]">{bot.goal}</p>
-          )}
-        </div>
-      )}
 
       {/* Messages + input */}
       <div className="overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]">
