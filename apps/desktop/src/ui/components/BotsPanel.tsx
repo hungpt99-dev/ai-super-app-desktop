@@ -102,6 +102,73 @@ function RunItem({ run }: { run: IDesktopBotRun }): React.JSX.Element {
   )
 }
 
+// ─── Live run progress panel ──────────────────────────────────────────────────
+
+/**
+ * Shows an animated step-by-step progress panel while a bot run is executing.
+ * Subscribes directly to the store so it re-renders on every `patchRuns` call.
+ */
+function RunProgress({ botId, runId }: { botId: string; runId: string }): React.JSX.Element {
+  const runs   = useBotStore((s) => s.runs)
+  const run    = (runs[botId] ?? []).find((r) => r.id === runId)
+  const planned = run?.plannedSteps ?? ['Running…']
+  const logs    = run?.logs ?? []
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-blue-400/20 bg-blue-400/5">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-blue-400/10 px-5 py-3">
+        <div className="flex items-center gap-2">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-400" />
+          <p className="text-xs font-semibold text-blue-400 tracking-wide uppercase">Executing</p>
+        </div>
+        <span className="text-[10px] text-[var(--color-text-muted)]">
+          Step {String(Math.min(logs.length, planned.length))} of {String(planned.length)}
+        </span>
+      </div>
+      {/* Step list */}
+      <ol className="px-5 py-4 space-y-1">
+        {planned.map((label, i) => {
+          const isDone    = i < logs.length - 1
+          const isCurrent = i === logs.length - 1
+          const isPending = i >= logs.length
+          return (
+            <li key={i} className="flex items-center gap-3 py-1.5">
+              {/* Step indicator */}
+              <span
+                className={[
+                  'flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] transition-all duration-300',
+                  isDone    ? 'bg-[var(--color-success)] text-white'       : '',
+                  isCurrent ? 'border-2 border-blue-400'                   : '',
+                  isPending ? 'border border-[var(--color-border)]'        : '',
+                ].join(' ')}
+              >
+                {isDone && '✓'}
+                {isCurrent && (
+                  <span className="h-2.5 w-2.5 animate-spin rounded-full border-[1.5px] border-blue-400 border-t-transparent" />
+                )}
+              </span>
+              {/* Step label */}
+              <span
+                className={`flex-1 text-sm transition-colors duration-300 ${
+                  isPending
+                    ? 'text-[var(--color-text-muted)]'
+                    : 'text-[var(--color-text-primary)]'
+                }`}
+              >
+                {label}
+              </span>
+              {/* Status tag */}
+              {isDone    && <span className="text-[10px] text-[var(--color-success)]">done</span>}
+              {isCurrent && <span className="text-[10px] text-blue-400 font-medium">running</span>}
+            </li>
+          )
+        })}
+      </ol>
+    </div>
+  )
+}
+
 // ─── Shared chat ─────────────────────────────────────────────────────────────
 
 interface IChatMessage { role: 'user' | 'assistant'; content: string; ts: number }
@@ -524,14 +591,13 @@ interface IDetailTabProps {
   bot: IDesktopBot
   botRuns: IDesktopBotRun[]
   latestRun?: IDesktopBotRun | undefined
-  busy: boolean
   canRun: boolean
   isRunning: boolean
   runLabel: string
   hasSignInWarning: boolean
 }
 
-function DetailTab({ bot, botRuns, latestRun, busy, canRun, isRunning, runLabel, hasSignInWarning }: IDetailTabProps): React.JSX.Element {
+function DetailTab({ bot, botRuns, latestRun, canRun, isRunning, runLabel, hasSignInWarning }: IDetailTabProps): React.JSX.Element {
   const error = useBotStore((s) => s.error)
   const [editingGoal, setEditingGoal] = useState(false)
   const [goalDraft, setGoalDraft]     = useState('')
@@ -605,9 +671,13 @@ function DetailTab({ bot, botRuns, latestRun, busy, canRun, isRunning, runLabel,
           {isRunning && <span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />}
           {runLabel}
         </button>
-        {busy && <p className="text-xs text-[var(--color-text-muted)]">Bot is currently executing...</p>}
       </div>
-      {latestRun?.result && (
+      {/* Live execution progress — visible while the bot is running */}
+      {isRunning && latestRun?.plannedSteps && (
+        <RunProgress botId={bot.id} runId={latestRun.id} />
+      )}
+      {/* Latest output — visible only after a completed / failed run */}
+      {!isRunning && latestRun?.result && (
         <section>
           <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Latest Output</p>
           <div className="max-h-48 overflow-y-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
@@ -987,7 +1057,6 @@ export function BotRunPanel({ onBack }: IBotRunPanelProps): React.JSX.Element {
               bot={bot}
               botRuns={botRuns}
               latestRun={latestRun}
-              busy={busy}
               canRun={canRun}
               isRunning={isRunning}
               runLabel={runLabel}

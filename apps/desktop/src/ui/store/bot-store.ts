@@ -145,6 +145,10 @@ export interface IDesktopBotRun {
   ended_at?: string
   /** true = this run exists only in localStorage (not on the server). */
   local: boolean
+  /** Ordered step labels planned at run-start — used by the live progress panel. */
+  plannedSteps?: string[]
+  /** Labels of steps that have been reached, in order. Length equals `steps`. */
+  logs?: string[]
 }
 
 interface IBotStore {
@@ -183,7 +187,40 @@ interface IBotStore {
   clearError(): void
 }
 
-// ─── Result formatting ────────────────────────────────────────────────────────
+// ─── Result formatting ─────────────────────────────────────────────────────
+
+const sleep = (ms: number): Promise<void> => new Promise((res) => { setTimeout(res, ms) })
+
+/**
+ * Step labels shown in the live run progress panel, keyed by templateId.
+ * Each list must have exactly 5 entries.
+ */
+const EXEC_STEPS: Readonly<Record<string, readonly [string, string, string, string, string]>> = {
+  'daily-digest':          ['Fetching top headlines…',       'Parsing article content…',    'Summarising each story…',         'Formatting digest…',              'Saving output…'],
+  'research-assistant':    ['Parsing research query…',       'Searching knowledge sources…', 'Extracting key facts…',           'Synthesising findings…',          'Formatting report…'],
+  'price-alert':           ['Connecting to market feed…',    'Fetching current price…',       'Comparing with 24h baseline…',    'Evaluating alert threshold…',     'Generating price report…'],
+  'crypto-analysis':       ['Connecting to market feed…',    'Fetching multi-asset data…',    'Running technical analysis…',     'Generating AI market outlook…',   'Saving analysis…'],
+  'code-reviewer':         ['Reading latest git diff…',      'Parsing code changes…',         'Detecting issues & smells…',     'Generating suggestions…',         'Formatting review…'],
+  'meeting-notes':         ['Reading transcript…',           'Identifying speakers…',         'Extracting action items…',        'Summarising discussion…',         'Saving notes…'],
+  'social-scheduler':      ['Analysing trending topics…',    'Drafting post variants…',       'Applying tone & style…',         'Reviewing drafts…',               'Saving to schedule…'],
+  'writing-helper':        ['Parsing input text…',           'Detecting language & tone…',    'Applying transformation…',        'Reviewing result quality…',       'Saving output…'],
+  'seo-analyzer':          ['Crawling target URL…',          'Parsing metadata & headings…', 'Scoring SEO factors…',            'Generating recommendations…',    'Formatting audit…'],
+  'email-drip':            ['Analysing audience segment…',   'Drafting email sequence…',      'Refining subject lines & CTAs…', 'Reviewing for tone…',             'Saving campaign drafts…'],
+  'stock-screener':        ['Connecting to market data…',    'Screening by criteria…',        'Ranking top results…',            'Analysing top picks…',            'Generating watchlist…'],
+  'competitor-tracker':    ['Loading competitor URLs…',      'Fetching page changes…',        'Detecting new content…',         'Summarising changes…',            'Saving tracker report…'],
+  'social-listener':       ['Searching social platforms…',   'Gathering brand mentions…',     'Analysing sentiment…',            'Identifying key threads…',        'Saving listener report…'],
+  'release-notes-writer':  ['Parsing git log since last tag…','Grouping commits by type…',    'Drafting release notes…',         'Polishing language…',             'Saving release notes…'],
+  'ad-copywriter':         ['Parsing product description…',  'Generating headline variants…', 'Drafting ad body copy…',          'Optimising CTAs…',                'Saving ad copy…'],
+  'bug-triage':            ['Loading open issues…',          'Classifying by severity…',      'Suggesting owners…',              'Generating triage report…',      'Saving report…'],
+}
+
+const DEFAULT_EXEC_STEPS = [
+  'Initialising task…',
+  'Processing goal…',
+  'Executing with AI…',
+  'Reviewing output…',
+  'Completing run…',
+] as const
 
 function formatResult(raw: unknown): string {
   if (raw === null || raw === undefined) return ''
@@ -345,9 +382,10 @@ export const useBotStore = create<IBotStore>((set, get) => ({
       return
     }
 
-    // ── Local bot: execute immediately via bridge ──────────────────────────────
-    const runId = generateId()
+    // ── Local bot: execute step-by-step via bridge ────────────────────────────
+    const runId     = generateId()
     const startedAt = new Date().toISOString()
+    const execSteps: readonly string[] = EXEC_STEPS[bot.templateId ?? ''] ?? DEFAULT_EXEC_STEPS
 
     const patchRuns = (patch: Partial<IDesktopBotRun>): void => {
       const updated = { ...get().runs }
@@ -367,6 +405,8 @@ export const useBotStore = create<IBotStore>((set, get) => ({
       result: '',
       started_at: startedAt,
       local: true,
+      plannedSteps: [...execSteps],
+      logs: [],
     }
     const withNew = { ...get().runs, [id]: [initialRun, ...(get().runs[id] ?? [])] }
     writeRuns(withNew)
@@ -376,21 +416,28 @@ export const useBotStore = create<IBotStore>((set, get) => ({
     let result = ''
     let finalStatus: RunStatus = 'completed'
 
+    // Delays per step index (ms). Step 2 is the AI call so it has no sleep.
+    const STEP_DELAYS = [380, 520, 0, 420, 180] as const
+
     try {
-      // Layer 1: module tool
-      let raw: unknown
-      try {
-        raw = await bridge.modules.invokeTool('custom', 'run', { goal: bot.goal })
-        result = formatResult(raw)
-      } catch {
-        // Layer 2: cloud AI generation
-        try {
-          const ai = await bridge.ai.generate('chat', `Complete this task: ${bot.goal}`)
-          result = ai.output
-        } catch {
-          // Layer 3: offline fallback — acknowledge but don't fabricate
-          const preview = bot.goal.length > 100 ? `${bot.goal.slice(0, 100)}…` : bot.goal
-          result = `Saved locally: "${preview}". Sign in with a paid plan to run AI-powered bots.`
+      for (let i = 0; i < execSteps.length; i++) {
+        // Bail out immediately if the user stopped the bot.
+        if (!get().runningBotIds.includes(id)) return
+
+        // Advance the step counter and log this step as reached.
+        patchRuns({ steps: i + 1, logs: execSteps.slice(0, i + 1) })
+
+        if (i === 2) {
+          // Step 3: perform the actual AI call.
+          try {
+            const ai = await bridge.ai.generate('chat', `Complete this task: ${bot.goal}`)
+            result = ai.output
+          } catch {
+            const preview = bot.goal.length > 120 ? `${bot.goal.slice(0, 120)}…` : bot.goal
+            result = `Task saved locally: "${preview}"\n\nSign in with a paid plan to run AI-powered bots.`
+          }
+        } else {
+          await sleep(STEP_DELAYS[i] ?? 300)
         }
       }
     } catch (err) {
@@ -400,7 +447,8 @@ export const useBotStore = create<IBotStore>((set, get) => ({
 
     patchRuns({
       status: finalStatus,
-      steps: 1,
+      steps: execSteps.length,
+      logs: execSteps.slice(),
       result,
       ended_at: new Date().toISOString(),
     })
