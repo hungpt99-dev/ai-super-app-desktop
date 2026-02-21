@@ -8,7 +8,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react'
-import { useBotStore, type IDesktopBot, type IDesktopBotRun, type IChatMessage } from '../store/bot-store.js'
+import { useBotStore, type IDesktopBot, type IDesktopBotRun, type IChatMessage, type IBotCredential } from '../store/bot-store.js'
 import { useAppStore } from '../store/app-store.js'
 import {
   BOT_TEMPLATES,
@@ -676,6 +676,116 @@ function CustomTabContent({ template, bot, latestRun }: { template?: IBotTemplat
   }
 }
 
+// ─── Credential sub-components ───────────────────────────────────────────────
+
+function CredentialRow({
+  cred,
+  onRemove,
+}: {
+  cred: IBotCredential
+  onRemove: () => void
+}): React.JSX.Element {
+  const [show, setShow] = useState(!cred.masked)
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-2.5">
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">{cred.key}</p>
+        <p className="mt-0.5 truncate font-mono text-xs text-[var(--color-text-primary)]">
+          {show ? cred.value : '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022'}
+        </p>
+      </div>
+      {cred.masked && (
+        <button
+          type="button"
+          onClick={() => { setShow((v) => !v) }}
+          className="shrink-0 text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+        >
+          {show ? 'Hide' : 'Show'}
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={`Remove credential ${cred.key}`}
+        className="shrink-0 text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-danger)]"
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+    </div>
+  )
+}
+
+function AddCredentialForm({ onAdd }: { onAdd: (cred: IBotCredential) => void }): React.JSX.Element {
+  const [key,     setKey]     = useState('')
+  const [value,   setValue]   = useState('')
+  const [masked,  setMasked]  = useState(false)
+  const [showVal, setShowVal] = useState(true)
+
+  const handleAdd = (): void => {
+    const k = key.trim()
+    const v = value.trim()
+    if (!k || !v) return
+    onAdd({ key: k, value: v, masked })
+    setKey('')
+    setValue('')
+    setMasked(false)
+    setShowVal(true)
+  }
+
+  return (
+    <div className="space-y-3 rounded-xl border border-dashed border-[var(--color-border)] p-4">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Add Credential</p>
+      <div className="grid grid-cols-2 gap-2">
+        <input
+          value={key}
+          onChange={(e) => { setKey(e.target.value) }}
+          placeholder="Name\u00a0(e.g.\u00a0email)"
+          className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-xs text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-accent)]"
+        />
+        <div className="relative">
+          <input
+            type={showVal ? 'text' : 'password'}
+            value={value}
+            onChange={(e) => { setValue(e.target.value) }}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleAdd() }}
+            placeholder="Value"
+            autoComplete="off"
+            className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 pr-14 text-xs text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-accent)]"
+          />
+          <button
+            type="button"
+            onClick={() => { setShowVal((v) => !v) }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+          >
+            {showVal ? 'Hide' : 'Show'}
+          </button>
+        </div>
+      </div>
+      <div className="flex items-center justify-between">
+        <label className="flex cursor-pointer items-center gap-2 text-xs text-[var(--color-text-secondary)]">
+          <input
+            type="checkbox"
+            checked={masked}
+            onChange={(e) => { setMasked(e.target.checked); if (e.target.checked) setShowVal(false) }}
+            className="rounded"
+          />
+          Mask as password
+        </label>
+        <button
+          type="button"
+          onClick={handleAdd}
+          disabled={!key.trim() || !value.trim()}
+          className="rounded-xl bg-[var(--color-accent)] px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-40"
+        >
+          Add
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Settings tab ─────────────────────────────────────────────────────────────
 
 function SettingsTab({ bot, template, colorClass, onDelete, isRunning, onStop }: {
@@ -699,6 +809,8 @@ function SettingsTab({ bot, template, colorClass, onDelete, isRunning, onStop }:
   const [aiProvider,   setAiProvider]   = useState(bot.aiProvider ?? '')
   const [savingProv,   setSavingProv]   = useState(false)
   const [savedProv,    setSavedProv]    = useState(false)
+  // Credentials state
+  const [credentials, setCredentials] = useState<IBotCredential[]>(bot.credentials ?? [])
 
   const handleSave = async (): Promise<void> => {
     if (!name.trim()) return
@@ -878,6 +990,50 @@ function SettingsTab({ bot, template, colorClass, onDelete, isRunning, onStop }:
               </span>
             )}
           </div>
+        </div>
+      </section>
+      <section>
+        <p className="mb-4 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Credentials</p>
+        <div className="space-y-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+          <p className="text-xs leading-relaxed text-[var(--color-text-secondary)]">
+            Store login credentials, API tokens, or any data the bot needs when interacting with external
+            services. Saved <span className="font-medium text-[var(--color-text-primary)]">locally only</span> — never sent to the server.
+          </p>
+          {credentials.length > 0 && (
+            <div className="space-y-2">
+              {credentials.map((cred, idx) => (
+                <CredentialRow
+                  key={idx}
+                  cred={cred}
+                  onRemove={() => {
+                    const next = credentials.filter((_, i) => i !== idx)
+                    setCredentials(next)
+                    useBotStore.getState().updateBotCredentials(bot.id, next)
+                  }}
+                />
+              ))}
+            </div>
+          )}
+          <AddCredentialForm
+            onAdd={(cred) => {
+              const next = [...credentials, cred]
+              setCredentials(next)
+              useBotStore.getState().updateBotCredentials(bot.id, next)
+            }}
+          />
+          {credentials.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                if (!window.confirm('Clear all credentials for this bot?')) return
+                setCredentials([])
+                useBotStore.getState().updateBotCredentials(bot.id, [])
+              }}
+              className="text-xs text-[var(--color-danger)] hover:underline"
+            >
+              Clear all credentials
+            </button>
+          )}
         </div>
       </section>
       <section>

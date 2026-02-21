@@ -145,6 +145,21 @@ export interface IChatMessage {
   }
 }
 
+/**
+ * A named credential the bot can use when interacting with external services,
+ * e.g. `{ key: 'email', value: 'user@example.com', masked: false }` or
+ * `{ key: 'password', value: 's3cr3t', masked: true }`.
+ * Stored in localStorage only — never sent to the server.
+ */
+export interface IBotCredential {
+  /** Human-readable key name, e.g. "email", "password", "auth_token". */
+  key: string
+  /** The credential value. */
+  value: string
+  /** When true the value is hidden behind ••• in the UI by default. */
+  masked: boolean
+}
+
 /** A bot as presented by the desktop UI — may be local-only or cloud-backed. */
 export interface IDesktopBot {
   id: string
@@ -166,6 +181,11 @@ export interface IDesktopBot {
    * When undefined the app-wide provider from Settings › API Keys is used.
    */
   aiProvider?: string
+  /**
+   * Named credentials (e.g. login email/password, API tokens) the bot needs to
+   * interact with external services. Stored locally only — never sent to the server.
+   */
+  credentials?: IBotCredential[]
 }
 
 /** A run record — may live in localStorage or be fetched from the server. */
@@ -237,6 +257,8 @@ interface IBotStore {
   loadRuns(botId: string): Promise<void>
   /** Update editable fields of a bot (name, description, apiKey). Local-only for now. */
   updateBot(id: string, patch: Partial<Pick<IDesktopBot, 'name' | 'description' | 'apiKey' | 'aiProvider'>>): Promise<void>
+  /** Replace all credentials for a bot and persist locally. */
+  updateBotCredentials(id: string, credentials: IBotCredential[]): void
   /**
    * Cancel any active run for the bot — sets its status to 'cancelled' and
    * removes the bot from the running set so the UI unlocks immediately.
@@ -742,6 +764,12 @@ ${preview}`,
     writeBots(bots)
     set({ bots })
     return Promise.resolve()
+  },
+
+  updateBotCredentials: (id, credentials) => {
+    const bots = get().bots.map((b) => (b.id === id ? { ...b, credentials } : b))
+    writeBots(bots)
+    set({ bots })
   },
 
   stopBot: (id) => {
