@@ -20,14 +20,14 @@ import {
   type IBotRun,
   type IDevice,
   type IDeviceMetrics,
-  type IMiniApp,
+  type IMarketplaceBot,
 } from '../lib/api-client.js'
-import { MiniAppPanel } from '../components/miniapps/MiniAppPanel.js'
+import { BotPanel } from '../components/bots/BotPanel.js'
 import { useDeviceStore } from '../store/device-store.js'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
-type ActiveTab = 'overview' | 'activity' | 'miniapps' | 'info'
+type ActiveTab = 'overview' | 'activity' | 'bots' | 'info'
 type RunFilter = 'all' | 'pending' | 'running' | 'completed' | 'failed'
 
 interface IRunEntry extends IBotRun {
@@ -516,72 +516,70 @@ function InfoTab({ device, runs, bots }: IInfoTabProps): React.JSX.Element {
   )
 }
 
-// ─── Mini Apps tab ─────────────────────────────────────────────────────────────
+// ─── Bots tab ──────────────────────────────────────────────────────────────────
 
-interface IMiniAppsTabProps {
-  apps: IMiniApp[]
-  bots: IBot[]
-  selectedApp: IMiniApp | null
-  onSelectApp: (app: IMiniApp | null) => void
+interface IBotsTabProps {
+  installedBots: IMarketplaceBot[]
+  workerBots: IBot[]
+  selectedBot: IMarketplaceBot | null
+  onSelectBot: (bot: IMarketplaceBot | null) => void
 }
 
-function MiniAppsTab({ apps, bots, selectedApp, onSelectApp }: IMiniAppsTabProps): React.JSX.Element {
-  // When an app is selected, show its full UI panel
-  if (selectedApp !== null) {
+function BotsTab({ installedBots, workerBots, selectedBot, onSelectBot }: IBotsTabProps): React.JSX.Element {
+  if (selectedBot !== null) {
     return (
-      <div className="-mx-6 -my-0 flex h-[calc(100vh-200px)] flex-col">
-        <MiniAppPanel app={selectedApp} bots={bots} onBack={() => { onSelectApp(null) }} />
+      <div className="flex h-full flex-col overflow-hidden">
+        <BotPanel
+          bot={selectedBot}
+          workerBots={workerBots}
+          onBack={() => { onSelectBot(null) }}
+        />
       </div>
     )
   }
 
-  // App grid
-  if (apps.length === 0) {
+  if (installedBots.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-[var(--color-border)] p-12 text-center">
-        <p className="text-3xl">🧩</p>
-        <p className="mt-3 text-sm font-medium text-[var(--color-text-secondary)]">No mini apps installed</p>
-        <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-          Visit the Marketplace to discover and install apps.
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 p-10 text-center">
+        <span className="text-4xl">🤖</span>
+        <p className="text-sm font-medium text-[var(--color-text-primary)]">No bots installed on this device</p>
+        <p className="text-xs text-[var(--color-text-secondary)]">
+          Browse the Bot Marketplace to find and install bots.
         </p>
       </div>
     )
   }
 
   return (
-    <div>
-      <p className="mb-4 text-xs text-[var(--color-text-muted)]">
-        {String(apps.length)} app{apps.length !== 1 ? 's' : ''} installed · click to open
-      </p>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        {apps.map((app) => (
-          <button
-            key={app.id}
-            onClick={() => { onSelectApp(app) }}
-            className="group flex flex-col items-start gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-left transition-all hover:border-[var(--color-accent)]/60 hover:bg-[var(--color-surface-2)]"
+    <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-4">
+      {installedBots.map((bot) => (
+        <button
+          key={bot.id}
+          onClick={() => { onSelectBot(bot) }}
+          className="flex items-center gap-4 rounded-xl border border-[var(--color-border)]
+                     bg-[var(--color-surface)] px-5 py-4 text-left transition-colors
+                     hover:border-[var(--color-accent)]/40"
+        >
+          {bot.icon_url !== undefined ? (
+            <img src={bot.icon_url} alt="" className="h-10 w-10 shrink-0 rounded-xl object-cover" />
+          ) : (
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--color-surface-2)] text-xl">
+              🤖
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-[var(--color-text-primary)]">{bot.name}</p>
+            <p className="truncate text-xs text-[var(--color-text-secondary)]">{bot.description}</p>
+          </div>
+          <svg
+            width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+            className="shrink-0 text-[var(--color-text-muted)]"
           >
-            {app.icon_url ? (
-              <img src={app.icon_url} alt="" className="h-10 w-10 rounded-xl object-cover" />
-            ) : (
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--color-surface-2)] text-xl group-hover:bg-[var(--color-border)]">
-                🧩
-              </div>
-            )}
-            <div className="min-w-0 w-full">
-              <p className="truncate text-sm font-semibold text-[var(--color-text-primary)]">{app.name}</p>
-              <p className="mt-0.5 line-clamp-2 text-xs text-[var(--color-text-muted)]">{app.description}</p>
-            </div>
-            <div className="flex w-full items-center justify-between">
-              <span className="rounded-full bg-[var(--color-surface-2)] px-2 py-0.5 text-[10px] text-[var(--color-text-muted)]">
-                {app.category}
-              </span>
-              <span className="text-[10px] text-[var(--color-text-muted)] opacity-0 transition-opacity group-hover:opacity-100">
-                Open →
-              </span>
-            </div>
-          </button>
-        ))}
-      </div>
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
+      ))}
     </div>
   )
 }
@@ -597,8 +595,8 @@ export function MachineDetailPage(): React.JSX.Element {
   const [bots, setBots] = useState<IBot[]>([])
   const [runs, setRuns] = useState<IRunEntry[]>([])
   const [metrics, setMetrics] = useState<IDeviceMetrics | null>(null)
-  const [installedApps, setInstalledApps] = useState<IMiniApp[]>([])
-  const [selectedApp, setSelectedApp] = useState<IMiniApp | null>(null)
+  const [installedBots, setInstalledBots] = useState<IMarketplaceBot[]>([])
+  const [selectedMarketplaceBot, setSelectedMarketplaceBot] = useState<IMarketplaceBot | null>(null)
   const [selectedBotId, setSelectedBotId] = useState<string>('')
   const [dispatching, setDispatching] = useState(false)
   const [heartbeating, setHeartbeating] = useState(false)
@@ -628,12 +626,12 @@ export function MachineDetailPage(): React.JSX.Element {
       setError(null)
       try {
         await useDeviceStore.getState().fetchDevices()
-        const [botList, apps] = await Promise.all([
+        const [botList, marketplaceBots] = await Promise.all([
           botsApi.list(),
-          marketplaceApi.getInstalled().catch(() => [] as IMiniApp[]),
+          marketplaceApi.getInstalled().catch(() => [] as IMarketplaceBot[]),
         ])
         setBots(botList)
-        setInstalledApps(apps)
+        setInstalledBots(marketplaceBots)
         if (botList.length > 0 && botList[0] !== undefined) {
           setSelectedBotId(botList[0].id)
         }
@@ -717,7 +715,7 @@ export function MachineDetailPage(): React.JSX.Element {
   const tabs: { id: ActiveTab; label: string; badge?: number }[] = [
     { id: 'overview',  label: 'Overview' },
     { id: 'activity',  label: 'Activity', ...(activeRunCount > 0 ? { badge: activeRunCount } : {}) },
-    { id: 'miniapps',  label: 'Mini Apps', ...(installedApps.length > 0 ? { badge: installedApps.length } : {}) },
+    { id: 'bots',      label: 'Bots', ...(installedBots.length > 0 ? { badge: installedBots.length } : {}) },
     { id: 'info',      label: 'Info' },
   ]
 
@@ -771,12 +769,12 @@ export function MachineDetailPage(): React.JSX.Element {
         <ActivityTab runs={runs} refreshedAt={refreshedAt} />
       )}
 
-      {activeTab === 'miniapps' && (
-        <MiniAppsTab
-          apps={installedApps}
-          bots={bots}
-          selectedApp={selectedApp}
-          onSelectApp={setSelectedApp}
+      {activeTab === 'bots' && (
+        <BotsTab
+          installedBots={installedBots}
+          workerBots={bots}
+          selectedBot={selectedMarketplaceBot}
+          onSelectBot={setSelectedMarketplaceBot}
         />
       )}
 

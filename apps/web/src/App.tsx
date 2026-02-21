@@ -13,8 +13,6 @@ import { DashboardPage } from './pages/DashboardPage.js'
 import { DevicesPage } from './pages/DevicesPage.js'
 import { MarketplacePage } from './pages/MarketplacePage.js'
 import { MarketplaceDetailPage } from './pages/MarketplaceDetailPage.js'
-import { WorkspacesPage } from './pages/WorkspacesPage.js'
-import { WorkspaceDetailPage } from './pages/WorkspaceDetailPage.js'
 import { SettingsPage } from './pages/SettingsPage.js'
 import { SubscriptionPage } from './pages/SubscriptionPage.js'
 import { MachineDetailPage } from './pages/MachineDetailPage.js'
@@ -33,10 +31,9 @@ function RequireAuth({ children }: { children: React.ReactNode }): React.JSX.Ele
 
 const NAV_ITEMS = [
   { to: '/dashboard', icon: '🏠', label: 'Dashboard' },
-  { to: '/devices', icon: '💻', label: 'Devices' },
-  { to: '/marketplace', icon: '📦', label: 'Marketplace' },
-  { to: '/workspaces', icon: '🗂️', label: 'Workspaces' },
-  { to: '/bots', icon: '🤖', label: 'Bots' },
+  { to: '/devices',   icon: '💻', label: 'Devices' },
+  { to: '/marketplace', icon: '🤖', label: 'Marketplace' },
+  { to: '/bots',      icon: '⚙️', label: 'My Bots' },
 ]
 
 function Layout(): React.JSX.Element {
@@ -155,8 +152,6 @@ function Layout(): React.JSX.Element {
           <Route path="/devices/:deviceId" element={<MachineDetailPage />} />
           <Route path="/marketplace" element={<MarketplacePage />} />
           <Route path="/marketplace/:appId" element={<MarketplaceDetailPage />} />
-          <Route path="/workspaces" element={<WorkspacesPage />} />
-          <Route path="/workspaces/:workspaceId" element={<WorkspaceDetailPage />} />
           <Route path="/bots" element={<BotListPage />} />
           <Route path="/bots/:botId" element={<BotDetailPage />} />
           <Route path="/subscription" element={<SubscriptionPage />} />

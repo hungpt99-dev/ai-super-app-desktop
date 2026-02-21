@@ -1,31 +1,30 @@
 /**
  * bot-worker.ts
  *
- * Utility for dispatching work to a Mini-App's Bot Worker and polling for the
- * result.
+ * Utility for dispatching work to a Bot's Worker and polling for the result.
  *
  * Architecture:
- *   Each Mini-App is backed by a dedicated Bot Worker running on the Desktop
- *   Agent. The Web UI sends a structured JSON input to the bot, the bot
- *   executes the task (calls tools / AI), then posts the result back via
+ *   Each marketplace bot is backed by a dedicated Bot Worker running on the
+ *   Desktop Agent. The Web UI sends a structured JSON input to the bot, the
+ *   bot executes the task (calls tools / AI), then posts the result back via
  *   botsApi.updateRun(). The Web polls until the run is complete.
  *
  * Flow:
  *   1. Web calls runBotTask(botId, inputJSON)
  *   2. botsApi.start() creates a run and returns run_id
- *   3. Desktop Agent Bot Worker picks up the run, executes the Mini-App tool
+ *   3. Desktop Agent Bot Worker picks up the run and executes the bot's tool
  *   4. Bot Worker posts result via botsApi.updateRun(runId, 'completed', …)
  *   5. runBotTask polls botsApi.getRuns() until the run is completed
- *   6. Parsed result is returned to the Mini-App panel
+ *   6. Parsed result is returned to the Bot panel
  *
  * Fallback:
  *   If the Bot Worker is offline or the run times out (BOT_TIMEOUT_MS),
  *   runBotTask throws an Error with code 'BOT_TIMEOUT' or 'BOT_FAILED'.
  *   Each panel catches this and falls back to local computation, showing a
- *   "Local" mode indicator to the user.
+ *   “Local” mode indicator to the user.
  */
 
-import { botsApi, type IBot, type IMiniApp } from '../../lib/api-client.js'
+import { botsApi, type IBot, type IMarketplaceBot } from '../../lib/api-client.js'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -81,29 +80,29 @@ export async function runBotTask<T>(botId: string, input: string): Promise<T> {
   throw new Error('BOT_TIMEOUT')
 }
 
-// ─── Bot ↔ App matching ───────────────────────────────────────────────────────
+// ─── Bot ↔ Marketplace Bot matching ──────────────────────────────────────────
 
 /**
- * Finds the bot worker that powers a given mini app.
+ * Finds the automation bot worker that powers a given marketplace bot.
  *
  * Matching strategy (in order):
  *   1. Exact normalized name match  (e.g. "Crypto Tracker" ↔ "crypto tracker")
  *   2. Slug match                   (e.g. "crypto-tracker" ↔ "crypto tracker")
- *   3. Substring containment        (bot name ⊆ app name or vice versa)
+ *   3. Substring containment        (worker name ⊆ bot name or vice versa)
  */
-export function findBotForApp(app: IMiniApp, bots: IBot[]): IBot | undefined {
+export function findBotForApp(marketplaceBot: IMarketplaceBot, workerBots: IBot[]): IBot | undefined {
   const norm = (s: string) => s.toLowerCase().replace(/[-_\s]+/g, ' ').trim()
-  const appName = norm(app.name)
-  const appSlug = norm(app.slug)
+  const botName = norm(marketplaceBot.name)
+  const botSlug = norm(marketplaceBot.slug)
 
-  return bots.find((b) => {
-    const botName = norm(b.name)
+  return workerBots.find((w) => {
+    const workerName = norm(w.name)
     return (
-      botName === appName ||
-      botName === appSlug ||
-      botName.includes(appSlug) ||
-      appSlug.includes(botName) ||
-      appName.includes(botName)
+      workerName === botName ||
+      workerName === botSlug ||
+      workerName.includes(botSlug) ||
+      botSlug.includes(workerName) ||
+      botName.includes(workerName)
     )
   })
 }

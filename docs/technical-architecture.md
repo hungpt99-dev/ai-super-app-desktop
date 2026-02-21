@@ -1,4 +1,4 @@
-## Model: Web UI + Desktop Execution + Community Mini-App Ecosystem (BYOK)
+## Model: Web UI + Desktop Execution + Community Bot Ecosystem (BYOK)
 
 ---
 
@@ -10,7 +10,7 @@
 2. Desktop = Execution authority
 3. Cloud = Stateless relay
 4. AI keys = Stored locally only
-5. Mini-Apps = Sandbox executed
+5. Bots = Sandbox executed
 6. Community contributions = Signed + permission-based
 
 ---
@@ -51,9 +51,8 @@
 
 ## Responsibilities
 
-- Render Mini-App UI
+- Render Bot UI
 - User authentication
-- Workspace management
 - Marketplace browsing
 - Install requests
 - Action dispatch
@@ -61,7 +60,7 @@
 
 ## Does NOT
 
-- Execute Mini-App logic
+- Execute Bot logic
 - Access AI keys
 - Execute tools
 
@@ -76,7 +75,7 @@
 - Device status
 - Subscription display
 
-### Mini-App UI Renderer
+### Bot UI Renderer
 
 - Parses `ui-schema.json`
 - Dynamically builds UI components
@@ -143,14 +142,14 @@ version
 
 ### 4️⃣ Marketplace Service
 
-- Mini-App metadata
+- Bot metadata
 - Version management
 - Ratings
 - Download URLs
 
 ### 5️⃣ Developer Portal Service
 
-- Mini-App submission
+- Bot submission
 - Static code scan
 - Signature generation
 
@@ -161,7 +160,7 @@ version
 - Node.js (Fastify)
 - Redis (Pub/Sub + device map)
 - PostgreSQL (metadata storage)
-- Object Storage (Mini-App bundles)
+- Object Storage (Bot bundles)
 - Load Balancer
 - Containerized deployment
 
@@ -179,7 +178,7 @@ Desktop is the execution core.
 Desktop Runtime
  ├── Connection Manager
  ├── Execution Engine
- ├── Mini-App Manager
+ ├── Bot Manager
  ├── AI Adapter Layer
  ├── Tool Registry
  ├── Permission Manager
@@ -198,22 +197,22 @@ Desktop Runtime
 
 ---
 
-# 3.3 Mini-App Manager
+# 3.3 Bot Manager
 
 Responsibilities:
 
-- Install Mini-App
+- Install Bot
 - Verify signature
 - Extract bundle
 - Maintain version registry
 - Enable/disable apps
-- Register each Mini-App's dedicated **Bot Worker** with the Bot registry
+- Register each Bot's dedicated **Bot Worker** with the Bot registry
 
 Local structure:
 
 ```
 ~/aisuperapp/
-  miniapps/
+  bots/
     seo-writer/
       v1.0.0/
         bot-logic.js
@@ -224,7 +223,7 @@ Local structure:
 
 ## 3.3.1 Bot Worker Model
 
-Every installed Mini-App is backed by a dedicated **Bot Worker** running on the Desktop Agent. The Web UI never executes logic directly — it dispatches a structured JSON task to the bot and polls for the result.
+Every installed Bot is backed by a dedicated **Bot Worker** running on the Desktop Agent. The Web UI never executes logic directly — it dispatches a structured JSON task to the bot and polls for the result.
 
 ```
 Web UI (Control Tower)
@@ -235,7 +234,7 @@ Cloud Relay API
   │  run queued
   │
   ▼
-Desktop Agent — Bot Worker (per Mini-App)
+Desktop Agent — Bot Worker (per Bot)
   │  executes task: tools, AI calls, data fetch
   │  botsApi.updateRun(runId, 'completed', steps, resultJSON)
   │
@@ -245,21 +244,21 @@ Cloud Relay API
   │
   ▼
 Web UI (polls botsApi.getRuns)
-  └─ parse run.result → render in Mini-App panel
+  └─ parse run.result → render in Bot panel
 ```
 
 ### Dispatch protocol
 
 1. Web calls `POST /v1/bots/{botId}/runs` with body `{ input: string }` (JSON-stringified task)
 2. Desktop Agent Bot Worker claims the run from the queue
-3. Worker executes the Mini-App task (tool calls, AI inference, external API)
+3. Worker executes the Bot task (tool calls, AI inference, external API)
 4. Worker posts result via `PUT /v1/bots/{botId}/runs/{runId}` with `{ status: 'completed', result: string }`
 5. Web polls `GET /v1/bots/{botId}/runs` (every 1.5 s, timeout 15 s)
-6. Web JSON-parses `run.result` and renders it in the Mini-App panel
+6. Web JSON-parses `run.result` and renders it in the Bot panel
 
-### Input/output contracts per built-in Mini-App
+### Input/output contracts per built-in Bot
 
-| Mini-App | Bot input type | Bot output shape |
+| Bot | Bot input type | Bot output shape |
 |---|---|---|
 | Crypto Tracker | `{ type: 'get_market_data', symbol: string }` | `IMarketData` |
 | Writing Helper | `{ type: 'process_writing', text, action, tone, targetLanguage? }` | `{ result: string; tokensUsed: number }` |
@@ -276,12 +275,12 @@ If the Desktop Agent is offline or the bot run times out, the Web UI degrades gr
 
 # 3.4 Execution Engine
 
-The Desktop Agent's Execution Engine hosts and runs Bot Workers — one per installed Mini-App.
+The Desktop Agent's Execution Engine hosts and runs Bot Workers — one per installed Bot.
 
 ### Bot Worker lifecycle
 
-1. Mini-App is installed → a Bot entity is created and registered
-2. Desktop Agent starts → all active Mini-App bots are brought online
+1. Bot is installed → a Bot entity is created and registered
+2. Desktop Agent starts → all active Bot bots are brought online
 3. Web dispatches a run → Bot Worker picks it up from the Cloud Relay queue
 4. Worker spawns a sandboxed Worker Thread for the task
 5. Worker executes (tool calls, AI inference, external data fetch)
@@ -293,7 +292,7 @@ The Desktop Agent's Execution Engine hosts and runs Bot Workers — one per inst
 
 1. Receive EXECUTE_ACTION
 2. Validate device ownership
-3. Load Mini-App module
+3. Load Bot module
 4. Spawn sandbox worker
 5. Inject runtime context
 6. Execute action
@@ -304,7 +303,7 @@ The Desktop Agent's Execution Engine hosts and runs Bot Workers — one per inst
 
 # 3.5 Sandbox Architecture
 
-Mini-App code never runs in main process.
+Bot code never runs in main process.
 
 ## Execution Model
 
@@ -360,9 +359,9 @@ AI keys:
 
 - Stored encrypted
 - OS keychain preferred
-- Never exposed to Mini-App
+- Never exposed to Bot
 
-Mini-App calls:
+Bot calls:
 
 ```tsx
 context.ai.generateText()
@@ -384,7 +383,7 @@ Examples:
 - CSVParser
 - PDFParser
 
-Mini-App cannot access system directly.
+Bot cannot access system directly.
 
 Must use:
 
@@ -398,7 +397,7 @@ Permission checked before execution.
 
 # 3.8 Permission Model
 
-Each Mini-App declares:
+Each Bot declares:
 
 ```json
 {
@@ -420,7 +419,7 @@ Install flow:
 
 ---
 
-# 4. Mini-App Package Specification
+# 4. Bot Package Specification
 
 ---
 
@@ -506,7 +505,7 @@ Desktop → Web:
 
 # 6.1 Threat Model
 
-### 1️⃣ Malicious Mini-App
+### 1️⃣ Malicious Bot
 
 Mitigation:
 
@@ -572,7 +571,7 @@ last_seen
 version
 ```
 
-## MiniApps
+## Bots
 
 ```
 id
@@ -583,11 +582,11 @@ category
 rating
 ```
 
-## MiniAppVersions
+## BotVersions
 
 ```
 id
-miniapp_id
+bot_id
 version
 bundle_url
 checksum
@@ -633,7 +632,7 @@ created_at
 
 - Local logs
 - Crash reporting (opt-in)
-- Mini-App execution time
+- Bot execution time
 
 ---
 
@@ -656,7 +655,7 @@ AI cost risk = zero.
 
 # 11. Versioning Strategy
 
-- Semantic versioning for Mini-App
+- Semantic versioning for Bot
 - Backward-compatible message protocol
 - Web and Desktop version independent
 - Runtime compatibility matrix
@@ -670,7 +669,7 @@ AI cost risk = zero.
 - Enterprise on-prem relay
 - Team shared runtime
 - Automation workflow builder
-- Advanced Mini-App monetization
+- Advanced Bot monetization
 
 ---
 

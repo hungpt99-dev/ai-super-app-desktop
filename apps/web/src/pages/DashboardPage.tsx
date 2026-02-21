@@ -1,11 +1,10 @@
 /**
- * DashboardPage.tsx — overview of devices, installed apps, recent workspaces, usage.
+ * DashboardPage.tsx — overview of devices, installed bots, and activity.
  */
 
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '../store/auth-store.js'
-import { useWorkspaceStore } from '../store/workspace-store.js'
 import { statsApi, type IPlatformStats } from '../lib/api-client.js'
 
 interface IStatCardProps {
@@ -36,15 +35,11 @@ function StatCard({ label, value, icon, to }: IStatCardProps): React.JSX.Element
 
 export function DashboardPage(): React.JSX.Element {
   const { user } = useAuthStore()
-  const { workspaces, fetchWorkspaces } = useWorkspaceStore()
   const [stats, setStats] = useState<IPlatformStats | null>(null)
 
   useEffect(() => {
-    void fetchWorkspaces()
     statsApi.get().then(setStats).catch(() => null)
-  }, [fetchWorkspaces])
-
-  const recentWorkspaces = workspaces.slice(0, 5)
+  }, [])
 
   return (
     <div className="flex h-full flex-col overflow-y-auto p-6">
@@ -67,79 +62,30 @@ export function DashboardPage(): React.JSX.Element {
           to="/devices"
         />
         <StatCard
-          icon="📦"
-          label="Apps installed"
+          icon="🤖"
+          label="Bots installed"
           value={stats?.total_installs ?? '–'}
           to="/marketplace"
         />
         <StatCard
-          icon="🗂️"
-          label="Workspaces"
-          value={stats?.total_workspaces ?? workspaces.length}
-          to="/workspaces"
+          icon="⚙️"
+          label="My bots"
+          value={stats?.total_bots ?? '–'}
+          to="/bots"
         />
         <StatCard
-          icon="🤖"
+          icon="▶️"
           label="Bot runs"
           value={stats?.total_bot_runs ?? '–'}
           to="/bots"
         />
       </div>
 
-      {/* Recent workspaces */}
-      <div className="mb-8">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">
-            Recent workspaces
-          </h2>
-          <Link
-            to="/workspaces"
-            className="text-xs text-[var(--color-accent)] hover:underline"
-          >
-            View all →
-          </Link>
-        </div>
-
-        {recentWorkspaces.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-[var(--color-border)] p-8 text-center">
-            <p className="text-sm text-[var(--color-text-secondary)]">No workspaces yet.</p>
-            <Link
-              to="/workspaces"
-              className="mt-2 inline-block text-xs text-[var(--color-accent)] hover:underline"
-            >
-              Create one →
-            </Link>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {recentWorkspaces.map((ws) => (
-              <Link
-                key={ws.id}
-                to={`/workspaces/${ws.id}`}
-                className="flex items-center justify-between rounded-lg border border-[var(--color-border)]
-                           bg-[var(--color-surface)] px-4 py-3 transition-colors
-                           hover:border-[var(--color-accent)]/40"
-              >
-                <div>
-                  <p className="text-sm font-medium text-[var(--color-text-primary)]">{ws.name}</p>
-                  <p className="text-xs text-[var(--color-text-secondary)]">
-                    {ws.app_name ?? 'No app'}
-                  </p>
-                </div>
-                <span className="text-xs text-[var(--color-text-muted)]">
-                  {new Date(ws.updated_at).toLocaleDateString()}
-                </span>
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
-
       {/* Quick links */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
-          { to: '/marketplace', icon: '📦', label: 'Browse marketplace' },
-          { to: '/bots', icon: '🤖', label: 'Manage bots' },
+          { to: '/marketplace', icon: '🤖', label: 'Browse Bot Marketplace' },
+          { to: '/bots', icon: '⚙️', label: 'Manage my bots' },
           { to: '/devices', icon: '💻', label: 'Devices' },
           { to: '/subscription', icon: '⭐', label: `${user?.plan ?? 'free'} plan` },
         ].map(({ to, icon, label }) => (

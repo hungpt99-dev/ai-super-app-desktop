@@ -54,13 +54,18 @@ export interface IDevice {
   registered_at: string
 }
 
-export interface IMiniApp {
+/**
+ * A bot published in the Marketplace.
+ * Developers create and publish bots; users install them on their devices.
+ */
+export interface IMarketplaceBot {
   id: string
   slug: string
   name: string
   description: string
   category: string
   developer: string
+  developer_id?: string
   version: string
   icon_url: string
   rating: number
@@ -70,27 +75,6 @@ export interface IMiniApp {
   permissions: string[]
   changelog: string
   installed: boolean
-}
-
-export interface IWorkspace {
-  id: string
-  name: string
-  app_id: string
-  app_name: string
-  app_slug: string
-  created_at: string
-  updated_at: string
-}
-
-export interface IWorkspaceRun {
-  id: string
-  workspace_id: string
-  input: string
-  output: string
-  status: 'running' | 'completed' | 'failed'
-  tokens_used: number
-  model: string
-  created_at: string
 }
 
 export interface IBot {
@@ -319,62 +303,27 @@ async function fetchDeviceMetrics(id: string): Promise<IDeviceMetrics | null> {
 
 // ── Marketplace ───────────────────────────────────────────────────────────────
 
+/** Browse, install and uninstall bots from the Marketplace. */
 export const marketplaceApi = {
-  list: (query = '', category = ''): Promise<IMiniApp[]> => {
+  list: (query = '', category = ''): Promise<IMarketplaceBot[]> => {
     const params = new URLSearchParams()
     if (query) params.set('q', query)
     if (category && category !== 'all') params.set('category', category)
     const qs = params.toString()
-    return request<IMiniApp[]>('GET', `/v1/marketplace${qs ? `?${qs}` : ''}`)
+    return request<IMarketplaceBot[]>('GET', `/v1/marketplace${qs ? `?${qs}` : ''}`)
   },
 
-  get: (idOrSlug: string): Promise<IMiniApp> =>
-    request<IMiniApp>('GET', `/v1/marketplace/${idOrSlug}`),
+  get: (idOrSlug: string): Promise<IMarketplaceBot> =>
+    request<IMarketplaceBot>('GET', `/v1/marketplace/${idOrSlug}`),
 
-  getInstalled: (): Promise<IMiniApp[]> =>
-    request<IMiniApp[]>('GET', '/v1/marketplace/installed'),
+  getInstalled: (): Promise<IMarketplaceBot[]> =>
+    request<IMarketplaceBot[]>('GET', '/v1/marketplace/installed'),
 
   install: (appId: string): Promise<void> =>
     request<void>('POST', `/v1/marketplace/${appId}/install`),
 
   uninstall: (appId: string): Promise<void> =>
     request<void>('DELETE', `/v1/marketplace/${appId}/install`),
-}
-
-// ── Workspaces ────────────────────────────────────────────────────────────────
-
-export const workspacesApi = {
-  list: (): Promise<IWorkspace[]> =>
-    request<IWorkspace[]>('GET', '/v1/workspaces'),
-
-  create: (name: string, appId?: string): Promise<IWorkspace> =>
-    request<IWorkspace>('POST', '/v1/workspaces', { name, app_id: appId ?? '' }),
-
-  get: (id: string): Promise<IWorkspace> =>
-    request<IWorkspace>('GET', `/v1/workspaces/${id}`),
-
-  update: (id: string, name: string): Promise<IWorkspace> =>
-    request<IWorkspace>('PATCH', `/v1/workspaces/${id}`, { name }),
-
-  delete: (id: string): Promise<void> =>
-    request<void>('DELETE', `/v1/workspaces/${id}`),
-
-  getRuns: (id: string, limit = 50): Promise<IWorkspaceRun[]> =>
-    request<IWorkspaceRun[]>('GET', `/v1/workspaces/${id}/runs?limit=${limit}`),
-
-  saveRun: (
-    workspaceId: string,
-    input: string,
-    output: string,
-    tokensUsed: number,
-    model: string,
-  ): Promise<IWorkspaceRun> =>
-    request<IWorkspaceRun>('POST', `/v1/workspaces/${workspaceId}/runs`, {
-      input, output, tokens_used: tokensUsed, model, status: 'completed',
-    }),
-
-  getRun: (workspaceId: string, runId: string): Promise<IWorkspaceRun> =>
-    request<IWorkspaceRun>('GET', `/v1/workspaces/${workspaceId}/runs/${runId}`),
 }
 
 // ── Bots (Automation System) ──────────────────────────────────────────────────
@@ -427,7 +376,6 @@ export interface IPlatformStats {
   total_installs: number
   total_bots: number
   total_bot_runs: number
-  total_workspaces: number
 }
 
 export const statsApi = {
@@ -437,6 +385,7 @@ export const statsApi = {
 
 // ── Reviews ───────────────────────────────────────────────────────────────────
 
+/** Per-bot marketplace reviews. */
 export interface IAppReview {
   id: string
   app_id: string

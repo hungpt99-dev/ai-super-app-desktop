@@ -1,6 +1,6 @@
 ## Version: 1.0
 
-## Model: Web UI + Desktop Execution (BYOK – Bring Your Own Key)
+## Model: Web UI + Desktop Execution + Bot Marketplace (BYOK – Bring Your Own Key)
 
 ---
 
@@ -15,7 +15,7 @@ AI SuperApp is a **Web-based AI control platform** where:
 
 The system enables users to:
 
-- Run powerful AI Mini-Apps
+- Run powerful AI Bots
 - Control their AI from anywhere via web
 - Maintain full privacy and ownership
 - Avoid SaaS AI markup costs
@@ -56,7 +56,7 @@ There is no platform that combines:
 - Rich Web UI
 - Local AI execution
 - BYOK model
-- Mini-App ecosystem
+- Bot ecosystem where developers build and sell bots
 - Remote access
 
 AI SuperApp fills this gap.
@@ -114,7 +114,7 @@ AI Provider (User API Key)
 2. AI keys are never stored in cloud.
 3. Desktop handles all logic.
 4. Cloud only routes encrypted messages.
-5. Mini-App UI and logic are separated.
+5. Bot UI and Bot Worker logic are separated.
 
 ---
 
@@ -126,13 +126,13 @@ AI Provider (User API Key)
 
 ### Responsibilities
 
-- Render Mini-App UI
-- Manage workspace
+- Render Bot UI
 - Handle authentication
-- Send structured actions
+- Send structured actions to Bot Workers
 - Display streaming results
-- Show history and logs
+- Show bot history and logs
 - Manage device pairing
+- Browse and install bots from the Bot Marketplace
 
 ### Does NOT:
 
@@ -165,7 +165,7 @@ Cloud does NOT:
 
 - Store AI keys
 - Process AI prompts
-- Execute Mini-App logic
+- Execute Bot logic
 
 Optional:
 
@@ -180,7 +180,7 @@ The core of the system.
 ### Responsibilities:
 
 - Store AI API keys (encrypted locally)
-- Execute Mini-App logic
+- Execute Bot logic
 - Call AI providers
 - Execute tools
 - Access local files (with permission)
@@ -201,9 +201,9 @@ Tech stack (suggested):
 
 ---
 
-# 6. Mini-App Framework
+# 6. Bot Framework
 
-Mini-Apps are modular AI applications inside the platform. Each Mini-App is a **UI Panel + Bot Worker** pair:
+Bots are modular AI workers available in the Bot Marketplace. Developers build and publish bots; users install them on their devices. Each Bot is a **UI Panel + Bot Worker** pair:
 
 - **UI Panel** — rendered by the Web Control Tower (React component)
 - **Bot Worker** — executed by the Desktop Agent; handles AI calls, tool execution, and data fetching
@@ -220,10 +220,10 @@ Examples:
 
 ---
 
-## 6.1 Mini-App Structure
+## 6.1 Bot Structure
 
 ```
-mini-app/
+bot/
  ├── manifest.json       # name, slug, version, permissions
  ├── ui-schema.json      # Web UI layout definition
  ├── action-schema.json  # bot task input/output contracts
@@ -246,7 +246,7 @@ mini-app/
 
 ## 6.3 Permission Model
 
-Mini-App must declare:
+Bot must declare:
 
 - File system access
 - Network access
@@ -259,9 +259,9 @@ User must approve.
 
 # 7. Execution Flow
 
-### Example: "Fetch BTC market data" (Crypto Tracker Mini-App)
+### Example: "Fetch BTC market data" (Crypto Tracker Bot)
 
-1. User opens the Crypto Tracker Mini-App on the Web Control Tower.
+1. User opens the Crypto Tracker Bot on the Web Control Tower.
 2. Web renders the Crypto Panel UI.
 3. Web locates the Crypto Tracker Bot Worker (`findBotForApp`).
 4. Web calls `botsApi.start(botId, JSON.stringify({ type: 'get_market_data', symbol: 'BTC' }))`.
@@ -322,20 +322,28 @@ Pro Plan:
 
 ---
 
-## 9.2 Mini-App Marketplace
+## 9.2 Bot Marketplace
 
-Developers can publish Mini-Apps.
+Developers build and publish Bots. Users install them on their devices — each bot runs automatically, processes data, and renders its own UI on the Web Control Tower.
 
 Revenue model:
 
 - 70% Developer
 - 30% Platform
 
+Developer workflow:
+
+1. Build a Bot (UI Panel + Bot Worker)
+2. Submit to Bot Marketplace
+3. Set price (free or paid)
+4. Users install bot on their device
+5. Bot runs automatically and shows results in Web UI
+
 ---
 
 ## 9.3 Team Features (Future)
 
-- Multi-user workspace
+- Shared bot execution across team devices
 - Shared desktop runtime
 - Role permissions
 
@@ -386,7 +394,7 @@ Build only:
 - Device pairing
 - Secure relay
 - Desktop runtime
-- 2–3 Mini-Apps
+- 2–3 Bots
 - Basic subscription gate
 
 Do NOT build:
@@ -448,16 +456,18 @@ Mitigation:
 ### Phase 1 – MVP (0–3 months)
 
 - Core architecture
-- 2 Mini-Apps
+- 2–3 built-in Bots (Crypto Tracker, Writing Helper)
 - Basic auth
 - Desktop agent
+- Bot Marketplace (browse + install)
 
 ### Phase 2 – Platform (3–6 months)
 
-- Mini-App SDK
-- Developer documentation
+- Bot SDK for third-party developers
+- Developer portal + Bot submission pipeline
 - Usage analytics
 - Scheduling
+- Bot revenue sharing
 
 ### Phase 3 – Ecosystem (6–12 months)
 
@@ -477,5 +487,5 @@ AI SuperApp becomes:
 Where:
 
 - Users control their own AI runtime.
-- Developers build Mini-Apps.
+- Developers build and sell Bots in the Marketplace.
 - The platform owns the ecosystem.

@@ -4,7 +4,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { marketplaceApi, reviewsApi, type IMiniApp, type IAppReview } from '../lib/api-client.js'
+import { marketplaceApi, reviewsApi, type IMarketplaceBot, type IAppReview } from '../lib/api-client.js'
 import { useMarketplaceStore } from '../store/marketplace-store.js'
 
 // ── Reviews section ───────────────────────────────────────────────────────────
@@ -147,7 +147,7 @@ export function MarketplaceDetailPage(): React.JSX.Element {
   const navigate = useNavigate()
   const { install, uninstall } = useMarketplaceStore()
 
-  const [app, setApp] = useState<IMiniApp | null>(null)
+  const [app, setApp] = useState<IMarketplaceBot | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -157,7 +157,7 @@ export function MarketplaceDetailPage(): React.JSX.Element {
     setLoading(true)
     marketplaceApi
       .get(appId)
-      .then((a: IMiniApp) => setApp(a))
+      .then((a: IMarketplaceBot) => setApp(a))
       .catch((e: unknown) => setError((e as Error).message))
       .finally(() => setLoading(false))
   }, [appId])
@@ -191,7 +191,7 @@ export function MarketplaceDetailPage(): React.JSX.Element {
   if (error || !app) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4">
-        <p className="text-sm text-[var(--color-danger)]">{error ?? 'App not found.'}</p>
+        <p className="text-sm text-[var(--color-danger)]">{error ?? 'Bot not found.'}</p>
         <Link to="/marketplace" className="text-xs text-[var(--color-accent)] hover:underline">
           ← Back to marketplace
         </Link>
@@ -216,7 +216,7 @@ export function MarketplaceDetailPage(): React.JSX.Element {
                       bg-[var(--color-surface)] p-6">
         <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl
                         bg-[var(--color-surface-2)] text-4xl">
-          📦
+          🤖
         </div>
         <div className="flex-1">
           <h1 className="text-xl font-semibold text-[var(--color-text-primary)]">{app.name}</h1>

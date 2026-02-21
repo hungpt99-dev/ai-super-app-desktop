@@ -1,12 +1,12 @@
 /**
- * MiniAppPanel.tsx
+ * BotPanel.tsx
  *
- * Dispatcher: renders the correct full-UI panel for a given installed mini-app,
+ * Dispatcher: renders the correct full UI for a given installed marketplace bot,
  * falling back to a generic instruction panel for unknown slugs.
  */
 
 import React, { useState } from 'react'
-import { type IBot, type IMiniApp } from '../../lib/api-client.js'
+import { type IBot, type IMarketplaceBot } from '../../lib/api-client.js'
 import { findBotForApp } from './bot-worker.js'
 import { CryptoPanelWeb } from './CryptoPanelWeb.js'
 import { WritingHelperPanelWeb } from './WritingHelperPanelWeb.js'
@@ -14,11 +14,11 @@ import { WritingHelperPanelWeb } from './WritingHelperPanelWeb.js'
 // ─── Generic fallback panel ───────────────────────────────────────────────────
 
 interface IGenericPanelProps {
-  app: IMiniApp
+  bot: IMarketplaceBot
   onBack: () => void
 }
 
-function GenericAppPanel({ app, onBack }: IGenericPanelProps): React.JSX.Element {
+function GenericBotPanel({ bot, onBack }: IGenericPanelProps): React.JSX.Element {
   const [instruction, setInstruction] = useState('')
   const [sent, setSent] = useState(false)
 
@@ -41,25 +41,25 @@ function GenericAppPanel({ app, onBack }: IGenericPanelProps): React.JSX.Element
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
-        {app.icon_url ? (
-          <img src={app.icon_url} alt="" className="h-8 w-8 rounded-lg object-cover" />
+        {bot.icon_url ? (
+          <img src={bot.icon_url} alt="" className="h-8 w-8 rounded-lg object-cover" />
         ) : (
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--color-surface-2)] text-base">
-            🧩
+            🤖
           </div>
         )}
         <div>
-          <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">{app.name}</h2>
-          <p className="text-xs text-[var(--color-text-muted)]">{app.description}</p>
+          <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">{bot.name}</h2>
+          <p className="text-xs text-[var(--color-text-muted)]">{bot.description}</p>
         </div>
       </div>
 
       <div className="flex flex-1 flex-col p-6">
-        <p className="mb-2 text-xs font-medium text-[var(--color-text-muted)]">Send instruction to agent</p>
+        <p className="mb-2 text-xs font-medium text-[var(--color-text-muted)]">Send instruction to bot</p>
         <textarea
           value={instruction}
           onChange={(e) => { setInstruction(e.target.value) }}
-          placeholder={`Tell ${app.name} what to do…`}
+          placeholder={`Tell ${bot.name} what to do…`}
           rows={4}
           className="mb-3 resize-none rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-sm leading-relaxed text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none transition-colors focus:border-[var(--color-accent)]"
         />
@@ -77,31 +77,31 @@ function GenericAppPanel({ app, onBack }: IGenericPanelProps): React.JSX.Element
 
 // ─── Main dispatcher ──────────────────────────────────────────────────────────
 
-interface IMiniAppPanelProps {
-  app: IMiniApp
-  /** Full list of bots for this machine — used to find the matching bot worker. */
-  bots: IBot[]
+interface IBotPanelProps {
+  bot: IMarketplaceBot
+  /** Full list of automation bot workers for this machine — used to find the matching worker. */
+  workerBots: IBot[]
   onBack: () => void
 }
 
 /**
- * MiniAppPanel — selects the correct rich UI based on `app.slug`.
+ * BotPanel — selects the correct rich UI based on `bot.slug`.
  * Known slugs: `crypto-tracker`, `writing-helper`.
  * All others fall back to a generic instruction panel.
  *
  * The matching bot worker (if any) is resolved via `findBotForApp` and passed
  * down so each panel can dispatch work to the Desktop Agent.
  */
-export function MiniAppPanel({ app, bots, onBack }: IMiniAppPanelProps): React.JSX.Element {
-  const bot = findBotForApp(app, bots)
+export function BotPanel({ bot, workerBots, onBack }: IBotPanelProps): React.JSX.Element {
+  const worker = findBotForApp(bot, workerBots)
 
-  if (app.slug === 'crypto-tracker') {
-    return <CryptoPanelWeb {...(bot !== undefined ? { bot } : {})} onBack={onBack} />
+  if (bot.slug === 'crypto-tracker') {
+    return <CryptoPanelWeb {...(worker !== undefined ? { bot: worker } : {})} onBack={onBack} />
   }
 
-  if (app.slug === 'writing-helper') {
-    return <WritingHelperPanelWeb {...(bot !== undefined ? { bot } : {})} onBack={onBack} />
+  if (bot.slug === 'writing-helper') {
+    return <WritingHelperPanelWeb {...(worker !== undefined ? { bot: worker } : {})} onBack={onBack} />
   }
 
-  return <GenericAppPanel app={app} onBack={onBack} />
+  return <GenericBotPanel bot={bot} onBack={onBack} />
 }
