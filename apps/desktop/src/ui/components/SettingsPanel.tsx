@@ -13,7 +13,7 @@ type SettingsTab = 'appearance' | 'notifications' | 'privacy' | 'permissions' | 
 const KEYBOARD_SHORTCUTS: { key: string; description: string; group: string }[] = [
   { group: 'Navigation', key: '⌘ 1',     description: 'Go to Chat' },
   { group: 'Navigation', key: '⌘ 2',     description: 'Go to Bots' },
-  { group: 'Navigation', key: '⌘ 3',     description: 'Go to Mini-App Store' },
+  { group: 'Navigation', key: '⌘ 3',     description: 'Go to Activity' },
   { group: 'Navigation', key: '⌘ ,',     description: 'Open Settings' },
   { group: 'Chat',       key: 'Enter',   description: 'Send message' },
   { group: 'Chat',       key: '⇧ Enter', description: 'New line in chat' },
@@ -314,8 +314,8 @@ function NotificationsTab(): React.JSX.Element {
           />
           <SettingRow
             icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>}
-            label="Mini-app notifications"
-            description="Allow mini-apps to send in-app toast notifications"
+            label="Bot notifications"
+            description="Allow bots to send in-app toast notifications"
             control={<Toggle checked={moduleNotifs} onChange={setModuleNotifs} />}
           />
           <SettingRow
@@ -436,7 +436,7 @@ function PrivacyTab(): React.JSX.Element {
           <SettingRow
             icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>}
             label="Module sandboxing"
-            description="All mini-apps run in an isolated permission-enforced sandbox"
+            description="All bots run in an isolated permission-enforced sandbox"
             control={<Badge variant="success">Enabled</Badge>}
             border={false}
           />
@@ -466,7 +466,7 @@ function PermissionsTab(): React.JSX.Element {
             <p className="text-xs font-semibold text-[var(--color-text-primary)]">How permissions work</p>
             <p className="mt-1 text-[11px] leading-relaxed text-[var(--color-text-muted)]">
               Standard permissions (AI, storage, notifications) are approved automatically.
-              High-risk permissions (shell commands, file system) require your explicit approval each time a new mini-app is installed.
+              High-risk permissions (shell commands, file system) require your explicit approval each time a new bot is activated.
               Resetting a module clears its saved choice — you will be prompted again on next launch.
             </p>
           </div>
@@ -485,7 +485,7 @@ function PermissionsTab(): React.JSX.Element {
                 </svg>
               </div>
               <p className="text-xs font-medium text-[var(--color-text-secondary)]">No permissions granted yet</p>
-              <p className="text-[11px] text-[var(--color-text-muted)]">Mini-apps you install will appear here</p>
+              <p className="text-[11px] text-[var(--color-text-muted)]">Bots you activate will appear here</p>
             </div>
           </Card>
         ) : (

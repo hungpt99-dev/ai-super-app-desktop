@@ -140,7 +140,7 @@ export function NotificationCenter({
                   No notifications yet
                 </p>
                 <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-                  Mini-apps and agents will send them here
+                  Bots and agents will send them here
                 </p>
               </div>
             </div>

@@ -85,8 +85,8 @@ export const TEMPLATE_CATEGORY_COLORS: Record<IBotTemplate['category'], string> 
 }
 
 /**
- * Downloadable bot types available in the Store.
- * These are not shown by default — the user must install them from the Store tab.
+ * Downloadable bot types available in the catalog.
+ * These are not shown by default — the user must install them first.
  * Installed types appear alongside BOT_TEMPLATES in the Bots tab.
  */
 export const BOT_TYPE_CATALOG: IBotTemplate[] = [

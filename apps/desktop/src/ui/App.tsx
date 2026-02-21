@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { ChatWindow } from './components/ChatWindow.js'
 import { FeatureGrid } from './components/FeatureGrid.js'
-import { ModuleStore } from './components/ModuleStore.js'
 import { Sidebar } from './components/Sidebar.js'
 import { ToastContainer } from './components/Toast.js'
 import { SettingsPanel } from './components/SettingsPanel.js'
@@ -111,11 +110,6 @@ export function App(): React.JSX.Element {
   }, [pushNotification])
 
   const handleOpenModule = (moduleId: string): void => {
-    // Navigate to store tab (from Browse more → link)
-    if (moduleId === 'store') {
-      setView('store')
-      return
-    }
     // User-created bot — select it and open the run panel.
     const { bots } = useBotStore.getState()
     if (bots.some((b) => b.id === moduleId)) {
@@ -148,7 +142,6 @@ export function App(): React.JSX.Element {
         {activeView === 'chat' && <ChatWindow />}
         {activeView === 'bots' && <FeatureGrid onOpenModule={handleOpenModule} />}
         {activeView === 'activity' && <ActivityPanel onNavigate={setView} />}
-        {activeView === 'store' && <ModuleStore />}
         {activeView === 'settings' && <SettingsPanel onBack={() => { setView('chat') }} />}
         {activeView === 'api-keys' && <APIKeysPanel onBack={() => { setView('chat') }} />}
         {activeView === 'bot-run' && <BotsPanel onBack={() => { setView('bots') }} />}

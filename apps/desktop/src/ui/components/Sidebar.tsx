@@ -4,7 +4,7 @@ import { useAuthStore } from '../store/auth-store.js'
 import { useAgentStore } from '../store/agent-store.js'
 
 /** Views that map directly to a top-level nav item (excludes sub-views like crypto/writing-helper). */
-type INavView = 'dashboard' | 'chat' | 'bots' | 'activity' | 'store' | 'api-keys' | 'settings'
+type INavView = 'dashboard' | 'chat' | 'bots' | 'activity' | 'api-keys' | 'settings'
 
 interface ISidebarProps {
   activeView: AppView
@@ -54,17 +54,6 @@ const NAV_ITEMS: { id: INavView; label: string; icon: React.ReactNode }[] = [
     icon: (
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-      </svg>
-    ),
-  },
-  {
-    id: 'store',
-    label: 'Store',
-    icon: (
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
-        <line x1="3" y1="6" x2="21" y2="6" />
-        <path d="M16 10a4 4 0 0 1-8 0" />
       </svg>
     ),
   },
