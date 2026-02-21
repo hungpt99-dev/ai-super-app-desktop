@@ -5,7 +5,7 @@
 import React from 'react'
 import type { IBotRun } from '../lib/api-client.js'
 
-interface Props {
+interface IBotRunLogProps {
   runs: IBotRun[]
   loading?: boolean
 }
@@ -25,12 +25,12 @@ function fmt(iso: string): string {
 function duration(run: IBotRun): string {
   if (!run.ended_at) return run.status === 'running' ? 'running…' : '—'
   const ms = new Date(run.ended_at).getTime() - new Date(run.started_at).getTime()
-  if (ms < 1000) return `${ms}ms`
+  if (ms < 1000) return `${String(ms)}ms`
   if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`
-  return `${Math.round(ms / 60_000)}m`
+  return `${String(Math.round(ms / 60_000))}m`
 }
 
-export function BotRunLog({ runs, loading }: Props): React.JSX.Element {
+export function BotRunLog({ runs, loading }: IBotRunLogProps): React.JSX.Element {
   if (loading) {
     return (
       <div className="flex h-32 items-center justify-center text-sm text-[var(--color-text-secondary)]">

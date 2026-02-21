@@ -18,4 +18,4 @@ export { installDemoInterceptor } from './fetch-interceptor.js'
 export { DEMO_USER, DEMO_BOTS, DEMO_DEVICES, DEMO_MARKETPLACE_BOTS, DEMO_STATS } from './demo-data.js'
 
 /** True when the app is running in demo mode (resolved at build time). */
-export const IS_DEMO_MODE = import.meta.env['VITE_DEMO_MODE'] === 'true'
+export const IS_DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true'

@@ -35,7 +35,7 @@ export function saveDeviceName(name: string): void {
 const REQUEST_TIMEOUT_MS = 15_000
 
 function baseURL(): string {
-  return (import.meta.env.VITE_GATEWAY_URL as string | undefined) ?? 'http://localhost:3000'
+  return import.meta.env.VITE_GATEWAY_URL ?? 'http://localhost:3000'
 }
 
 async function agentFetch<T>(method: string, path: string, body?: unknown): Promise<T> {

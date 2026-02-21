@@ -7,7 +7,12 @@ export type { IChatMessage } from '../store/chat-store.js'
  * Provides a stable public API so components are decoupled from the store shape.
  */
 export function useChat() {
-  const { messages, isLoading, error, send, clear, setError } = useChatStore()
+  const messages = useChatStore((s) => s.messages)
+  const isLoading = useChatStore((s) => s.isLoading)
+  const error = useChatStore((s) => s.error)
+  const send = useChatStore((s) => s.send)
+  const clear = useChatStore((s) => s.clear)
+  const setError = useChatStore((s) => s.setError)
   return {
     messages,
     isLoading,

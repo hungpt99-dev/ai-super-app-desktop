@@ -94,7 +94,7 @@ function ReviewsSection({ appId }: IReviewsSectionProps): React.JSX.Element {
           maxLength={2000}
           placeholder="Share your experience…"
           value={myBody}
-          onChange={(e) => setMyBody(e.target.value)}
+          onChange={(e) => { setMyBody(e.target.value) }}
           className="w-full resize-none rounded-lg border border-[var(--color-border)]
                      bg-[var(--color-surface-2)] px-3 py-2 text-sm
                      text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]
@@ -122,7 +122,7 @@ function ReviewsSection({ appId }: IReviewsSectionProps): React.JSX.Element {
             <div key={review.id} className="space-y-1">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-[var(--color-text-primary)]">
-                  {review.user_name || 'Anonymous'}
+                  {review.user_name.trim() !== '' ? review.user_name : 'Anonymous'}
                 </span>
                 <StarRating value={review.rating} />
                 <span className="ml-auto text-xs text-[var(--color-text-muted)]">
@@ -145,7 +145,8 @@ function ReviewsSection({ appId }: IReviewsSectionProps): React.JSX.Element {
 export function MarketplaceDetailPage(): React.JSX.Element {
   const { appId } = useParams<{ appId: string }>()
   const navigate = useNavigate()
-  const { install, uninstall } = useMarketplaceStore()
+  const install = useMarketplaceStore((s) => s.install)
+  const uninstall = useMarketplaceStore((s) => s.uninstall)
 
   const [app, setApp] = useState<IMarketplaceBot | null>(null)
   const [loading, setLoading] = useState(true)
@@ -154,12 +155,18 @@ export function MarketplaceDetailPage(): React.JSX.Element {
 
   useEffect(() => {
     if (!appId) return
-    setLoading(true)
-    marketplaceApi
-      .get(appId)
-      .then((a: IMarketplaceBot) => setApp(a))
-      .catch((e: unknown) => setError((e as Error).message))
-      .finally(() => setLoading(false))
+    const loadApp = async (): Promise<void> => {
+      setLoading(true)
+      try {
+        const a = await marketplaceApi.get(appId)
+        setApp(a)
+      } catch (e) {
+        setError((e as Error).message)
+      } finally {
+        setLoading(false)
+      }
+    }
+    void loadApp()
   }, [appId])
 
   const handleToggle = async (): Promise<void> => {
@@ -188,7 +195,7 @@ export function MarketplaceDetailPage(): React.JSX.Element {
     )
   }
 
-  if (error || !app) {
+  if (error !== null || !app) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4">
         <p className="text-sm text-[var(--color-danger)]">{error ?? 'Bot not found.'}</p>
@@ -204,7 +211,7 @@ export function MarketplaceDetailPage(): React.JSX.Element {
       {/* Breadcrumb */}
       <div className="mb-6">
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => { navigate(-1) }}
           className="text-xs text-[var(--color-accent)] hover:underline"
         >
           ← Back
@@ -227,7 +234,7 @@ export function MarketplaceDetailPage(): React.JSX.Element {
           <div className="mt-2 flex items-center gap-4 text-xs text-[var(--color-text-muted)]">
             <span>⭐ {app.rating.toFixed(1)}</span>
             <span>{app.install_count.toLocaleString()} installs</span>
-            <span>{app.is_free ? 'Free' : `$${app.price_usd}`}</span>
+            <span>{app.is_free ? 'Free' : `$${String(app.price_usd ?? 0)}`}</span>
           </div>
         </div>
 

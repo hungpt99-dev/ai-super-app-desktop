@@ -14,13 +14,13 @@ interface IChatState {
   messages: IChatMessage[]
   isLoading: boolean
   error: string | null
-  send(text: string): Promise<void>
-  clear(): void
-  setError(e: string | null): void
+  send: (text: string) => Promise<void>
+  clear: () => void
+  setError: (e: string | null) => void
 }
 
 let counter = 0
-const nextId = () => `msg-${++counter}-${Date.now()}`
+const nextId = () => `msg-${String(++counter)}-${String(Date.now())}`
 
 /**
  * useChatStore — Zustand store for chat state.
@@ -94,7 +94,7 @@ export const useChatStore = create<IChatState>((set, get) => ({
     }
   },
 
-  clear: () => set({ messages: [], error: null }),
+  clear: () => { set({ messages: [], error: null }) },
 
-  setError: (error) => set({ error }),
+  setError: (error) => { set({ error }) },
 }))

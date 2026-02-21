@@ -1,6 +1,5 @@
 import type { IAiClient, IAiGenerateRequest, IAiGenerateResponse } from '@ai-super-app/sdk'
 import { logger } from '@ai-super-app/shared'
-import { gatewayClient } from './token-store.js'
 
 const log = logger.child('AiSdkProxy')
 
@@ -78,14 +77,12 @@ export class AiSdkProxy implements IAiClient {
 
     const unlistenChunk = await listen<string>('ai:stream-chunk', (e) => {
       buffer.push(e.payload)
-      wakeUp?.()
-      wakeUp = null
+      if (wakeUp !== null) { wakeUp(); wakeUp = null }
     })
 
-    const unlistenDone = await listen<void>('ai:stream-done', () => {
+    const unlistenDone = await listen<undefined>('ai:stream-done', () => {
       done = true
-      wakeUp?.()
-      wakeUp = null
+      if (wakeUp !== null) { wakeUp(); wakeUp = null }
     })
 
     // Fire-and-forget — Rust emits events while this generator consumes them.
@@ -96,22 +93,24 @@ export class AiSdkProxy implements IAiClient {
     }).catch((err: unknown) => {
       streamError = err instanceof Error ? err : new Error(String(err))
       done = true
-      wakeUp?.()
-      wakeUp = null
+      if (wakeUp !== null) { wakeUp(); wakeUp = null }
     })
 
     try {
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       while (!done || buffer.length > 0) {
         if (buffer.length === 0) {
           // Park until the next event arrives.
           await new Promise<void>((resolve) => { wakeUp = resolve })
         }
         while (buffer.length > 0) {
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
           yield buffer.shift()!
         }
       }
       // Re-throw any error from the Rust invoke after draining the buffer.
-      if (streamError) throw streamError
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+      if (streamError !== null) throw streamError as Error
     } finally {
       unlistenChunk()
       unlistenDone()

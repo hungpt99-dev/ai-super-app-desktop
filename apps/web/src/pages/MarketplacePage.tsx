@@ -11,8 +11,8 @@ const CATEGORIES = ['all', 'writing', 'development', 'productivity', 'automation
 
 interface IMarketplaceBotCardProps {
   bot: IMarketplaceBot
-  onInstall(id: string): Promise<void>
-  onUninstall(id: string): Promise<void>
+  onInstall: (id: string) => Promise<void>
+  onUninstall: (id: string) => Promise<void>
 }
 
 function MarketplaceBotCard({ bot, onInstall, onUninstall }: IMarketplaceBotCardProps): React.JSX.Element {
@@ -72,7 +72,7 @@ function MarketplaceBotCard({ bot, onInstall, onUninstall }: IMarketplaceBotCard
               : 'bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)]'
             }`}
         >
-          {busy ? '…' : bot.installed ? 'Uninstall' : bot.is_free ? 'Install' : `$${bot.price_usd}`}
+          {busy ? '…' : bot.installed ? 'Uninstall' : bot.is_free ? 'Install' : `$${String(bot.price_usd ?? 0)}`}
         </button>
       </div>
     </div>
@@ -80,11 +80,15 @@ function MarketplaceBotCard({ bot, onInstall, onUninstall }: IMarketplaceBotCard
 }
 
 export function MarketplacePage(): React.JSX.Element {
+  const fetchBots = useMarketplaceStore((s) => s.fetchBots)
+  const fetchInstalled = useMarketplaceStore((s) => s.fetchInstalled)
+  const install = useMarketplaceStore((s) => s.install)
+  const uninstall = useMarketplaceStore((s) => s.uninstall)
+  const setSearch = useMarketplaceStore((s) => s.setSearch)
+  const setCategory = useMarketplaceStore((s) => s.setCategory)
   const {
     bots, loading, error,
     searchQuery, selectedCategory,
-    fetchBots, fetchInstalled, install, uninstall,
-    setSearch, setCategory,
   } = useMarketplaceStore()
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -123,7 +127,7 @@ export function MarketplacePage(): React.JSX.Element {
           type="search"
           placeholder="Search bots…"
           value={searchQuery}
-          onChange={(e) => handleSearchChange(e.target.value)}
+          onChange={(e) => { handleSearchChange(e.target.value) }}
           className="w-full max-w-sm rounded-lg border border-[var(--color-border)]
                      bg-[var(--color-surface-2)] px-4 py-2 text-sm
                      text-[var(--color-text-primary)] outline-none
@@ -136,7 +140,7 @@ export function MarketplacePage(): React.JSX.Element {
         {CATEGORIES.map((cat) => (
           <button
             key={cat}
-            onClick={() => handleCategoryChange(cat)}
+            onClick={() => { handleCategoryChange(cat) }}
             className={`rounded-full px-4 py-1.5 text-xs font-medium capitalize transition-colors
               ${selectedCategory === cat
                 ? 'bg-[var(--color-accent)] text-white'

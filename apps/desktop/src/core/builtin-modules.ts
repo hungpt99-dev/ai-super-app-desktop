@@ -23,7 +23,7 @@ const COINGECKO_IDS: Record<string, string> = {
   BNB: 'binancecoin',
 }
 
-interface CoinGeckoMarket {
+interface ICoinGeckoMarket {
   symbol: string
   current_price: number
   price_change_percentage_24h: number
@@ -33,7 +33,7 @@ interface CoinGeckoMarket {
   low_24h: number
 }
 
-async function fetchCoinGeckoMarket(symbol: string): Promise<CoinGeckoMarket> {
+async function fetchCoinGeckoMarket(symbol: string): Promise<ICoinGeckoMarket> {
   const geckoId = COINGECKO_IDS[symbol]
   if (!geckoId) {
     throw new Error(
@@ -55,10 +55,10 @@ async function fetchCoinGeckoMarket(symbol: string): Promise<CoinGeckoMarket> {
   })
 
   if (!res.ok) {
-    throw new Error(`CoinGecko API error ${res.status}: ${await res.text()}`)
+    throw new Error(`CoinGecko API error ${String(res.status)}: ${await res.text()}`)
   }
 
-  const data = (await res.json()) as CoinGeckoMarket[]
+  const data = (await res.json()) as ICoinGeckoMarket[]
   const coin = data[0]
   if (!coin) throw new Error(`No data returned for symbol ${symbol}`)
   return coin
@@ -68,23 +68,23 @@ async function fetchCoinGeckoMarket(symbol: string): Promise<CoinGeckoMarket> {
 
 const WRITING_PROMPTS: Record<string, (input: IToolInput) => string> = {
   improve: (i) =>
-    `Improve the following text with a ${(i['tone'] as string | undefined) ?? 'professional'} tone. Return only the improved text, no preamble:\n\n${i['text'] as string}`,
+    `Improve the following text with a ${(i.tone as string | undefined) ?? 'professional'} tone. Return only the improved text, no preamble:\n\n${i.text as string}`,
   summarize: (i) =>
-    `Summarize the following text concisely. Return only the summary:\n\n${i['text'] as string}`,
+    `Summarize the following text concisely. Return only the summary:\n\n${i.text as string}`,
   expand: (i) =>
-    `Expand the following text with more depth and detail, using a ${(i['tone'] as string | undefined) ?? 'professional'} tone. Return only the expanded text:\n\n${i['text'] as string}`,
+    `Expand the following text with more depth and detail, using a ${(i.tone as string | undefined) ?? 'professional'} tone. Return only the expanded text:\n\n${i.text as string}`,
   translate: (i) =>
-    `Translate the following text to ${(i['targetLanguage'] as string | undefined) ?? 'English'}. Return only the translation:\n\n${i['text'] as string}`,
+    `Translate the following text to ${(i.targetLanguage as string | undefined) ?? 'English'}. Return only the translation:\n\n${i.text as string}`,
   'fix-grammar': (i) =>
-    `Fix any grammar and spelling mistakes in the following text. Keep the original meaning and style. Return only the corrected text:\n\n${i['text'] as string}`,
+    `Fix any grammar and spelling mistakes in the following text. Keep the original meaning and style. Return only the corrected text:\n\n${i.text as string}`,
 }
 
 // ─── Module definitions ───────────────────────────────────────────────────────
 
-export const BUILTIN_MODULES: ReadonlyArray<{
+export const BUILTIN_MODULES: readonly ({
   readonly id: string
   readonly definition: IModuleDefinition
-}> = [
+})[] = [
   // ── Crypto Analysis ──────────────────────────────────────────────────────
   {
     id: 'crypto',
@@ -119,8 +119,8 @@ export const BUILTIN_MODULES: ReadonlyArray<{
             },
             required: ['symbol'],
           },
-          run: async (input: IToolInput, _ctx: IModuleContext) => {
-            const symbol = ((input['symbol'] as string | undefined) ?? 'BTC').toUpperCase()
+          run: async (input: IToolInput) => {
+            const symbol = ((input.symbol as string | undefined) ?? 'BTC').toUpperCase()
             const coin = await fetchCoinGeckoMarket(symbol)
             return {
               symbol,
@@ -135,7 +135,7 @@ export const BUILTIN_MODULES: ReadonlyArray<{
           },
         },
       ],
-      async onActivate(ctx: IModuleContext) {
+      onActivate(ctx: IModuleContext) {
         ctx.ui.showDashboard()
         ctx.ui.notify({
           title: 'Crypto Analysis',
@@ -184,7 +184,7 @@ export const BUILTIN_MODULES: ReadonlyArray<{
             required: ['text', 'action'],
           },
           run: async (input: IToolInput, ctx: IModuleContext) => {
-            const action = input['action'] as string
+            const action = input.action as string
             const buildPrompt = WRITING_PROMPTS[action]
             if (!buildPrompt) throw new Error(`Unknown writing action: ${action}`)
 
@@ -197,7 +197,7 @@ export const BUILTIN_MODULES: ReadonlyArray<{
           },
         },
       ],
-      async onActivate(ctx: IModuleContext) {
+      onActivate(ctx: IModuleContext) {
         ctx.ui.notify({
           title: 'Writing Helper',
           body: 'AI writing assistant is ready.',

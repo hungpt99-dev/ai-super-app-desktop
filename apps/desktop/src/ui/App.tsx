@@ -7,6 +7,7 @@ import { ToastContainer } from './components/Toast.js'
 import { SettingsPanel } from './components/SettingsPanel.js'
 import { CryptoPanel } from './components/modules/CryptoPanel.js'
 import { WritingHelperPanel } from './components/modules/WritingHelperPanel.js'
+import { BotsPanel } from './components/BotsPanel.js'
 import { APIKeysPanel } from './components/APIKeysPanel.js'
 import { PermissionRequestDialog } from './components/PermissionRequestDialog.js'
 import { NotificationCenter } from './components/NotificationCenter.js'
@@ -26,22 +27,64 @@ const bridge = getDesktopBridge()
  * Contains ONLY layout + view routing. No business logic.
  */
 export function App(): React.JSX.Element {
-  const { activeView, setView, pushNotification, unreadCount } = useAppStore()
-  const { requestPermissions } = usePermissionStore()
+  const activeView = useAppStore((s) => s.activeView)
+  const setView = useAppStore((s) => s.setView)
+  const pushNotification = useAppStore((s) => s.pushNotification)
+  const unreadCount = useAppStore((s) => s.unreadCount)
+  const requestPermissions = usePermissionStore((s) => s.requestPermissions)
   const { user } = useAuthStore()
   const [notifOpen, setNotifOpen] = useState(false)
   const [authOpen, setAuthOpen] = useState(false)
 
+  // ── OAuth callback detection ────────────────────────────────────────────────
+  // When the OAuth popup window mounts (after the backend redirects back), it
+  // finds tokens in the URL, emits a Tauri 'oauth-callback' event, and closes
+  // itself.  The main window never navigates away; the effect below is the
+  // relay handler that runs in the POPUP window only.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const at = params.get('access_token')
+    const rt = params.get('refresh_token')
+    if (!at || !rt) return
+
+    // Erase tokens from address bar immediately.
+    window.history.replaceState({}, '', '/')
+
+    void (async () => {
+      // Tauri popup: emit event → main window listener (in loginWithOAuth) picks it up.
+      try {
+        const { emit } = await import('@tauri-apps/api/event')
+        await emit('oauth-callback', { access_token: at, refresh_token: rt })
+        window.close()
+        return
+      } catch { /* Not running in a Tauri popup context — fall through. */ }
+
+      // Browser popup opened via window.open (e.g. during development).
+      if (window.opener !== null) {
+        const opener = window.opener as Window
+        opener.postMessage(
+          { type: 'oauth-callback', access_token: at, refresh_token: rt },
+          window.location.origin,
+        )
+        window.close()
+        return
+      }
+
+      // Fallback: webview navigated directly (no popup). Handle inline.
+      void useAuthStore.getState().handleOAuthCallback(at, rt)
+    })()
+  }, [])
+
   // Auto-close auth modal once login succeeds
   useEffect(() => {
-    if (user !== null && user !== undefined) {
+    if (user) {
       setAuthOpen(false)
     }
   }, [user])
 
   // Start/stop the agent worker loop based on auth state
   useEffect(() => {
-    if (user !== null && user !== undefined) {
+    if (user) {
       void startAgentLoop()
     } else {
       stopAgentLoop()
@@ -56,7 +99,6 @@ export function App(): React.JSX.Element {
         requestPermissions(moduleId, moduleId, permissions),
       )
     })()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Wire the notification bridge: module notifyRenderer → bridge event → store
@@ -69,7 +111,8 @@ export function App(): React.JSX.Element {
 
   const handleOpenModule = (moduleId: string): void => {
     if (moduleId === 'crypto' || moduleId === 'writing-helper') {
-      setView(moduleId as 'crypto' | 'writing-helper')
+      const view: 'crypto' | 'writing-helper' = moduleId
+      setView(view)
     }
   }
 
@@ -96,10 +139,11 @@ export function App(): React.JSX.Element {
         {activeView === 'chat' && <ChatWindow />}
         {activeView === 'features' && <FeatureGrid onOpenModule={handleOpenModule} />}
         {activeView === 'store' && <ModuleStore />}
-        {activeView === 'settings' && <SettingsPanel onBack={() => setView('chat')} />}
-        {activeView === 'api-keys' && <APIKeysPanel onBack={() => setView('chat')} />}
-        {activeView === 'crypto' && <CryptoPanel onBack={() => setView('features')} />}
-        {activeView === 'writing-helper' && <WritingHelperPanel onBack={() => setView('features')} />}
+        {activeView === 'settings' && <SettingsPanel onBack={() => { setView('chat') }} />}
+        {activeView === 'api-keys' && <APIKeysPanel onBack={() => { setView('chat') }} />}
+        {activeView === 'crypto' && <CryptoPanel onBack={() => { setView('features') }} />}
+        {activeView === 'writing-helper' && <WritingHelperPanel onBack={() => { setView('features') }} />}
+        {activeView === 'bots' && <BotsPanel onSignIn={() => { setAuthOpen(true) }} />}
       </main>
 
       {/* Global toast overlay — rendered outside main so it floats above all panels */}

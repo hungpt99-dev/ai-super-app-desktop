@@ -88,13 +88,14 @@ export async function saveAPIKey(
 ): Promise<ILocalAPIKey> {
   const keys = await readAll()
   const existing = keys.findIndex((k) => k.provider === provider)
+  const existingEntry = existing >= 0 ? keys[existing] : undefined
   const entry: ILocalAPIKey = {
-    id: existing >= 0 ? keys[existing]!.id : generateId(),
+    id: existingEntry?.id ?? generateId(),
     provider,
     label,
     rawKey,
     isActive: true,
-    createdAt: existing >= 0 ? keys[existing]!.createdAt : new Date().toISOString(),
+    createdAt: existingEntry?.createdAt ?? new Date().toISOString(),
   }
   if (existing >= 0) {
     keys[existing] = entry
@@ -116,9 +117,12 @@ export async function setAPIKeyActive(id: string, active: boolean): Promise<ILoc
   const keys = await readAll()
   const idx = keys.findIndex((k) => k.id === id)
   if (idx < 0) return null
-  keys[idx] = { ...keys[idx]!, isActive: active }
+  const current = keys[idx]
+  if (!current) return null
+  const updated: ILocalAPIKey = { ...current, isActive: active }
+  keys[idx] = updated
   await writeAll(keys)
-  return keys[idx]!
+  return updated
 }
 
 /**

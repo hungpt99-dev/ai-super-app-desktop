@@ -9,6 +9,7 @@ import { BotListPage } from './pages/BotListPage.js'
 import { BotDetailPage } from './pages/BotDetailPage.js'
 import { LoginPage } from './pages/LoginPage.js'
 import { RegisterPage } from './pages/RegisterPage.js'
+import { OAuthCallbackPage } from './pages/OAuthCallbackPage.js'
 import { DashboardPage } from './pages/DashboardPage.js'
 import { DevicesPage } from './pages/DevicesPage.js'
 import { MarketplacePage } from './pages/MarketplacePage.js'
@@ -24,7 +25,7 @@ import { isAuthenticated, clearSession } from './lib/api-client.js'
 import { useAuthStore } from './store/auth-store.js'
 
 // Resolved at build time by Vite — no runtime cost.
-const IS_DEMO = import.meta.env['VITE_DEMO_MODE'] === 'true'
+const IS_DEMO = import.meta.env.VITE_DEMO_MODE === 'true'
 
 function RequireAuth({ children }: { children: React.ReactNode }): React.JSX.Element {
   if (!isAuthenticated()) {
@@ -42,7 +43,9 @@ const NAV_ITEMS = [
 
 function Layout(): React.JSX.Element {
   const navigate = useNavigate()
-  const { user, fetchMe, logout } = useAuthStore()
+  const fetchMe = useAuthStore((s) => s.fetchMe)
+  const logout = useAuthStore((s) => s.logout)
+  const { user } = useAuthStore()
   const { unreadCount } = useNotificationStore()
   const [notifOpen, setNotifOpen] = useState(false)
 
@@ -186,6 +189,7 @@ export function App(): React.JSX.Element {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
         <Route
           path="/*"
           element={

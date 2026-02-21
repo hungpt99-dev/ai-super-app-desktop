@@ -78,7 +78,7 @@ export function WritingHelperPanel({ onBack }: IWritingHelperPanelProps): React.
         tone: selectedTone,
       }
       if (selectedAction === 'translate') {
-        toolInput['targetLanguage'] = targetLanguage
+        toolInput.targetLanguage = targetLanguage
       }
       const res = (await bridge.modules.invokeTool(
         'writing-helper',
@@ -137,7 +137,7 @@ export function WritingHelperPanel({ onBack }: IWritingHelperPanelProps): React.
             {ACTIONS.map((a) => (
               <button
                 key={a.id}
-                onClick={() => setSelectedAction(a.id)}
+                onClick={() => { setSelectedAction(a.id) }}
                 className={[
                   'flex flex-col rounded-xl border p-3 text-left transition-all',
                   a.id === selectedAction
@@ -157,7 +157,7 @@ export function WritingHelperPanel({ onBack }: IWritingHelperPanelProps): React.
             {TONES.map((t) => (
               <button
                 key={t.id}
-                onClick={() => setSelectedTone(t.id)}
+                onClick={() => { setSelectedTone(t.id) }}
                 className={[
                   'rounded-full px-2.5 py-1 text-xs transition-colors',
                   t.id === selectedTone
@@ -176,7 +176,7 @@ export function WritingHelperPanel({ onBack }: IWritingHelperPanelProps): React.
               <p className="text-xs font-medium text-[var(--color-text-muted)]">Translate to:</p>
               <select
                 value={targetLanguage}
-                onChange={(e) => setTargetLanguage(e.target.value)}
+                onChange={(e) => { setTargetLanguage(e.target.value) }}
                 className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent)]"
               >
                 {TARGET_LANGUAGES.map((l) => (
@@ -191,7 +191,7 @@ export function WritingHelperPanel({ onBack }: IWritingHelperPanelProps): React.
           <textarea
             ref={textareaRef}
             value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
+            onChange={(e) => { setInputText(e.target.value) }}
             placeholder="Paste or type your text here…"
             className="flex-1 resize-none rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-sm leading-relaxed text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none transition-colors focus:border-[var(--color-accent)]"
           />
@@ -203,7 +203,7 @@ export function WritingHelperPanel({ onBack }: IWritingHelperPanelProps): React.
               className="flex items-center gap-2 rounded-xl bg-[var(--color-accent)] px-5 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isLoading && <Spinner />}
-              {isLoading ? 'Processing…' : `${ACTIONS.find((a) => a.id === selectedAction)?.icon} ${ACTIONS.find((a) => a.id === selectedAction)?.label}`}
+              {isLoading ? 'Processing…' : `${ACTIONS.find((a) => a.id === selectedAction)?.icon ?? ''} ${ACTIONS.find((a) => a.id === selectedAction)?.label ?? ''}`}
             </button>
           </div>
         </div>

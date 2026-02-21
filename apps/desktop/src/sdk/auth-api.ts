@@ -46,7 +46,7 @@ export class AuthApiError extends Error {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function baseURL(): string {
-  return (import.meta.env.VITE_GATEWAY_URL as string | undefined) ?? 'http://localhost:3000'
+  return import.meta.env.VITE_GATEWAY_URL ?? 'http://localhost:3000'
 }
 
 async function authPost<T>(path: string, body: Record<string, string | undefined>): Promise<T> {

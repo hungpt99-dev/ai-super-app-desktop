@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { IToastNotification } from '../../shared/bridge-types.js'
 
-export type AppView = 'chat' | 'features' | 'store' | 'settings' | 'api-keys' | 'crypto' | 'writing-helper'
+export type AppView = 'chat' | 'features' | 'bots' | 'store' | 'settings' | 'api-keys' | 'crypto' | 'writing-helper'
 export type Theme = 'dark' | 'light' | 'system'
 export type { IToastNotification }
 
@@ -26,12 +26,12 @@ interface IAppState {
   /** Count of unread notifications. */
   unreadCount: number
   theme: Theme
-  setView(view: AppView): void
-  setTheme(theme: Theme): void
-  pushNotification(n: Omit<IToastNotification, 'id'> & { source?: string }): void
-  dismissNotification(id: string): void
-  markAllRead(): void
-  clearHistory(): void
+  setView: (view: AppView) => void
+  setTheme: (theme: Theme) => void
+  pushNotification: (n: Omit<IToastNotification, 'id'> & { source?: string }) => void
+  dismissNotification: (id: string) => void
+  markAllRead: () => void
+  clearHistory: () => void
 }
 
 const THEME_KEY = 'ai-superapp-theme'

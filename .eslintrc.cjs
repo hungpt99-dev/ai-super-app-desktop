@@ -25,6 +25,11 @@ module.exports = {
     ],
     'prefer-const': 'error',
     'no-var': 'error',
+    '@typescript-eslint/no-unused-vars': ['error', {
+      argsIgnorePattern: '^_',
+      varsIgnorePattern: '^_',
+      caughtErrorsIgnorePattern: '^_',
+    }],
   },
   ignorePatterns: ['dist/', 'node_modules/', '*.js', '*.cjs'],
 }

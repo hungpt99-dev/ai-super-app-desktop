@@ -1,5 +1,4 @@
-import type { IPermissionEngine } from '@ai-super-app/sdk'
-import { Permission } from '@ai-super-app/sdk'
+import type { IPermissionEngine, Permission } from '@ai-super-app/sdk'
 import { PermissionDeniedError } from '@ai-super-app/shared'
 import { logger } from '@ai-super-app/shared'
 

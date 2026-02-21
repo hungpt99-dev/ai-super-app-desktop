@@ -5,10 +5,13 @@
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuthStore } from '../store/auth-store.js'
+import { OAuthButtons } from '../components/OAuthButtons.js'
 
 export function RegisterPage(): React.JSX.Element {
   const navigate = useNavigate()
-  const { register, loading, error, clearError } = useAuthStore()
+  const register = useAuthStore((s) => s.register)
+  const clearError = useAuthStore((s) => s.clearError)
+  const { loading, error } = useAuthStore()
 
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -50,6 +53,8 @@ export function RegisterPage(): React.JSX.Element {
           <p className="mt-1 text-sm text-[var(--color-text-secondary)]">AI SuperApp Platform</p>
         </div>
 
+        <OAuthButtons />
+
         <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-[var(--color-text-secondary)]">Name</label>
@@ -58,7 +63,7 @@ export function RegisterPage(): React.JSX.Element {
               required
               placeholder="Your name"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => { setName(e.target.value) }}
               autoComplete="name"
               className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)]
                          px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none
@@ -73,7 +78,7 @@ export function RegisterPage(): React.JSX.Element {
               required
               placeholder="you@example.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => { setEmail(e.target.value) }}
               autoComplete="email"
               className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)]
                          px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none
@@ -88,7 +93,7 @@ export function RegisterPage(): React.JSX.Element {
               required
               placeholder="Min. 8 characters"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => { setPassword(e.target.value) }}
               autoComplete="new-password"
               className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)]
                          px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none
@@ -103,7 +108,7 @@ export function RegisterPage(): React.JSX.Element {
               required
               placeholder="••••••••"
               value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
+              onChange={(e) => { setConfirm(e.target.value) }}
               autoComplete="new-password"
               className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)]
                          px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none

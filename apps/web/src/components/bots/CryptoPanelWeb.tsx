@@ -115,7 +115,7 @@ function generateAnalysis(data: IMarketData): string {
   const capStr = data.marketCap >= 1e12 ? `$${capT}T` : `$${capB}B`
 
   return (
-    `${SYMBOL_NAMES[data.symbol as CryptoSymbol] ?? data.symbol} is showing a ${trend} trend over the last 24 hours with a ` +
+    `${SYMBOL_NAMES[data.symbol as CryptoSymbol]} is showing a ${trend} trend over the last 24 hours with a ` +
     `${data.change24h > 0 ? '+' : ''}${data.change24h.toFixed(2)}% price movement. ` +
     `Current price of $${data.price.toLocaleString()} sits ${
       data.price > (data.high24h + data.low24h) / 2 ? 'above' : 'below'
@@ -139,9 +139,18 @@ async function fetchCoinGecko(symbol: CryptoSymbol): Promise<IMarketData> {
     `https://api.coingecko.com/api/v3/coins/${id}` +
     '?localization=false&tickers=false&community_data=false&developer_data=false'
   const res = await fetch(url, { signal: AbortSignal.timeout(8_000) })
-  if (!res.ok) throw new Error(`CoinGecko ${res.status}`)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const json = await res.json() as any
+  if (!res.ok) throw new Error(`CoinGecko ${String(res.status)}`)
+  interface ICoinGeckoResponse {
+    market_data: {
+      current_price: { usd: number }
+      price_change_percentage_24h: number
+      total_volume: { usd: number }
+      market_cap: { usd: number }
+      high_24h: { usd: number }
+      low_24h: { usd: number }
+    }
+  }
+  const json = await res.json() as ICoinGeckoResponse
   const md = json.market_data
   return {
     symbol,

@@ -26,7 +26,7 @@ import {
   DEMO_REVIEWS,
 } from './demo-data.js'
 
-const GATEWAY: string = (import.meta.env['VITE_GATEWAY_URL'] as string | undefined) ?? 'http://localhost:3000'
+const GATEWAY: string = import.meta.env.VITE_GATEWAY_URL ?? 'http://localhost:3000'
 
 // ── Mutable session state ─────────────────────────────────────────────────────
 
@@ -119,7 +119,7 @@ async function handle(url: string, init?: RequestInit): Promise<Response> {
     if (method === 'POST') {
       const body = parseBody<{ name?: string; platform?: string; version?: string }>(init)
       return json({
-        id: `demo-device-${Date.now()}`,
+        id: `demo-device-${String(Date.now())}`,
         name: body.name ?? 'New Device',
         version: body.version ?? '1.0.0',
         platform: body.platform ?? 'unknown',
@@ -211,7 +211,7 @@ async function handle(url: string, init?: RequestInit): Promise<Response> {
     if (method === 'POST') {
       const body = parseBody<{ rating?: number; body?: string }>(init)
       return json({
-        id: `rev-${Date.now()}`,
+        id: `rev-${String(Date.now())}`,
         app_id: appId,
         user_id: DEMO_USER.id,
         user_name: DEMO_USER.name,
@@ -241,7 +241,7 @@ async function handle(url: string, init?: RequestInit): Promise<Response> {
     if (method === 'POST') {
       const body = parseBody<{ name?: string; description?: string; goal?: string }>(init)
       const newBot: IBot = {
-        id: `demo-bot-${Date.now()}`,
+        id: `demo-bot-${String(Date.now())}`,
         name: body.name ?? 'New Bot',
         description: body.description ?? '',
         goal: body.goal ?? '',
@@ -267,7 +267,7 @@ async function handle(url: string, init?: RequestInit): Promise<Response> {
     }
 
     if (method === 'POST') {
-      return json({ run_id: `run-${Date.now()}`, status: 'pending' }, 201)
+      return json({ run_id: `run-${String(Date.now())}`, status: 'pending' }, 201)
     }
   }
 
@@ -315,7 +315,7 @@ export function installDemoInterceptor(): void {
         ? input
         : input instanceof URL
           ? input.href
-          : (input as Request).url
+          : input.url
 
     if (url.startsWith(GATEWAY)) {
       return handle(url, init)

@@ -12,12 +12,12 @@ describe('PermissionEngine', () => {
 
   it('grants and checks permission correctly', () => {
     engine.grant('module-a', [Permission.AiGenerate])
-    expect(() => engine.check('module-a', Permission.AiGenerate)).not.toThrow()
+    expect(() => { engine.check('module-a', Permission.AiGenerate) }).not.toThrow()
   })
 
   it('throws PermissionDeniedError for missing permission', () => {
     engine.grant('module-a', [Permission.StorageLocal])
-    expect(() => engine.check('module-a', Permission.AiGenerate)).toThrow(
+    expect(() => { engine.check('module-a', Permission.AiGenerate) }).toThrow(
       PermissionDeniedError,
     )
   })

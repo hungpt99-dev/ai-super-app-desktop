@@ -5,12 +5,12 @@
 import React, { useState } from 'react'
 import type { ICreateBotInput } from '../lib/api-client.js'
 
-interface Props {
+interface ICreateBotModalProps {
   onSubmit: (input: ICreateBotInput) => Promise<void>
   onClose: () => void
 }
 
-export function CreateBotModal({ onSubmit, onClose }: Props): React.JSX.Element {
+export function CreateBotModal({ onSubmit, onClose }: ICreateBotModalProps): React.JSX.Element {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [goal, setGoal] = useState('')
@@ -37,7 +37,7 @@ export function CreateBotModal({ onSubmit, onClose }: Props): React.JSX.Element 
                       bg-[var(--color-surface)] p-6 shadow-2xl animate-fade-in">
         <h2 className="mb-4 text-lg font-semibold text-[var(--color-text-primary)]">New Bot</h2>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form onSubmit={(e) => { void handleSubmit(e) }} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-[var(--color-text-secondary)]">Name *</label>
             <input
@@ -46,7 +46,7 @@ export function CreateBotModal({ onSubmit, onClose }: Props): React.JSX.Element 
                          focus:border-[var(--color-accent)]"
               placeholder="Daily scraper"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => { setName(e.target.value) }}
               required
             />
           </div>
@@ -59,7 +59,7 @@ export function CreateBotModal({ onSubmit, onClose }: Props): React.JSX.Element 
                          focus:border-[var(--color-accent)]"
               placeholder="What this bot does (optional)"
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => { setDescription(e.target.value) }}
             />
           </div>
 
@@ -71,7 +71,7 @@ export function CreateBotModal({ onSubmit, onClose }: Props): React.JSX.Element 
                          outline-none focus:border-[var(--color-accent)]"
               placeholder="Open Chrome, go to example.com, scrape the headline and paste it into Notes."
               value={goal}
-              onChange={(e) => setGoal(e.target.value)}
+              onChange={(e) => { setGoal(e.target.value) }}
               required
             />
           </div>

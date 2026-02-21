@@ -69,7 +69,7 @@ function AddKeyForm({ existingProviders, onSaved, onCancel }: IAddFormProps): Re
         <select
           required
           value={provider}
-          onChange={(e) => setProvider(e.target.value)}
+          onChange={(e) => { setProvider(e.target.value) }}
           className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)]
                      px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none
                      focus:border-[var(--color-accent)]"
@@ -92,7 +92,7 @@ function AddKeyForm({ existingProviders, onSaved, onCancel }: IAddFormProps): Re
           maxLength={200}
           placeholder="e.g. personal"
           value={label}
-          onChange={(e) => setLabel(e.target.value)}
+          onChange={(e) => { setLabel(e.target.value) }}
           className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)]
                      px-3 py-2 text-sm text-[var(--color-text-primary)]
                      placeholder:text-[var(--color-text-muted)] outline-none
@@ -108,7 +108,7 @@ function AddKeyForm({ existingProviders, onSaved, onCancel }: IAddFormProps): Re
           autoComplete="off"
           placeholder={selected?.placeholder ?? 'Paste your key…'}
           value={rawKey}
-          onChange={(e) => setRawKey(e.target.value)}
+          onChange={(e) => { setRawKey(e.target.value) }}
           className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)]
                      px-3 py-2 text-sm text-[var(--color-text-primary)]
                      placeholder:text-[var(--color-text-muted)] outline-none

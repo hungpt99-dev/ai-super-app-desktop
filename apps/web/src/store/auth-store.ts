@@ -10,6 +10,8 @@ import {
   authApi,
   clearSession,
   getRefreshToken,
+  setToken,
+  setRefreshToken,
   type IUser,
 } from '../lib/api-client.js'
 
@@ -18,14 +20,19 @@ interface IAuthStore {
   loading: boolean
   error: string | null
 
-  fetchMe(): Promise<void>
-  login(email: string, password: string): Promise<void>
-  register(email: string, name: string, password: string): Promise<void>
-  logout(): Promise<void>
-  logoutAll(): Promise<void>
-  changePassword(current: string, next: string): Promise<void>
-  deleteAccount(): Promise<void>
-  clearError(): void
+  fetchMe: () => Promise<void>
+  login: (email: string, password: string) => Promise<void>
+  register: (email: string, name: string, password: string) => Promise<void>
+  logout: () => Promise<void>
+  logoutAll: () => Promise<void>
+  changePassword: (current: string, next: string) => Promise<void>
+  deleteAccount: () => Promise<void>
+  /**
+   * Store OAuth tokens returned via the /oauth/callback redirect and load the
+   * authenticated user profile.  Called by OAuthCallbackPage and OAuthButtons.
+   */
+  handleOAuthCallback: (accessToken: string, refreshToken: string) => Promise<void>
+  clearError: () => void
 }
 
 export const useAuthStore = create<IAuthStore>((set) => ({
@@ -102,5 +109,19 @@ export const useAuthStore = create<IAuthStore>((set) => ({
     }
   },
 
-  clearError: () => set({ error: null }),
+  handleOAuthCallback: async (accessToken, refreshToken) => {
+    set({ loading: true, error: null })
+    setToken(accessToken)
+    setRefreshToken(refreshToken)
+    try {
+      const user = await authApi.me()
+      set({ user, loading: false })
+    } catch (e) {
+      clearSession()
+      set({ loading: false, error: (e as Error).message })
+      throw e
+    }
+  },
+
+  clearError: () => { set({ error: null }) },
 }))

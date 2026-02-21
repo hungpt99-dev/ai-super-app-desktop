@@ -15,13 +15,13 @@
 import { logger } from '@ai-super-app/shared'
 import {
   agentDeviceApi,
-  agentBotApi,
   getStoredDeviceId,
   saveDeviceId,
   saveDeviceName,
 } from '../sdk/agent-api.js'
 import { useAgentStore } from '../ui/store/agent-store.js'
 import { tokenStore } from '../sdk/token-store.js'
+import { getDesktopBridge } from '../ui/lib/bridge.js'
 
 const log = logger.child('AgentLoop')
 
@@ -57,10 +57,6 @@ function detectPlatform(): string {
 function generateAgentName(): string {
   const suffix = Math.random().toString(36).slice(2, 6).toUpperCase()
   return `${detectPlatform()} Agent ${suffix}`
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => { setTimeout(resolve, ms) })
 }
 
 /** Calculates the next poll delay using exponential backoff with full-jitter. */
@@ -119,10 +115,11 @@ async function executeNextRun(): Promise<void> {
   if (isExecuting) return
   if (useAgentStore.getState().deviceId === null) return
 
+  const bridge = getDesktopBridge()
   let runId: string | null = null
 
   try {
-    const run = await agentBotApi.poll()
+    const run = await bridge.bots.poll()
     if (!run) {
       // Empty queue — increase backoff.
       emptyPollStreak = Math.min(emptyPollStreak + 1, 6) // cap at 2^6 = 64× base
@@ -135,31 +132,52 @@ async function executeNextRun(): Promise<void> {
     isExecuting = true
     useAgentStore.getState().setActiveRun(run.run_id, run.goal)
     useAgentStore.getState().setStatus('running')
-    log.info(`Executing run ${run.run_id} | goal: "${run.goal}"`)
+    log.info(`Executing run ${run.run_id} | bot_type: ${run.bot_type} | goal: "${run.goal}"`)
 
-    await agentBotApi.updateRun(run.run_id, { status: 'running', steps: 0 })
+    await bridge.bots.updateRun(run.run_id, { status: 'running', steps: 0 })
 
-    const totalSteps = 3 + Math.floor(Math.random() * 3)
-    for (let step = 1; step <= totalSteps; step++) {
-      await sleep(700 + Math.random() * 800)
-      await agentBotApi.updateRun(run.run_id, { status: 'running', steps: step })
+    // Dispatch to the appropriate module tool.
+    // The module is responsible for the shape of its own result object.
+    let steps = 0
+    let output: Record<string, unknown> = {}
+    try {
+      const raw = await bridge.modules.invokeTool(run.bot_type, 'run', {
+        goal: run.goal,
+        runId: run.run_id,
+      })
+      // Coerce unknown module output to a plain object.
+      output = (raw !== null && typeof raw === 'object'
+        ? raw as Record<string, unknown>
+        : { output: String(raw) })
+      steps = (typeof output.steps === 'number' ? output.steps : steps) + 1
+    } catch (toolErr) {
+      // Tool failure is captured as a structured error in the result.
+      output = { error: String(toolErr) }
+      await bridge.bots.updateRun(run.run_id, {
+        status: 'failed',
+        steps,
+        result: output,
+      })
+      useAgentStore.getState().incrementCompleted()
+      log.warn(`Run ${run.run_id} tool failed: ${String(toolErr)}`)
+      return
     }
 
-    await agentBotApi.updateRun(run.run_id, {
+    await bridge.bots.updateRun(run.run_id, {
       status: 'completed',
-      steps: totalSteps,
-      result: 'Task completed successfully by desktop agent.',
+      steps,
+      result: output,
     })
     useAgentStore.getState().incrementCompleted()
-    log.info(`Run ${run.run_id} completed (${String(totalSteps)} steps)`)
+    log.info(`Run ${run.run_id} completed (${String(steps)} steps)`)
   } catch (err) {
     log.warn(`Run execution error: ${String(err)}`)
     if (runId !== null) {
       try {
-        await agentBotApi.updateRun(runId, {
+        await bridge.bots.updateRun(runId, {
           status: 'failed',
           steps: 0,
-          result: String(err),
+          result: { error: String(err) },
         })
       } catch { /* reporting failure is best-effort */ }
     }

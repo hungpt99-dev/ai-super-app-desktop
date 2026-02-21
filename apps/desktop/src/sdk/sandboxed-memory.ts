@@ -41,7 +41,7 @@ export class SandboxedMemory implements IMemoryAPI {
 
   async appendMessages(
     sessionId: string,
-    messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>,
+    messages: { role: 'user' | 'assistant' | 'system'; content: string }[],
   ): Promise<void> {
     this.check(Permission.MemoryWrite)
     return LM.memoryAppendMessages(sessionId, messages)

@@ -36,7 +36,8 @@ function Section({ title, description, children, danger }: ISectionProps): React
 // ── Change Password ───────────────────────────────────────────────────────────
 
 function ChangePasswordForm(): React.JSX.Element {
-  const { changePassword, loading } = useAuthStore()
+  const changePassword = useAuthStore((s) => s.changePassword)
+  const { loading } = useAuthStore()
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -76,7 +77,7 @@ function ChangePasswordForm(): React.JSX.Element {
           type="password"
           required
           value={current}
-          onChange={(e) => setCurrent(e.target.value)}
+          onChange={(e) => { setCurrent(e.target.value) }}
           className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)]
                      px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none
                      focus:border-[var(--color-accent)]"
@@ -90,7 +91,7 @@ function ChangePasswordForm(): React.JSX.Element {
           required
           placeholder="Min. 8 characters"
           value={next}
-          onChange={(e) => setNext(e.target.value)}
+          onChange={(e) => { setNext(e.target.value) }}
           className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)]
                      px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none
                      focus:border-[var(--color-accent)]"
@@ -103,7 +104,7 @@ function ChangePasswordForm(): React.JSX.Element {
           type="password"
           required
           value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
+          onChange={(e) => { setConfirm(e.target.value) }}
           className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)]
                      px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none
                      focus:border-[var(--color-accent)]"
@@ -137,7 +138,9 @@ function ChangePasswordForm(): React.JSX.Element {
 
 export function SettingsPage(): React.JSX.Element {
   const navigate = useNavigate()
-  const { user, logoutAll, deleteAccount } = useAuthStore()
+  const logoutAll = useAuthStore((s) => s.logoutAll)
+  const deleteAccount = useAuthStore((s) => s.deleteAccount)
+  const { user } = useAuthStore()
 
   const [logoutBusy, setLogoutBusy] = useState(false)
   const [deleteBusy, setDeleteBusy] = useState(false)
@@ -216,7 +219,7 @@ export function SettingsPage(): React.JSX.Element {
               type="text"
               placeholder="DELETE"
               value={deleteConfirm}
-              onChange={(e) => setDeleteConfirm(e.target.value)}
+              onChange={(e) => { setDeleteConfirm(e.target.value) }}
               className="rounded-lg border border-[var(--color-danger)]/40 bg-[var(--color-surface-2)]
                          px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none
                          focus:border-[var(--color-danger)]"

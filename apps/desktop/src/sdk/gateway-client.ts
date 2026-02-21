@@ -113,7 +113,7 @@ export class GatewayClient {
 
   /** Revoke the given refresh token (server-side logout). */
   async logout(refreshToken: string): Promise<void> {
-    await this.post<void>('/v1/auth/logout', { refresh_token: refreshToken })
+    await this.post<{ ok: true }>('/v1/auth/logout', { refresh_token: refreshToken })
   }
 
   /** Rotate a refresh token and receive a new access + refresh token pair. */
@@ -133,7 +133,7 @@ export class GatewayClient {
 
   private async json<T>(method: string, path: string, body: unknown): Promise<T> {
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs)
+    const timeoutId = setTimeout(() => { controller.abort() }, this.timeoutMs)
 
     try {
       const res = await fetch(`${this.baseURL}${path}`, {
@@ -161,9 +161,9 @@ export class GatewayClient {
   }
 
   private mapError(status: number, context: string): Error {
-    if (status === 401 || status === 403) return new AuthError(`${context} → ${status}`)
+    if (status === 401 || status === 403) return new AuthError(`${context} → ${String(status)}`)
     if (status === 429) return new RateLimitError(`${context} → rate limited`)
-    return new GatewayError(`${context} → ${status}`, { status })
+    return new GatewayError(`${context} → ${String(status)}`, { status })
   }
 
   private async withRetry<T>(fn: () => Promise<T>): Promise<T> {
@@ -185,7 +185,7 @@ export class GatewayClient {
           // ±30 % jitter prevents thundering-herd when multiple clients retry simultaneously.
           const jitter = base * 0.3 * (Math.random() * 2 - 1)
           const delay = Math.round(base + jitter)
-          log.warn(`Retrying request (attempt ${attempt + 1}/${this.maxRetries}) after ${delay}ms`)
+          log.warn(`Retrying request (attempt ${String(attempt + 1)}/${String(this.maxRetries)}) after ${String(delay)}ms`)
           await sleep(delay)
         }
       }
@@ -195,5 +195,5 @@ export class GatewayClient {
 }
 
 function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+  return new Promise((resolve) => { setTimeout(resolve, ms) })
 }

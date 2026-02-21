@@ -14,13 +14,13 @@ interface IMarketplaceStore {
   searchQuery: string
   selectedCategory: string
 
-  fetchBots(query?: string, category?: string): Promise<void>
-  fetchInstalled(): Promise<void>
-  install(botId: string): Promise<void>
-  uninstall(botId: string): Promise<void>
-  setSearch(q: string): void
-  setCategory(c: string): void
-  clearError(): void
+  fetchBots: (query?: string, category?: string) => Promise<void>
+  fetchInstalled: () => Promise<void>
+  install: (botId: string) => Promise<void>
+  uninstall: (botId: string) => Promise<void>
+  setSearch: (q: string) => void
+  setCategory: (c: string) => void
+  clearError: () => void
 }
 
 export const useMarketplaceStore = create<IMarketplaceStore>((set, get) => ({
@@ -68,8 +68,8 @@ export const useMarketplaceStore = create<IMarketplaceStore>((set, get) => ({
     }))
   },
 
-  setSearch: (q) => set({ searchQuery: q }),
-  setCategory: (c) => set({ selectedCategory: c }),
-  clearError: () => set({ error: null }),
+  setSearch: (q) => { set({ searchQuery: q }) },
+  setCategory: (c) => { set({ selectedCategory: c }) },
+  clearError: () => { set({ error: null }) },
 }))
 

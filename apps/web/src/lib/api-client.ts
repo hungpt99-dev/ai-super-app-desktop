@@ -5,7 +5,7 @@
  * Handles JWT access tokens + refresh token rotation automatically.
  */
 
-const GATEWAY = import.meta.env['VITE_GATEWAY_URL'] ?? 'http://localhost:3000'
+const GATEWAY = import.meta.env.VITE_GATEWAY_URL ?? 'http://localhost:3000'
 
 // ── Token management ──────────────────────────────────────────────────────────
 
@@ -25,6 +25,16 @@ export function isAuthenticated(): boolean { return Boolean(getToken()) }
 export function clearSession(): void {
   clearToken()
   clearRefreshToken()
+}
+
+/**
+ * Redirect the browser to the backend's OAuth initiation endpoint.
+ * The backend proxies to the provider and, after success, redirects to
+ * `${origin}/oauth/callback?access_token=<jwt>&refresh_token=<rt>`.
+ */
+export function initiateOAuthLogin(provider: 'google' | 'github'): void {
+  const redirectUri = encodeURIComponent(`${window.location.origin}/oauth/callback`)
+  window.location.href = `${GATEWAY}/v1/auth/oauth/${provider}?redirect_uri=${redirectUri}`
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -67,7 +77,7 @@ export interface IMarketplaceBot {
   developer: string
   developer_id?: string
   version: string
-  icon_url: string
+  icon_url?: string
   rating: number
   install_count: number
   is_free: boolean
@@ -122,7 +132,7 @@ async function request<T>(
 ): Promise<T> {
   const token = getToken()
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (token) headers['Authorization'] = `Bearer ${token}`
+  if (token) headers.Authorization = `Bearer ${token}`
 
   const controller = new AbortController()
   const timeout = setTimeout(() => { controller.abort() }, REQUEST_TIMEOUT_MS)
@@ -148,9 +158,9 @@ async function request<T>(
 
   if (res.status === 204) return undefined as T
 
-  const json = await res.json()
+  const json: unknown = await res.json()
   if (!res.ok) {
-    const msg = (json as { message?: string }).message ?? `HTTP ${res.status}`
+    const msg = (json as { message?: string }).message ?? `HTTP ${String(res.status)}`
     throw new Error(msg)
   }
   return json as T
@@ -227,20 +237,24 @@ export const authApi = {
   me: (): Promise<IUser> =>
     request<IUser>('GET', '/v1/auth/me'),
 
-  logout: (refreshToken: string): Promise<void> =>
-    request<void>('POST', '/v1/auth/logout', { refresh_token: refreshToken }),
+  logout: async (refreshToken: string): Promise<void> => {
+    await request('POST', '/v1/auth/logout', { refresh_token: refreshToken })
+  },
 
-  logoutAll: (): Promise<void> =>
-    request<void>('POST', '/v1/auth/logout-all'),
+  logoutAll: async (): Promise<void> => {
+    await request('POST', '/v1/auth/logout-all')
+  },
 
-  changePassword: (currentPassword: string, newPassword: string): Promise<void> =>
-    request<void>('POST', '/v1/auth/change-password', {
+  changePassword: async (currentPassword: string, newPassword: string): Promise<void> => {
+    await request('POST', '/v1/auth/change-password', {
       current_password: currentPassword,
       new_password: newPassword,
-    }),
+    })
+  },
 
-  deleteAccount: (): Promise<void> =>
-    request<void>('DELETE', '/v1/auth/account'),
+  deleteAccount: async (): Promise<void> => {
+    await request('DELETE', '/v1/auth/account')
+  },
 }
 
 // ── Devices ───────────────────────────────────────────────────────────────────
@@ -265,11 +279,13 @@ export const devicesApi = {
   rename: (id: string, name: string): Promise<IDevice> =>
     request<IDevice>('PATCH', `/v1/devices/${id}`, { name }),
 
-  remove: (id: string): Promise<void> =>
-    request<void>('DELETE', `/v1/devices/${id}`),
+  remove: async (id: string): Promise<void> => {
+    await request('DELETE', `/v1/devices/${id}`)
+  },
 
-  heartbeat: (id: string): Promise<void> =>
-    request<void>('POST', `/v1/devices/${id}/heartbeat`),
+  heartbeat: async (id: string): Promise<void> => {
+    await request('POST', `/v1/devices/${id}/heartbeat`)
+  },
 
   /** Fetch the latest reported metrics for a device (returns null if none yet or on error). */
   getMetrics: (id: string): Promise<IDeviceMetrics | null> => fetchDeviceMetrics(id),
@@ -282,7 +298,7 @@ export const devicesApi = {
 async function fetchDeviceMetrics(id: string): Promise<IDeviceMetrics | null> {
   const token = getToken()
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (token) headers['Authorization'] = `Bearer ${token}`
+  if (token) headers.Authorization = `Bearer ${token}`
   const controller = new AbortController()
   const timeout = setTimeout(() => { controller.abort() }, REQUEST_TIMEOUT_MS)
   try {
@@ -319,11 +335,13 @@ export const marketplaceApi = {
   getInstalled: (): Promise<IMarketplaceBot[]> =>
     request<IMarketplaceBot[]>('GET', '/v1/marketplace/installed'),
 
-  install: (appId: string): Promise<void> =>
-    request<void>('POST', `/v1/marketplace/${appId}/install`),
+  install: async (appId: string): Promise<void> => {
+    await request('POST', `/v1/marketplace/${appId}/install`)
+  },
 
-  uninstall: (appId: string): Promise<void> =>
-    request<void>('DELETE', `/v1/marketplace/${appId}/install`),
+  uninstall: async (appId: string): Promise<void> => {
+    await request('DELETE', `/v1/marketplace/${appId}/install`)
+  },
 }
 
 // ── Bots (Automation System) ──────────────────────────────────────────────────
@@ -341,8 +359,9 @@ export const botsApi = {
   update: (id: string, input: IUpdateBotInput): Promise<IBot> =>
     request<IBot>('PUT', `/v1/bots/${id}`, input),
 
-  delete: (id: string): Promise<void> =>
-    request<void>('DELETE', `/v1/bots/${id}`),
+  delete: async (id: string): Promise<void> => {
+    await request('DELETE', `/v1/bots/${id}`)
+  },
 
   /**
    * Dispatch a bot run, optionally with a JSON-serialised task input.
@@ -352,20 +371,21 @@ export const botsApi = {
     request('POST', `/v1/bots/${id}/runs`, input !== undefined ? { input } : undefined),
 
   getRuns: (id: string, limit = 20): Promise<IBotRun[]> =>
-    request<IBotRun[]>('GET', `/v1/bots/${id}/runs?limit=${limit}`),
+    request<IBotRun[]>('GET', `/v1/bots/${id}/runs?limit=${String(limit)}`),
 
   /** Report progress or final status for a bot run (used by web Control Tower). */
-  updateRun: (
+  updateRun: async (
     runId: string,
     status: 'running' | 'completed' | 'failed',
     steps: number,
     result?: string,
-  ): Promise<void> =>
-    request<void>('PATCH', `/v1/bots/runs/${runId}`, {
+  ): Promise<void> => {
+    await request('PATCH', `/v1/bots/runs/${runId}`, {
       status,
       steps,
       ...(result !== undefined ? { result } : {}),
-    }),
+    })
+  },
 }
 
 // ── Stats ─────────────────────────────────────────────────────────────────────
@@ -399,11 +419,12 @@ export interface IAppReview {
 
 export const reviewsApi = {
   list: (appId: string, limit = 20): Promise<IAppReview[]> =>
-    request<IAppReview[]>('GET', `/v1/marketplace/${appId}/reviews?limit=${limit}`),
+    request<IAppReview[]>('GET', `/v1/marketplace/${appId}/reviews?limit=${String(limit)}`),
 
   upsert: (appId: string, rating: number, body: string): Promise<IAppReview> =>
     request<IAppReview>('POST', `/v1/marketplace/${appId}/reviews`, { rating, body }),
 
-  delete: (appId: string): Promise<void> =>
-    request<void>('DELETE', `/v1/marketplace/${appId}/reviews`),
+  delete: async (appId: string): Promise<void> => {
+    await request('DELETE', `/v1/marketplace/${appId}/reviews`)
+  },
 }

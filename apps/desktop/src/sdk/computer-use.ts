@@ -65,23 +65,23 @@ export interface IShellResult {
 
 // ── Raw Tauri response shapes (snake_case from Rust) ──────────────────────────
 
-interface RawScreenshot {
+interface IRawScreenshot {
   data_uri: string
   width: number
   height: number
 }
 
-interface RawScreenSize {
+interface IRawScreenSize {
   width: number
   height: number
 }
 
-interface RawMousePosition {
+interface IRawMousePosition {
   x: number
   y: number
 }
 
-interface RawShellResult {
+interface IRawShellResult {
   exit_code: number
   stdout: string
   stderr: string
@@ -94,7 +94,7 @@ interface RawShellResult {
  * Requires Screen Recording permission on macOS.
  */
 export async function screenshot(): Promise<IScreenshot> {
-  const raw = await invoke<RawScreenshot>('computer_screenshot')
+  const raw = await invoke<IRawScreenshot>('computer_screenshot')
   return { dataUri: raw.data_uri, width: raw.width, height: raw.height }
 }
 
@@ -109,7 +109,7 @@ export async function screenshotRegion(
   width: number,
   height: number,
 ): Promise<IScreenshot> {
-  const raw = await invoke<RawScreenshot>('computer_screenshot_region', {
+  const raw = await invoke<IRawScreenshot>('computer_screenshot_region', {
     x,
     y,
     width,
@@ -122,12 +122,12 @@ export async function screenshotRegion(
 
 /** Returns the primary screen dimensions in logical pixels. */
 export async function screenSize(): Promise<IScreenSize> {
-  return invoke<RawScreenSize>('computer_screen_size')
+  return invoke<IRawScreenSize>('computer_screen_size')
 }
 
 /** Returns the current mouse cursor position in logical pixels. */
 export async function mousePosition(): Promise<IMousePosition> {
-  return invoke<RawMousePosition>('computer_mouse_position')
+  return invoke<IRawMousePosition>('computer_mouse_position')
 }
 
 // ── Mouse control ──────────────────────────────────────────────────────────────
@@ -282,7 +282,7 @@ export async function launchApp(appName: string): Promise<void> {
  * console.log(result.stdout)
  */
 export async function runShell(command: string): Promise<IShellResult> {
-  const raw = await invoke<RawShellResult>('computer_run_shell', { command })
+  const raw = await invoke<IRawShellResult>('computer_run_shell', { command })
   return { exitCode: raw.exit_code, stdout: raw.stdout, stderr: raw.stderr }
 }
 

@@ -35,13 +35,34 @@ export interface IUsageSummary {
   windowStartUnix: number
 }
 
+/** Response from GET /v1/bots/poll — the run claimed by this desktop agent. */
+export interface IBotPollResult {
+  run_id: string
+  bot_id: string
+  /** Human-readable goal text passed to the executing module. */
+  goal: string
+  /** Module ID to dispatch, e.g. "custom", "writing-helper", "crypto". */
+  bot_type: string
+  /** Controls how the result is stored / displayed. */
+  data_sensitivity: 'public' | 'private' | 'encrypted'
+  status: string
+}
+
+/** Body sent to PATCH /v1/bots/runs/{runID} from the desktop agent. */
+export interface IBotRunUpdate {
+  status: 'running' | 'completed' | 'failed' | 'cancelled'
+  steps: number
+  /** Structured output from the module tool — bot-type-specific shape. */
+  result?: Record<string, unknown>
+}
+
 export interface IDesktopBridge {
   chat: {
     send(message: string): Promise<{ output: string }>
     onStream(handler: (chunk: string) => void): () => void
   }
   modules: {
-    list(): Promise<Array<{ id: string; name: string; version: string }>>
+    list(): Promise<{ id: string; name: string; version: string }[]>
     install(packagePath: string): Promise<void>
     uninstall(moduleId: string): Promise<void>
     /** Invoke a specific tool belonging to a module */
@@ -81,5 +102,17 @@ export interface IDesktopBridge {
   }
   app: {
     version(): Promise<string>
+  }
+  bots: {
+    /**
+     * Claim the next pending bot run from the server queue.
+     * Returns null when the queue is empty.
+     */
+    poll(): Promise<IBotPollResult | null>
+    /**
+     * Report progress or final status for a claimed run.
+     * `result` is omitted for intermediate (running) updates.
+     */
+    updateRun(runId: string, update: IBotRunUpdate): Promise<void>
   }
 }

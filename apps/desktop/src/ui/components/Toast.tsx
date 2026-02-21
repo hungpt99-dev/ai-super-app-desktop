@@ -49,8 +49,8 @@ function ToastItem({
   const styles = LEVEL_STYLES[n.level]
 
   useEffect(() => {
-    const t = setTimeout(() => setVisible(true), 16)
-    return () => clearTimeout(t)
+    const t = setTimeout(() => { setVisible(true) }, 16)
+    return () => { clearTimeout(t) }
   }, [])
 
   return (
@@ -92,7 +92,8 @@ function ToastItem({
  * Mount once at the App root; reads from useAppStore.
  */
 export function ToastContainer(): React.JSX.Element {
-  const { notifications, dismissNotification } = useAppStore()
+  const notifications = useAppStore((s) => s.notifications)
+  const dismissNotification = useAppStore((s) => s.dismissNotification)
 
   return (
     <div
@@ -103,7 +104,7 @@ export function ToastContainer(): React.JSX.Element {
         <ToastItem
           key={n.id}
           notification={n}
-          onDismiss={() => dismissNotification(n.id)}
+          onDismiss={() => { dismissNotification(n.id) }}
         />
       ))}
     </div>

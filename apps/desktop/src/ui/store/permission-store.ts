@@ -88,24 +88,24 @@ interface IPermissionStore {
    *
    * Returns `true` if all permissions are approved, `false` if the user denies.
    */
-  requestPermissions(
+  requestPermissions: (
     moduleId: string,
     moduleName: string,
     permissions: Permission[],
-  ): Promise<boolean>
+  ) => Promise<boolean>
 
   /** Approve the current pending dialog request. */
-  approve(): void
+  approve: () => void
 
   /** Deny the current pending dialog request. */
-  deny(): void
+  deny: () => void
 
   /**
    * Clear the stored permission approval for a module.
    * The module keeps its current in-memory grants until the app restarts,
    * at which point the user will be prompted again.
    */
-  revokeStored(moduleId: string): void
+  revokeStored: (moduleId: string) => void
 }
 
 let requestCounter = 0

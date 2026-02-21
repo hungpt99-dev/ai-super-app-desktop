@@ -55,7 +55,7 @@ function buildStepPrompt(
     history.length === 0
       ? 'No actions taken yet.'
       : history
-          .map((s, i) => `Step ${i + 1}: ${JSON.stringify(s.action)}`)
+          .map((s, i) => `Step ${String(i + 1)}: ${JSON.stringify(s.action)}`)
           .join('\n')
 
   return `You are a computer-use AI agent. Your goal is:
@@ -225,6 +225,8 @@ export class ComputerAgent implements IComputerAgentRunner {
     log.info('ComputerAgent started', { goal: this.goal, maxSteps })
 
     for (let i = 0; i < maxSteps; i++) {
+      // cancelled can be set to true by cancel() between iterations
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       if (this.cancelled) {
         log.info('ComputerAgent stopped by cancel()', { steps: i })
         return { success: false, steps: history, result: 'cancelled' }
@@ -291,7 +293,7 @@ export class ComputerAgent implements IComputerAgentRunner {
     return {
       success: false,
       steps: history,
-      result: `max steps (${maxSteps}) reached without completing the goal`,
+      result: `max steps (${String(maxSteps)}) reached without completing the goal`,
     }
   }
 }

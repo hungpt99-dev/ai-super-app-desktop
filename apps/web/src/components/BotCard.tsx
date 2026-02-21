@@ -1,17 +1,14 @@
 /**
  * BotCard.tsx — single bot tile displayed in the bot list.
- * Status badge, dispatch-to-device button, and quick actions.
+ * Status badge and quick delete action.
  */
 
-import React, { useState } from 'react'
+import React from 'react'
 import type { IBot } from '../lib/api-client.js'
 
-interface Props {
+interface IBotCardProps {
   bot: IBot
   onSelect: () => void
-  /** Called when user dispatches a run. May return a Promise. */
-  onStart: () => void | Promise<void>
-  onTogglePause: () => void
   onDelete: () => void
 }
 
@@ -20,21 +17,7 @@ const STATUS_COLOR: Record<string, string> = {
   paused: 'text-[var(--color-warning)] bg-[var(--color-warning)]/10',
 }
 
-export function BotCard({ bot, onSelect, onStart, onTogglePause, onDelete }: Props): React.JSX.Element {
-  const [dispatching, setDispatching] = useState(false)
-  const [dispatched, setDispatched] = useState(false)
-
-  const handleRun = async (): Promise<void> => {
-    setDispatching(true)
-    try {
-      await onStart()
-      setDispatched(true)
-      setTimeout(() => { setDispatched(false) }, 2_500)
-    } finally {
-      setDispatching(false)
-    }
-  }
-
+export function BotCard({ bot, onSelect, onDelete }: IBotCardProps): React.JSX.Element {
   return (
     <div
       className="group relative flex flex-col gap-3 rounded-xl border border-[var(--color-border)]
@@ -64,31 +47,9 @@ export function BotCard({ bot, onSelect, onStart, onTogglePause, onDelete }: Pro
 
       {/* Actions */}
       <div
-        className="flex items-center gap-2"
-        onClick={(e) => e.stopPropagation()}
+        className="flex items-center justify-end"
+        onClick={(e) => { e.stopPropagation() }}
       >
-        <button
-          className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors
-            disabled:opacity-50
-            ${
-              dispatched
-                ? 'bg-[var(--color-success)]/20 text-[var(--color-success)]'
-                : 'bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)]'
-            }`}
-          disabled={dispatching}
-          onClick={() => void handleRun()}
-          title="Dispatch this bot to run on your connected desktop device"
-        >
-          {dispatching ? 'Dispatching…' : dispatched ? '✓ Sent to device' : '▶ Run'}
-        </button>
-        <button
-          className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium
-                     text-[var(--color-text-secondary)] transition-colors
-                     hover:border-[var(--color-warning)]/50 hover:text-[var(--color-warning)]"
-          onClick={onTogglePause}
-        >
-          {bot.status === 'active' ? '⏸' : '▶'}
-        </button>
         <button
           className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium
                      text-[var(--color-text-secondary)] transition-colors

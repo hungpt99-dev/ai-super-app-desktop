@@ -25,7 +25,7 @@ import type {
 
 // ── Raw Tauri response shapes (snake_case from Rust) ──────────────────────────
 
-interface RawMemoryEntry {
+interface IRawMemoryEntry {
   id: string
   type: string
   scope: string
@@ -39,7 +39,7 @@ interface RawMemoryEntry {
   accessed_at: string | null
 }
 
-interface RawConversationMessage {
+interface IRawConversationMessage {
   id: string
   session_id: string
   role: string
@@ -47,7 +47,7 @@ interface RawConversationMessage {
   created_at: string
 }
 
-interface RawMemoryStats {
+interface IRawMemoryStats {
   total_memories: number
   total_messages: number
   by_type: Record<string, number>
@@ -55,7 +55,7 @@ interface RawMemoryStats {
 
 // ── Converters ────────────────────────────────────────────────────────────────
 
-function toMemoryEntry(raw: RawMemoryEntry): IMemoryEntry {
+function toMemoryEntry(raw: IRawMemoryEntry): IMemoryEntry {
   return {
     id: raw.id,
     type: raw.type as MemoryType,
@@ -71,7 +71,7 @@ function toMemoryEntry(raw: RawMemoryEntry): IMemoryEntry {
   }
 }
 
-function toConversationMessage(raw: RawConversationMessage): IConversationMessage {
+function toConversationMessage(raw: IRawConversationMessage): IConversationMessage {
   return {
     id: raw.id,
     sessionId: raw.session_id,
@@ -81,7 +81,7 @@ function toConversationMessage(raw: RawConversationMessage): IConversationMessag
   }
 }
 
-function toMemoryStats(raw: RawMemoryStats): IMemoryStats {
+function toMemoryStats(raw: IRawMemoryStats): IMemoryStats {
   return {
     totalMemories: raw.total_memories,
     totalMessages: raw.total_messages,
@@ -97,7 +97,7 @@ function toMemoryStats(raw: RawMemoryStats): IMemoryStats {
  * is updated in place; otherwise a new row is inserted.
  */
 export async function memoryUpsert(input: IMemoryUpsertInput): Promise<IMemoryEntry> {
-  const raw = await invoke<RawMemoryEntry>('memory_upsert', { input })
+  const raw = await invoke<IRawMemoryEntry>('memory_upsert', { input })
   return toMemoryEntry(raw)
 }
 
@@ -110,7 +110,7 @@ export async function memoryList(options?: {
   memoryType?: string
   limit?: number
 }): Promise<IMemoryEntry[]> {
-  const raw = await invoke<RawMemoryEntry[]>('memory_list', {
+  const raw = await invoke<IRawMemoryEntry[]>('memory_list', {
     scope: options?.scope ?? null,
     memoryType: options?.memoryType ?? null,
     limit: options?.limit ?? null,
@@ -120,13 +120,13 @@ export async function memoryList(options?: {
 
 /** Get a single memory by ID. */
 export async function memoryGet(id: string): Promise<IMemoryEntry> {
-  const raw = await invoke<RawMemoryEntry>('memory_get', { id })
+  const raw = await invoke<IRawMemoryEntry>('memory_get', { id })
   return toMemoryEntry(raw)
 }
 
 /** Soft-delete (archive) a memory by ID. */
 export async function memoryDelete(id: string): Promise<void> {
-  await invoke<void>('memory_delete', { id })
+  await invoke('memory_delete', { id })
 }
 
 /** Permanently remove all archived memories. Returns the number deleted. */
@@ -151,7 +151,7 @@ export async function memoryBuildContext(options?: {
 
 /** Return memory statistics (counts by type, total messages). */
 export async function memoryStats(): Promise<IMemoryStats> {
-  const raw = await invoke<RawMemoryStats>('memory_stats')
+  const raw = await invoke<IRawMemoryStats>('memory_stats')
   return toMemoryStats(raw)
 }
 
@@ -164,9 +164,9 @@ export async function memoryStats(): Promise<IMemoryStats> {
  */
 export async function memoryAppendMessages(
   sessionId: string,
-  messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>,
+  messages: { role: 'user' | 'assistant' | 'system'; content: string }[],
 ): Promise<void> {
-  await invoke<void>('memory_append_messages', {
+  await invoke('memory_append_messages', {
     sessionId,
     messages,
   })
@@ -180,7 +180,7 @@ export async function memoryGetHistory(
   sessionId: string,
   limit?: number,
 ): Promise<IConversationMessage[]> {
-  const raw = await invoke<RawConversationMessage[]>('memory_get_history', {
+  const raw = await invoke<IRawConversationMessage[]>('memory_get_history', {
     sessionId,
     limit: limit ?? null,
   })
@@ -189,5 +189,5 @@ export async function memoryGetHistory(
 
 /** Clear all messages for a session (e.g. when the user resets a chat). */
 export async function memoryClearSession(sessionId: string): Promise<void> {
-  await invoke<void>('memory_clear_session', { sessionId })
+  await invoke('memory_clear_session', { sessionId })
 }

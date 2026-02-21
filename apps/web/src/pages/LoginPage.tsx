@@ -5,10 +5,13 @@
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuthStore } from '../store/auth-store.js'
+import { OAuthButtons } from '../components/OAuthButtons.js'
 
 export function LoginPage(): React.JSX.Element {
   const navigate = useNavigate()
-  const { login, loading, error, clearError } = useAuthStore()
+  const login = useAuthStore((s) => s.login)
+  const clearError = useAuthStore((s) => s.clearError)
+  const { loading, error } = useAuthStore()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
 
@@ -33,6 +36,8 @@ export function LoginPage(): React.JSX.Element {
           <p className="mt-1 text-sm text-[var(--color-text-secondary)]">AI SuperApp Platform</p>
         </div>
 
+        <OAuthButtons />
+
         <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-[var(--color-text-secondary)]">Email</label>
@@ -41,7 +46,7 @@ export function LoginPage(): React.JSX.Element {
               required
               placeholder="you@example.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => { setEmail(e.target.value) }}
               autoComplete="email"
               className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)]
                          px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none
@@ -56,7 +61,7 @@ export function LoginPage(): React.JSX.Element {
               required
               placeholder="••••••••"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => { setPassword(e.target.value) }}
               autoComplete="current-password"
               className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)]
                          px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none

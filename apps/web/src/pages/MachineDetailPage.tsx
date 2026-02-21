@@ -173,15 +173,10 @@ function TabBar({ tabs, active, onChange }: ITabBarProps): React.JSX.Element {
 interface IOverviewTabProps {
   device: IDevice
   runs: IRunEntry[]
-  bots: IBot[]
   metrics: IDeviceMetrics | null
-  selectedBotId: string
-  dispatching: boolean
   heartbeating: boolean
   refreshedAt: number
   error: string | null
-  onSelectBot: (id: string) => void
-  onDispatch: () => void
   onHeartbeat: () => void
 }
 
@@ -192,10 +187,9 @@ function formatUptime(seconds: number): string {
 }
 
 function OverviewTab({
-  device, runs, bots, metrics, selectedBotId, dispatching, heartbeating,
-  refreshedAt, error, onSelectBot, onDispatch, onHeartbeat,
+  device, runs, metrics, heartbeating,
+  refreshedAt, error, onHeartbeat,
 }: IOverviewTabProps): React.JSX.Element {
-  const navigate = useNavigate()
   const isOnline = device.status === 'online'
   const totalRuns = runs.length
   const completedRuns = runs.filter((r) => r.status === 'completed').length
@@ -307,41 +301,7 @@ function OverviewTab({
         </div>
       ) : null}
 
-      {bots.length > 0 ? (
-        <div className="mb-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-          <h3 className="mb-1 text-sm font-semibold text-[var(--color-text-primary)]">▶ Dispatch Job</h3>
-          <p className="mb-4 text-xs text-[var(--color-text-muted)]">
-            Queue a bot run — any online agent will claim and execute it automatically.
-          </p>
-          <div className="flex items-center gap-3">
-            <select
-              value={selectedBotId}
-              onChange={(e) => { onSelectBot(e.target.value) }}
-              className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent)]"
-            >
-              {bots.map((bot) => (
-                <option key={bot.id} value={bot.id}>
-                  {bot.name}{bot.status === 'paused' ? ' (paused)' : ''}
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={onDispatch}
-              disabled={dispatching || selectedBotId === ''}
-              className="rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
-            >
-              {dispatching ? 'Queuing…' : 'Run Now'}
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="mb-6 rounded-xl border border-dashed border-[var(--color-border)] p-5 text-center">
-          <p className="text-sm text-[var(--color-text-secondary)]">No bots configured.</p>
-          <button onClick={() => { navigate('/bots') }} className="mt-1 text-xs text-[var(--color-accent)] hover:underline">
-            Create a bot →
-          </button>
-        </div>
-      )}
+
 
       {recentRuns.length > 0 ? (
         <div>
@@ -521,11 +481,32 @@ function InfoTab({ device, runs, bots }: IInfoTabProps): React.JSX.Element {
 interface IBotsTabProps {
   installedBots: IMarketplaceBot[]
   workerBots: IBot[]
+  runs: IRunEntry[]
   selectedBot: IMarketplaceBot | null
   onSelectBot: (bot: IMarketplaceBot | null) => void
+  onStart: (botId: string) => Promise<void>
+  onStop: (runId: string) => Promise<void>
 }
 
-function BotsTab({ installedBots, workerBots, selectedBot, onSelectBot }: IBotsTabProps): React.JSX.Element {
+function BotsTab({ installedBots, workerBots, runs, selectedBot, onSelectBot, onStart, onStop }: IBotsTabProps): React.JSX.Element {
+  const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({})
+
+  const setLoading = (key: string, val: boolean): void => {
+    setActionLoading((prev) => ({ ...prev, [key]: val }))
+  }
+
+  const handleStart = async (e: React.MouseEvent, botId: string): Promise<void> => {
+    e.stopPropagation()
+    setLoading(botId, true)
+    try { await onStart(botId) } finally { setLoading(botId, false) }
+  }
+
+  const handleStop = async (e: React.MouseEvent, runId: string): Promise<void> => {
+    e.stopPropagation()
+    setLoading(runId, true)
+    try { await onStop(runId) } finally { setLoading(runId, false) }
+  }
+
   if (selectedBot !== null) {
     return (
       <div className="flex h-full flex-col overflow-hidden">
@@ -552,34 +533,64 @@ function BotsTab({ installedBots, workerBots, selectedBot, onSelectBot }: IBotsT
 
   return (
     <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-4">
-      {installedBots.map((bot) => (
-        <button
-          key={bot.id}
-          onClick={() => { onSelectBot(bot) }}
-          className="flex items-center gap-4 rounded-xl border border-[var(--color-border)]
-                     bg-[var(--color-surface)] px-5 py-4 text-left transition-colors
-                     hover:border-[var(--color-accent)]/40"
-        >
-          {bot.icon_url !== undefined ? (
-            <img src={bot.icon_url} alt="" className="h-10 w-10 shrink-0 rounded-xl object-cover" />
-          ) : (
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--color-surface-2)] text-xl">
-              🤖
-            </div>
-          )}
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-[var(--color-text-primary)]">{bot.name}</p>
-            <p className="truncate text-xs text-[var(--color-text-secondary)]">{bot.description}</p>
-          </div>
-          <svg
-            width="16" height="16" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-            className="shrink-0 text-[var(--color-text-muted)]"
+      {installedBots.map((bot) => {
+        const workerBot = workerBots.find((w) => w.name === bot.name || w.id === bot.id)
+        const activeRun = workerBot
+          ? runs.find((r) => (r.botName === workerBot.name) && (r.status === 'running' || r.status === 'pending'))
+          : undefined
+
+        return (
+          <div
+            key={bot.id}
+            className="flex items-center gap-4 rounded-xl border border-[var(--color-border)]
+                       bg-[var(--color-surface)] px-5 py-4 transition-colors
+                       hover:border-[var(--color-accent)]/40"
           >
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
-        </button>
-      ))}
+            <button
+              className="flex min-w-0 flex-1 items-center gap-4 text-left"
+              onClick={() => { onSelectBot(bot) }}
+            >
+              {bot.icon_url !== undefined ? (
+                <img src={bot.icon_url} alt="" className="h-10 w-10 shrink-0 rounded-xl object-cover" />
+              ) : (
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--color-surface-2)] text-xl">
+                  🤖
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-[var(--color-text-primary)]">{bot.name}</p>
+                <p className="truncate text-xs text-[var(--color-text-secondary)]">{bot.description}</p>
+              </div>
+            </button>
+
+            {/* Start / Stop action */}
+            <div className="shrink-0">
+              {activeRun ? (
+                <button
+                  disabled={actionLoading[activeRun.id] === true}
+                  onClick={(e) => void handleStop(e, activeRun.id)}
+                  className="flex items-center gap-1.5 rounded-lg border border-[var(--color-danger)]/40
+                             bg-[var(--color-danger)]/10 px-3 py-1.5 text-xs font-medium
+                             text-[var(--color-danger)] transition-colors
+                             hover:bg-[var(--color-danger)]/20 disabled:opacity-50"
+                >
+                  {actionLoading[activeRun.id] === true ? 'Stopping…' : '⏹ Stop'}
+                </button>
+              ) : workerBot !== undefined ? (
+                <button
+                  disabled={actionLoading[workerBot.id] === true}
+                  onClick={(e) => void handleStart(e, workerBot.id)}
+                  className="flex items-center gap-1.5 rounded-lg bg-[var(--color-accent)] px-3 py-1.5
+                             text-xs font-medium text-white transition-colors
+                             hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
+                >
+                  {actionLoading[workerBot.id] === true ? 'Starting…' : '▶ Start'}
+                </button>
+              ) : null}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -597,8 +608,6 @@ export function MachineDetailPage(): React.JSX.Element {
   const [metrics, setMetrics] = useState<IDeviceMetrics | null>(null)
   const [installedBots, setInstalledBots] = useState<IMarketplaceBot[]>([])
   const [selectedMarketplaceBot, setSelectedMarketplaceBot] = useState<IMarketplaceBot | null>(null)
-  const [selectedBotId, setSelectedBotId] = useState<string>('')
-  const [dispatching, setDispatching] = useState(false)
   const [heartbeating, setHeartbeating] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -632,9 +641,6 @@ export function MachineDetailPage(): React.JSX.Element {
         ])
         setBots(botList)
         setInstalledBots(marketplaceBots)
-        if (botList.length > 0 && botList[0] !== undefined) {
-          setSelectedBotId(botList[0].id)
-        }
         await loadRuns(botList)
         if (deviceId !== undefined) {
           const m = await devicesApi.getMetrics(deviceId)
@@ -672,20 +678,16 @@ export function MachineDetailPage(): React.JSX.Element {
     }
   }
 
-  const handleDispatch = async (): Promise<void> => {
-    if (selectedBotId === '') return
-    setDispatching(true)
-    setError(null)
-    try {
-      await botsApi.start(selectedBotId)
-      await loadRuns(bots)
-      setRefreshedAt(Date.now())
-      setActiveTab('activity')
-    } catch (err) {
-      setError((err as Error).message)
-    } finally {
-      setDispatching(false)
-    }
+  const handleStartBot = async (botId: string): Promise<void> => {
+    await botsApi.start(botId)
+    await loadRuns(bots)
+    setRefreshedAt(Date.now())
+  }
+
+  const handleStopRun = async (runId: string): Promise<void> => {
+    await botsApi.updateRun(runId, 'failed', 0, 'Stopped by user')
+    await loadRuns(bots)
+    setRefreshedAt(Date.now())
   }
 
   if (loading) {
@@ -752,15 +754,10 @@ export function MachineDetailPage(): React.JSX.Element {
         <OverviewTab
           device={device}
           runs={runs}
-          bots={bots}
           metrics={metrics}
-          selectedBotId={selectedBotId}
-          dispatching={dispatching}
           heartbeating={heartbeating}
           refreshedAt={refreshedAt}
           error={error}
-          onSelectBot={setSelectedBotId}
-          onDispatch={() => { void handleDispatch() }}
           onHeartbeat={() => { void handleHeartbeat() }}
         />
       )}
@@ -773,8 +770,11 @@ export function MachineDetailPage(): React.JSX.Element {
         <BotsTab
           installedBots={installedBots}
           workerBots={bots}
+          runs={runs}
           selectedBot={selectedMarketplaceBot}
           onSelectBot={setSelectedMarketplaceBot}
+          onStart={handleStartBot}
+          onStop={handleStopRun}
         />
       )}
 

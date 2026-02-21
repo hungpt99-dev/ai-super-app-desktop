@@ -13,7 +13,7 @@ export function useModules() {
   useEffect(() => {
     // refresh() is a stable Zustand action, no need to include in deps
     void store.refresh()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   return store
 }

@@ -22,9 +22,9 @@ interface IAiAnalysis {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const SYMBOLS = ['BTC', 'ETH', 'SOL', 'BNB'] as const
-type Symbol = (typeof SYMBOLS)[number]
+type CryptoSymbol = (typeof SYMBOLS)[number]
 
-const SYMBOL_NAMES: Record<Symbol, string> = {
+const SYMBOL_NAMES: Record<CryptoSymbol, string> = {
   BTC: 'Bitcoin',
   ETH: 'Ethereum',
   SOL: 'Solana',
@@ -91,7 +91,7 @@ interface ICryptoPanelProps {
  * Analysis:    ai.generate('analysis', prompt)
  */
 export function CryptoPanel({ onBack }: ICryptoPanelProps): React.JSX.Element {
-  const [activeSymbol, setActiveSymbol] = useState<Symbol>('BTC')
+  const [activeSymbol, setActiveSymbol] = useState<CryptoSymbol>('BTC')
   const [marketData, setMarketData] = useState<IMarketData | null>(null)
   const [analysis, setAnalysis] = useState<IAiAnalysis | null>(null)
   const [isLoadingData, setIsLoadingData] = useState(false)
@@ -99,7 +99,7 @@ export function CryptoPanel({ onBack }: ICryptoPanelProps): React.JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
 
-  const fetchMarketData = useCallback(async (symbol: Symbol) => {
+  const fetchMarketData = useCallback(async (symbol: CryptoSymbol) => {
     setIsLoadingData(true)
     setError(null)
     try {
@@ -130,7 +130,7 @@ export function CryptoPanel({ onBack }: ICryptoPanelProps): React.JSX.Element {
       const prompt =
         `Analyze the current ${marketData.symbol} market data: ` +
         `Price $${marketData.price.toLocaleString()}, ` +
-        `24h change ${marketData.change24h > 0 ? '+' : ''}${marketData.change24h}%, ` +
+        `24h change ${marketData.change24h > 0 ? '+' : ''}${String(marketData.change24h)}%, ` +
         `volume $${(marketData.volume / 1e9).toFixed(2)}B. ` +
         `Give a short market outlook and one key risk.`
       const result = await bridge.ai.generate('analysis', prompt, { symbol: marketData.symbol })
@@ -169,7 +169,7 @@ export function CryptoPanel({ onBack }: ICryptoPanelProps): React.JSX.Element {
           </p>
         </div>
         <button
-          onClick={() => void fetchMarketData(activeSymbol)}
+          onClick={() => { void fetchMarketData(activeSymbol) }}
           disabled={isLoadingData}
           className="ml-auto flex items-center gap-2 rounded-lg bg-[var(--color-surface-2)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-border)] disabled:cursor-not-allowed disabled:opacity-50"
         >
@@ -189,7 +189,7 @@ export function CryptoPanel({ onBack }: ICryptoPanelProps): React.JSX.Element {
           {SYMBOLS.map((s) => (
             <button
               key={s}
-              onClick={() => setActiveSymbol(s)}
+              onClick={() => { setActiveSymbol(s) }}
               className={[
                 'rounded-xl px-4 py-2 text-sm font-medium transition-colors',
                 s === activeSymbol

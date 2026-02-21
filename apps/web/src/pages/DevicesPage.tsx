@@ -4,127 +4,15 @@
 
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useDeviceStore } from '../store/device-store.js'
 import type { IDevice } from '../lib/api-client.js'
-// IDevice is used in onRegister return type and DeviceRow prop
-
-// ── Register Device Modal ─────────────────────────────────────────────────────
-
-interface IRegisterModalProps {
-  onClose(): void
-  onRegister(name: string, platform: string, version: string): Promise<IDevice>
-}
-
-function RegisterModal({ onClose, onRegister }: IRegisterModalProps): React.JSX.Element {
-  const [name, setName] = useState('')
-  const [platform, setPlatform] = useState('macOS')
-  const [version, setVersion] = useState('1.0.0')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
-    e.preventDefault()
-    setError(null)
-    setLoading(true)
-    try {
-      await onRegister(name.trim(), platform, version.trim())
-      onClose()
-    } catch (err) {
-      setError((err as Error).message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-sm rounded-2xl border border-[var(--color-border)]
-                      bg-[var(--color-surface)] p-6 shadow-2xl">
-        <h2 className="mb-4 text-base font-semibold text-[var(--color-text-primary)]">
-          Register device
-        </h2>
-
-        <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-[var(--color-text-secondary)]">Device name</label>
-            <input
-              type="text"
-              required
-              placeholder="My MacBook"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)]
-                         px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none
-                         focus:border-[var(--color-accent)]"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-[var(--color-text-secondary)]">Platform</label>
-            <select
-              value={platform}
-              onChange={(e) => setPlatform(e.target.value)}
-              className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)]
-                         px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none
-                         focus:border-[var(--color-accent)]"
-            >
-              <option>macOS</option>
-              <option>Windows</option>
-              <option>Linux</option>
-            </select>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-[var(--color-text-secondary)]">Agent version</label>
-            <input
-              type="text"
-              value={version}
-              onChange={(e) => setVersion(e.target.value)}
-              placeholder="1.0.0"
-              className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)]
-                         px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none
-                         focus:border-[var(--color-accent)]"
-            />
-          </div>
-
-          {error && (
-            <p className="rounded-lg bg-[var(--color-danger)]/10 px-3 py-2 text-xs text-[var(--color-danger)]">
-              {error}
-            </p>
-          )}
-
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 rounded-lg border border-[var(--color-border)] py-2 text-sm
-                         text-[var(--color-text-secondary)] transition-colors
-                         hover:bg-[var(--color-surface-2)]"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 rounded-lg bg-[var(--color-accent)] py-2 text-sm font-medium
-                         text-white transition-colors hover:bg-[var(--color-accent-hover)]
-                         disabled:opacity-50"
-            >
-              {loading ? 'Registering…' : 'Register'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  )
-}
+import { useDeviceStore } from '../store/device-store.js'
 
 // ── Device Row ────────────────────────────────────────────────────────────────
 
 interface IDeviceRowProps {
   device: IDevice
-  onRename(id: string, name: string): Promise<void>
-  onRemove(id: string): Promise<void>
+  onRename: (id: string, name: string) => Promise<void>
+  onRemove: (id: string) => Promise<void>
 }
 
 function DeviceRow({ device, onRename, onRemove }: IDeviceRowProps): React.JSX.Element {
@@ -164,7 +52,7 @@ function DeviceRow({ device, onRename, onRemove }: IDeviceRowProps): React.JSX.E
           <input
             autoFocus
             value={editName}
-            onChange={(e) => setEditName(e.target.value)}
+            onChange={(e) => { setEditName(e.target.value) }}
             onBlur={() => void handleRename()}
             onKeyDown={(e) => {
               if (e.key === 'Enter') void handleRename()
@@ -202,7 +90,7 @@ function DeviceRow({ device, onRename, onRemove }: IDeviceRowProps): React.JSX.E
         </button>
 
         <button
-          onClick={() => setEditing(true)}
+          onClick={() => { setEditing(true) }}
           disabled={loading}
           title="Rename"
           className="rounded-lg p-1.5 text-sm text-[var(--color-text-secondary)]
@@ -227,9 +115,10 @@ function DeviceRow({ device, onRename, onRemove }: IDeviceRowProps): React.JSX.E
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function DevicesPage(): React.JSX.Element {
-  const { devices, loading, error, fetchDevices, registerDevice, renameDevice, removeDevice } =
-    useDeviceStore()
-  const [showModal, setShowModal] = useState(false)
+  const fetchDevices = useDeviceStore((s) => s.fetchDevices)
+  const renameDevice = useDeviceStore((s) => s.renameDevice)
+  const removeDevice = useDeviceStore((s) => s.removeDevice)
+  const { devices, loading, error } = useDeviceStore()
 
   useEffect(() => {
     void fetchDevices()
@@ -243,20 +132,14 @@ export function DevicesPage(): React.JSX.Element {
   return (
     <div className="flex h-full flex-col overflow-y-auto p-6">
       {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-[var(--color-text-primary)]">Devices</h1>
-          <p className="mt-0.5 text-sm text-[var(--color-text-secondary)]">
-            {onlineCount} online · {devices.length} total
-          </p>
-        </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium
-                     text-white transition-colors hover:bg-[var(--color-accent-hover)]"
-        >
-          + Register device
-        </button>
+      <div className="mb-6">
+        <h1 className="text-xl font-semibold text-[var(--color-text-primary)]">Devices</h1>
+        <p className="mt-0.5 text-sm text-[var(--color-text-secondary)]">
+          {onlineCount} online · {devices.length} total
+        </p>
+        <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+          Devices are registered automatically when you log in on the Desktop Agent.
+        </p>
       </div>
 
       {error && (
@@ -273,13 +156,9 @@ export function DevicesPage(): React.JSX.Element {
           <p className="mt-3 text-sm text-[var(--color-text-secondary)]">
             No devices registered yet.
           </p>
-          <button
-            onClick={() => setShowModal(true)}
-            className="mt-4 rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm
-                       font-medium text-white hover:bg-[var(--color-accent-hover)]"
-          >
-            Register your first device
-          </button>
+          <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+            Open the Desktop Agent app and log in — your device will appear here automatically.
+          </p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -292,13 +171,6 @@ export function DevicesPage(): React.JSX.Element {
             />
           ))}
         </div>
-      )}
-
-      {showModal && (
-        <RegisterModal
-          onClose={() => setShowModal(false)}
-          onRegister={registerDevice}
-        />
       )}
     </div>
   )

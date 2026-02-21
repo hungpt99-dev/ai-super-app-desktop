@@ -1,4 +1,4 @@
-import type { IDesktopBridge, IToastNotification } from '../../shared/bridge-types.js'
+import type { IDesktopBridge, IToastNotification, IBotPollResult, IBotRunUpdate } from '../../shared/bridge-types.js'
 import { getModuleManager } from '../../core/module-bootstrap.js'
 
 /** True when running inside the Tauri WebView runtime. */
@@ -8,8 +8,8 @@ const IS_TAURI = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in windo
  * Cloud Gateway base URL used by the browser dev bridge only.
  * In Tauri, all HTTP calls are made by Rust commands — this constant is unused.
  */
-const DEV_GATEWAY = import.meta.env['VITE_GATEWAY_URL'] ?? 'http://localhost:3000'
-const DEV_TOKEN = import.meta.env['VITE_DEV_TOKEN'] ?? 'dev-token'
+const DEV_GATEWAY: string = import.meta.env.VITE_GATEWAY_URL ?? 'http://localhost:3000'
+const DEV_TOKEN: string = import.meta.env.VITE_DEV_TOKEN ?? 'dev-token'
 
 // ─── Tauri bridge ─────────────────────────────────────────────────────────────
 // All IPC goes through Tauri `invoke()`. Streaming is done by listening to
@@ -30,7 +30,7 @@ const tauriBridge: IDesktopBridge = {
     onStream: (handler) => {
       let unlisten: (() => void) | null = null
       void import('@tauri-apps/api/event').then(({ listen }) =>
-        listen<string>('chat:stream-chunk', (e) => handler(e.payload)),
+        listen<string>('chat:stream-chunk', (e) => { handler(e.payload) }),
       ).then((fn) => { unlisten = fn })
       return () => { unlisten?.() }
     },
@@ -38,18 +38,20 @@ const tauriBridge: IDesktopBridge = {
 
   // ── Modules ──────────────────────────────────────────────────────────────
   modules: {
-    list: async () => {
+    list: (): Promise<{ id: string; name: string; version: string }[]> => {
       const mm = getModuleManager()
-      if (!mm) return []
-      return Array.from(mm.getActive().entries()).map(([id, def]) => ({
-        id,
-        name: def.manifest.name,
-        version: def.manifest.version,
-      }))
+      if (!mm) return Promise.resolve([])
+      return Promise.resolve(
+        Array.from(mm.getActive().entries()).map(([id, def]) => ({
+          id,
+          name: def.manifest.name,
+          version: def.manifest.version,
+        }))
+      )
     },
 
-    install: async () => undefined,
-    uninstall: async () => undefined,
+    install: (): Promise<void> => Promise.resolve(),
+    uninstall: (): Promise<void> => Promise.resolve(),
 
     invokeTool: (moduleId, toolName, input) =>
       invoke<unknown>('modules_invoke_tool', { moduleId, toolName, input }),
@@ -71,7 +73,7 @@ const tauriBridge: IDesktopBridge = {
     onPush: (handler) => {
       let unlisten: (() => void) | null = null
       void import('@tauri-apps/api/event').then(({ listen }) =>
-        listen<Omit<IToastNotification, 'id'>>('notification:push', (e) => handler(e.payload)),
+        listen<Omit<IToastNotification, 'id'>>('notification:push', (e) => { handler(e.payload) }),
       ).then((fn) => { unlisten = fn })
       return () => { unlisten?.() }
     },
@@ -119,6 +121,13 @@ const tauriBridge: IDesktopBridge = {
   app: {
     version: () => invoke<string>('app_version'),
   },
+
+  // ── Bots ──────────────────────────────────────────────────────────────────
+  bots: {
+    poll: () => invoke<IBotPollResult | null>('bots_poll'),
+    updateRun: (runId: string, update: IBotRunUpdate) =>
+      invoke<undefined>('bots_update_run', { runId, update }).then(() => undefined),
+  },
 }
 
 // ─── Dev bridge (browser-only mode) ──────────────────────────────────────────
@@ -131,7 +140,7 @@ let _streamHandler: ((chunk: string) => void) | null = null
 const _notifyListeners = new Set<(n: Omit<IToastNotification, 'id'>) => void>()
 window.addEventListener('app:notification', (e) => {
   const detail = (e as CustomEvent<Omit<IToastNotification, 'id'>>).detail
-  _notifyListeners.forEach((fn) => fn(detail))
+  _notifyListeners.forEach((fn) => { fn(detail) })
 })
 
 /**
@@ -163,20 +172,22 @@ const devBridge: IDesktopBridge = {
 
   // ── Modules ──────────────────────────────────────────────────────────────
   modules: {
-    list: async () => {
+    list: (): Promise<{ id: string; name: string; version: string }[]> => {
       const mm = getModuleManager()
-      if (!mm) return []
-      return Array.from(mm.getActive().entries()).map(([id, def]) => ({
-        id,
-        name: def.manifest.name,
-        version: def.manifest.version,
-      }))
+      if (!mm) return Promise.resolve([])
+      return Promise.resolve(
+        Array.from(mm.getActive().entries()).map(([id, def]) => ({
+          id,
+          name: def.manifest.name,
+          version: def.manifest.version,
+        }))
+      )
     },
 
-    install: async () => undefined,
-    uninstall: async () => undefined,
+    install: (): Promise<void> => Promise.resolve(),
+    uninstall: (): Promise<void> => Promise.resolve(),
 
-    invokeTool: async (moduleId: string, toolName: string) => {
+    invokeTool: (moduleId: string, toolName: string): Promise<unknown> => {
       // Dev-mode stub — module tool invocation requires a live Tauri + backend session.
       throw new Error(`[Dev mode] Module tool ${moduleId}/${toolName} is not available without the full app.`)
     },
@@ -184,11 +195,12 @@ const devBridge: IDesktopBridge = {
 
   // ── AI ───────────────────────────────────────────────────────────────────
   ai: {
-    generate: async (_capability: string, _input: string) => ({
+    generate: (_capability: string, _input: string): Promise<{ output: string; tokensUsed: number }> =>
       // Dev-mode stub — AI generation requires a live Tauri + backend session.
-      output: '[Dev mode] AI generation is not available without the full app.',
-      tokensUsed: 0,
-    }),
+      Promise.resolve({
+        output: '[Dev mode] AI generation is not available without the full app.',
+        tokensUsed: 0,
+      }),
   },
 
   // ── Notifications ─────────────────────────────────────────────────────────
@@ -215,11 +227,12 @@ const devBridge: IDesktopBridge = {
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   auth: {
-    status: async () => ({
-      authenticated: Boolean(DEV_TOKEN),
-      userId: 'dev-user',
-      plan: 'pro',
-    }),
+    status: (): Promise<{ authenticated: boolean; userId?: string; plan?: string }> =>
+      Promise.resolve({
+        authenticated: Boolean(DEV_TOKEN),
+        userId: 'dev-user',
+        plan: 'pro',
+      }),
 
     login: async (clientId: string, clientSecret: string) => {
       const res = await fetch(`${DEV_GATEWAY}/v1/auth/token`, {
@@ -227,7 +240,7 @@ const devBridge: IDesktopBridge = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ client_id: clientId, client_secret: clientSecret }),
       })
-      if (!res.ok) throw new Error(`Login failed: ${res.status}`)
+      if (!res.ok) throw new Error(`Login failed: ${String(res.status)}`)
     },
 
     logout: async () => { /* Dev mode: nothing to clear */ },
@@ -255,7 +268,37 @@ const devBridge: IDesktopBridge = {
 
   // ── App ───────────────────────────────────────────────────────────────────
   app: {
-    version: async () => '1.0.0-dev',
+    version: (): Promise<string> => Promise.resolve('1.0.0-dev'),
+  },
+
+  // ── Bots ──────────────────────────────────────────────────────────────────
+  bots: {
+    poll: async (): Promise<IBotPollResult | null> => {
+      try {
+        const res = await fetch(`${DEV_GATEWAY}/v1/bots/poll`, {
+          headers: { Authorization: `Bearer ${DEV_TOKEN}` },
+        })
+        if (res.status === 204) return null
+        if (!res.ok) return null
+        return res.json() as Promise<IBotPollResult>
+      } catch {
+        return null
+      }
+    },
+
+    updateRun: async (runId: string, update: IBotRunUpdate): Promise<void> => {
+      const res = await fetch(`${DEV_GATEWAY}/v1/bots/runs/${runId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${DEV_TOKEN}`,
+        },
+        body: JSON.stringify(update),
+      })
+      if (!res.ok && res.status !== 204) {
+        throw new Error(`updateRun failed: ${String(res.status)}`)
+      }
+    },
   },
 }
 

@@ -74,7 +74,7 @@ class DevTokenStore implements ITokenStore {
   private cached: string | null = null
 
   getToken(): string {
-    return this.cached ?? import.meta.env['VITE_DEV_TOKEN'] ?? ''
+    return this.cached ?? import.meta.env.VITE_DEV_TOKEN ?? ''
   }
 
   setToken(token: string): void {
@@ -86,7 +86,7 @@ class DevTokenStore implements ITokenStore {
   }
 
   hasToken(): boolean {
-    return Boolean(this.cached ?? import.meta.env['VITE_DEV_TOKEN'])
+    return Boolean(this.cached ?? import.meta.env.VITE_DEV_TOKEN)
   }
 }
 
@@ -111,6 +111,6 @@ export async function initTokenStore(): Promise<void> {
  * In browser dev mode it is the sole HTTP transport.
  */
 export const gatewayClient: GatewayClient = new GatewayClient({
-  baseURL: import.meta.env['VITE_GATEWAY_URL'] ?? 'http://localhost:3000',
+  baseURL: import.meta.env.VITE_GATEWAY_URL ?? 'http://localhost:3000',
   getToken: () => tokenStore.getToken(),
 })
