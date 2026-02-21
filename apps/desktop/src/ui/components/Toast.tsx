@@ -46,7 +46,11 @@ function ToastItem({
   onDismiss: () => void
 }): React.JSX.Element {
   const [visible, setVisible] = useState(false)
+  const setView = useAppStore((s) => s.setView)
   const styles = LEVEL_STYLES[n.level]
+
+  // Error and warning details live in the Logs tab — don't duplicate them here.
+  const isAlert = n.level === 'error' || n.level === 'warning'
 
   useEffect(() => {
     const t = setTimeout(() => { setVisible(true) }, 16)
@@ -68,8 +72,18 @@ function ToastItem({
         <p className="text-sm font-semibold leading-tight text-[var(--color-text-primary)]">
           {n.title}
         </p>
-        {n.body && (
-          <p className="mt-0.5 text-xs leading-snug text-[var(--color-text-secondary)]">{n.body}</p>
+        {/* info / success: show the body inline. error / warning: redirect to Logs tab. */}
+        {isAlert ? (
+          <button
+            onClick={() => { setView('logs'); onDismiss() }}
+            className={`mt-0.5 text-xs underline underline-offset-2 transition-opacity hover:opacity-80 ${styles.icon}`}
+          >
+            View in Logs →
+          </button>
+        ) : (
+          n.body && (
+            <p className="mt-0.5 text-xs leading-snug text-[var(--color-text-secondary)]">{n.body}</p>
+          )
         )}
       </div>
       <button
