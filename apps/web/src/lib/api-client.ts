@@ -180,6 +180,7 @@ async function request<T>(
 }
 
 async function tryRefresh(): Promise<boolean> {
+  if (IS_DEMO) return true
   const rt = getRefreshToken()
   if (!rt) return false
   try {
@@ -202,6 +203,11 @@ async function tryRefresh(): Promise<boolean> {
 
 /** Register a new account and store the issued tokens. */
 export async function register(email: string, name: string, password: string): Promise<IAuthResponse> {
+  if (IS_DEMO) {
+    setToken('demo-token')
+    setRefreshToken('demo-refresh')
+    return { token: 'demo-token', refresh_token: 'demo-refresh', expires_in: 86400, user: DEMO_USER }
+  }
   const res = await fetch(`${GATEWAY}/v1/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -242,6 +248,7 @@ export async function loginWithEmail(email: string, password: string): Promise<I
 
 /** Legacy API-key login used by the Desktop Agent. */
 export async function login(clientId: string, clientSecret: string): Promise<void> {
+  if (IS_DEMO) { setToken('demo-token'); return }
   const res = await fetch(`${GATEWAY}/v1/auth/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -309,6 +316,7 @@ export const devicesApi = {
  * cleanly without the object-literal inference ambiguity.
  */
 async function fetchDeviceMetrics(id: string): Promise<IDeviceMetrics | null> {
+  if (IS_DEMO) return handleDemoRequest<IDeviceMetrics | null>('GET', `/v1/devices/${id}/metrics`)
   const token = getToken()
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (token) headers['Authorization'] = `Bearer ${token}`

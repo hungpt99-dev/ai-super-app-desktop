@@ -2,15 +2,26 @@
  * LoginPage.tsx — email / password login form.
  */
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuthStore } from '../store/auth-store.js'
+import { IS_DEMO } from '../lib/api-client.js'
+
+const DEMO_EMAIL = 'demo@ai-superapp.dev'
+const DEMO_PASSWORD = 'demo-password'
 
 export function LoginPage(): React.JSX.Element {
   const navigate = useNavigate()
   const { login, loading, error, clearError } = useAuthStore()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const [email, setEmail] = useState(IS_DEMO ? DEMO_EMAIL : '')
+  const [password, setPassword] = useState(IS_DEMO ? DEMO_PASSWORD : '')
+
+  // In demo mode, auto-submit immediately on mount.
+  useEffect(() => {
+    if (!IS_DEMO) return
+    void login(DEMO_EMAIL, DEMO_PASSWORD).then(() => { navigate('/dashboard') })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
@@ -32,6 +43,12 @@ export function LoginPage(): React.JSX.Element {
           <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">Sign in</h1>
           <p className="mt-1 text-sm text-[var(--color-text-secondary)]">AI SuperApp Platform</p>
         </div>
+
+        {IS_DEMO && (
+          <div className="mb-4 rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-accent-dim)] px-3 py-2.5 text-center text-xs text-[var(--color-accent)]">
+            ✨ <strong>Demo mode</strong> — signing in automatically…
+          </div>
+        )}
 
         <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
