@@ -1,8 +1,8 @@
 import type { IAppPackage, IModuleDefinition, IModuleManager, INotifyOptions, IToolInput, Permission } from '@ai-super-app/sdk'
+import type { PermissionEngine } from './permission-engine.js'
 
 /** True when running inside the Tauri WebView runtime. */
 const IS_TAURI = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
-import type { PermissionEngine } from './permission-engine.js'
 import { ModuleSandbox } from './module-sandbox.js'
 import {
   ModuleInstallError,
@@ -106,8 +106,17 @@ export class ModuleManager implements IModuleManager {
     log.info('Module uninstalled', { moduleId })
   }
 
+  /**
+   * Returns a map of all currently active (sandboxed) module definitions.
+   * A module is active after activate() succeeds and before deactivate() is called.
+   */
   getActive(): ReadonlyMap<string, IModuleDefinition> {
-    return this.registry
+    const result = new Map<string, IModuleDefinition>()
+    for (const [id] of this.sandboxes) {
+      const def = this.registry.get(id)
+      if (def) result.set(id, def)
+    }
+    return result
   }
 
   /**

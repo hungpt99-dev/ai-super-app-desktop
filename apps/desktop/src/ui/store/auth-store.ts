@@ -9,6 +9,9 @@ import {
 import { tokenStore } from '../../sdk/token-store.js'
 import { logger } from '@ai-super-app/shared'
 
+// NOTE: device registration is handled by startAgentLoop() (called on auth events)
+// to avoid duplicating platform detection and request logic.
+
 const log = logger.child('AuthStore')
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -27,44 +30,6 @@ function loadRefreshToken(): string | null {
 
 function clearRefreshToken(): void {
   try { localStorage.removeItem(REFRESH_TOKEN_KEY) } catch { /* ignore */ }
-}
-
-// ─── Device auto-registration ─────────────────────────────────────────────────
-
-function detectPlatform(): string {
-  const ua = navigator.userAgent
-  if (ua.includes('Mac OS')) return 'macOS'
-  if (ua.includes('Windows')) return 'Windows'
-  if (ua.includes('Linux')) return 'Linux'
-  return 'Desktop'
-}
-
-/**
- * Fire-and-forget: registers this machine as a device on the backend.
- * Called after every successful auth event (login, register, token restore).
- * Errors are logged but never propagated — this must never block the auth flow.
- */
-async function registerThisDevice(): Promise<void> {
-  const token = tokenStore.getToken()
-  if (!token) return
-
-  const base = import.meta.env.VITE_GATEWAY_URL ?? 'http://localhost:3000'
-  const platform = detectPlatform()
-  const name = `${platform} Desktop`
-  const version = import.meta.env.VITE_APP_VERSION ?? '1.0.0'
-
-  try {
-    await fetch(`${base}/v1/devices`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ name, platform, version }),
-    })
-  } catch (err) {
-    log.warn('Device auto-registration failed (non-fatal)', { err })
-  }
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -151,7 +116,7 @@ export const useAuthStore = create<IAuthState>((set, get) => ({
         },
       })
       log.info('User signed in', { userId: profile.id })
-      void registerThisDevice()
+      // Device registration is handled by startAgentLoop() triggered by the auth state change.
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Login failed. Check your credentials.'
       set({ isLoading: false, error: message })
@@ -177,7 +142,7 @@ export const useAuthStore = create<IAuthState>((set, get) => ({
         },
       })
       log.info('User registered', { userId: profile.id })
-      void registerThisDevice()
+      // Device registration is handled by startAgentLoop() triggered by the auth state change.
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Registration failed. Try again.'
       set({ isLoading: false, error: message })
@@ -242,7 +207,7 @@ export const useAuthStore = create<IAuthState>((set, get) => ({
         },
       })
       log.info('OAuth sign-in complete', { userId: profile.id })
-      void registerThisDevice()
+      // Device registration is handled by startAgentLoop() triggered by the auth state change.
     } catch (err) {
       tokenStore.clearToken()
       clearRefreshToken()
@@ -285,7 +250,7 @@ export const useAuthStore = create<IAuthState>((set, get) => ({
             created_at: profile.created_at,
           },
         })
-        void registerThisDevice()
+        // Device registration is handled by startAgentLoop() triggered by the auth state change.
         return
       }
 
@@ -307,7 +272,7 @@ export const useAuthStore = create<IAuthState>((set, get) => ({
             created_at: profile.created_at,
           },
         })
-        void registerThisDevice()
+        // Device registration is handled by startAgentLoop() triggered by the auth state change.
         return
       }
     } catch (err) {

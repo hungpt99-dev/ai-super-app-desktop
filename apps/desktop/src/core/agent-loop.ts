@@ -47,16 +47,39 @@ let emptyPollStreak = 0
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function detectPlatform(): string {
+/** True when running inside the Tauri WebView runtime. */
+const IS_TAURI = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+
+/**
+ * Detect the host OS.
+ * Uses `@tauri-apps/plugin-os` when running inside Tauri for accuracy.
+ * Falls back to User-Agent string parsing in browser dev mode.
+ */
+async function detectPlatform(): Promise<string> {
+  if (IS_TAURI) {
+    try {
+      const { type: osType } = await import('@tauri-apps/plugin-os')
+      const t = await osType()
+      if (t === 'macos') return 'macOS'
+      if (t === 'windows') return 'Windows'
+      if (t === 'linux') return 'Linux'
+      return t
+    } catch {
+      // Plugin unavailable — fall through to UA heuristic
+    }
+  }
   const ua = navigator.userAgent
   if (ua.includes('Mac')) return 'macOS'
   if (ua.includes('Win')) return 'Windows'
   return 'Linux'
 }
 
-function generateAgentName(): string {
-  const suffix = Math.random().toString(36).slice(2, 6).toUpperCase()
-  return `${detectPlatform()} Agent ${suffix}`
+async function generateAgentName(): Promise<string> {
+  const platform = await detectPlatform()
+  const arr = new Uint8Array(2)
+  crypto.getRandomValues(arr)
+  const suffix = Array.from(arr).map((b) => b.toString(16).padStart(2, '0')).join('').toUpperCase()
+  return `${platform} Agent ${suffix}`
 }
 
 /** Calculates the next poll delay using exponential backoff with full-jitter. */
@@ -75,8 +98,8 @@ async function ensureDevice(): Promise<string | null> {
     return existingId
   }
   try {
-    const name = generateAgentName()
-    const device = await agentDeviceApi.register(name, detectPlatform(), AGENT_VERSION)
+    const [name, platform] = await Promise.all([generateAgentName(), detectPlatform()])
+    const device = await agentDeviceApi.register(name, platform, AGENT_VERSION)
     saveDeviceId(device.id)
     saveDeviceName(device.name)
     useAgentStore.getState().setDevice(device.id, device.name)

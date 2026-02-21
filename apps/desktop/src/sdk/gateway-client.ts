@@ -145,7 +145,7 @@ export class GatewayClient {
 
       if (!res.ok) throw this.mapError(res.status, `${method} ${path}`)
 
-      return res.json() as Promise<T>
+      return await res.json() as T
     } finally {
       clearTimeout(timeoutId)
     }
@@ -175,7 +175,10 @@ export class GatewayClient {
         // Never retry client errors (4xx)
         if (err instanceof AuthError || err instanceof RateLimitError) throw err
         if (err instanceof GatewayError) {
-          const status = (err.details as { status?: number } | undefined)?.status ?? 0
+          const d = err.details
+          const status = (d !== null && typeof d === 'object' && 'status' in d && typeof (d as { status?: unknown }).status === 'number')
+            ? (d as { status: number }).status
+            : 0
           if (status >= 400 && status < 500) throw err
         }
 

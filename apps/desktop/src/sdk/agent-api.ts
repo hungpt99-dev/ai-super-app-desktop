@@ -57,7 +57,7 @@ async function agentFetch<T>(method: string, path: string, body?: unknown): Prom
       const text = await res.text().catch(() => res.statusText)
       throw new Error(`${method} ${path} → ${String(res.status)}: ${text}`)
     }
-    return res.json() as Promise<T>
+    return await res.json() as T
   } finally {
     clearTimeout(timeout)
   }

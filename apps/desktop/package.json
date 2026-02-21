@@ -15,6 +15,7 @@
     "@ai-super-app/shared": "*",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-fs": "^2",
+    "@tauri-apps/plugin-os": "^2.3.2",
     "@tauri-apps/plugin-store": "^2",
     "zustand": "^5.0.11"
   },

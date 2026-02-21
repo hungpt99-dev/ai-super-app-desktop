@@ -412,6 +412,7 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(tauri_plugin_os::init())
         .setup(|app| {
             let mem_db = memory::open_db(app.handle()).expect("failed to open memory.db");
             app.manage(mem_db);

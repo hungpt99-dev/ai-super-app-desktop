@@ -484,13 +484,12 @@ export const useBotStore = create<IBotStore>((set, get) => ({
           // Perform the actual AI call.
           try {
             const ai = await bridge.ai.generate('chat', `Complete this task: ${bot.description}`)
-            // Unwrap the dev-mode stub into a realistic placeholder.
             result = ai.output.startsWith('[Dev mode]')
-              ? `✦ Demo run completed\n\n${bot.description}\n\nSign in with a paid plan to enable real AI execution and see actual results.`
+              ? `[Offline] Start the full Tauri app to enable real AI execution for: ${bot.description}`
               : ai.output
-          } catch {
+          } catch (aiErr) {
             const preview = bot.description.length > 120 ? `${bot.description.slice(0, 120)}…` : bot.description
-            result = `✦ Demo run completed\n\n${preview}\n\nSign in with a paid plan to enable real AI execution.`
+            result = `Task execution failed: ${String(aiErr)}\n\nTask: ${preview}`
           }
         } else {
           await sleep(STEP_DELAYS[i] ?? 300)
@@ -602,7 +601,7 @@ ${preview}`,
       const ai = await bridge.ai.generate('chat', prompt)
 
       const reply = ai.output.startsWith('[Dev mode]')
-        ? `I'm ${bot.name}. ${bot.description.slice(0, 150)}${bot.description.length > 150 ? '…' : ''} Ask me anything!`
+        ? `[Offline] Start the full Tauri app to enable AI responses from ${bot.name}.`
         : ai.output
 
       pushMsg({ id: generateId(), role: 'assistant', content: reply, ts: Date.now() })
