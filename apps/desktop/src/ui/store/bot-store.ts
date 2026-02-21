@@ -126,6 +126,11 @@ export interface IDesktopBot {
   synced: boolean
   /** The template this bot was created from, if any (local concept — not sent to server). */
   templateId?: string
+  /**
+   * Per-bot API key override — stored locally only, never sent to the server.
+   * When set, this key is passed to the AI provider instead of the global app key.
+   */
+  apiKey?: string
 }
 
 /** A run record — may live in localStorage or be fetched from the server. */
@@ -167,8 +172,13 @@ interface IBotStore {
   runBot(id: string): Promise<void>
   /** Load run history for a bot (local + server when synced). */
   loadRuns(botId: string): Promise<void>
-  /** Update editable fields of a bot (name, description, goal). Local-only for now. */
-  updateBot(id: string, patch: Partial<Pick<IDesktopBot, 'name' | 'description' | 'goal'>>): Promise<void>
+  /** Update editable fields of a bot (name, description, goal, apiKey). Local-only for now. */
+  updateBot(id: string, patch: Partial<Pick<IDesktopBot, 'name' | 'description' | 'goal' | 'apiKey'>>): Promise<void>
+  /**
+   * Cancel any active run for the bot — sets its status to 'cancelled' and
+   * removes the bot from the running set so the UI unlocks immediately.
+   */
+  stopBot(id: string): void
   selectBot(id: string | null): void
   clearError(): void
 }
@@ -441,6 +451,22 @@ export const useBotStore = create<IBotStore>((set, get) => ({
     writeBots(bots)
     set({ bots })
     return Promise.resolve()
+  },
+
+  stopBot: (id) => {
+    // Immediately unblock the running lock so the UI responds.
+    set({ runningBotIds: get().runningBotIds.filter((x) => x !== id) })
+    // Mark any pending/running run records as cancelled.
+    const allRuns = { ...get().runs }
+    if (allRuns[id]) {
+      allRuns[id] = allRuns[id].map((r) =>
+        r.status === 'running' || r.status === 'pending'
+          ? { ...r, status: 'cancelled' as RunStatus, ended_at: new Date().toISOString() }
+          : r,
+      )
+      writeRuns(allRuns)
+      set({ runs: allRuns })
+    }
   },
 
   selectBot: (id) => {

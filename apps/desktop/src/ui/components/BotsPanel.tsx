@@ -643,16 +643,23 @@ function DetailTab({ bot, botRuns, latestRun, busy, canRun, isRunning, runLabel,
 
 // ─── Settings tab ─────────────────────────────────────────────────────────────
 
-function SettingsTab({ bot, template, colorClass, onDelete }: {
+function SettingsTab({ bot, template, colorClass, onDelete, isRunning, onStop }: {
   bot: IDesktopBot
   template?: IBotTemplate | undefined
   colorClass: string
   onDelete: () => void
+  isRunning: boolean
+  onStop: () => void
 }): React.JSX.Element {
-  const [name,   setName]   = useState(bot.name)
-  const [desc,   setDesc]   = useState(bot.description)
-  const [saving, setSaving] = useState(false)
-  const [saved,  setSaved]  = useState(false)
+  const [name,      setName]      = useState(bot.name)
+  const [desc,      setDesc]      = useState(bot.description)
+  const [saving,    setSaving]    = useState(false)
+  const [saved,     setSaved]     = useState(false)
+  // API key override state
+  const [apiKey,    setApiKey]    = useState(bot.apiKey ?? '')
+  const [showKey,   setShowKey]   = useState(false)
+  const [savingKey, setSavingKey] = useState(false)
+  const [savedKey,  setSavedKey]  = useState(false)
 
   const handleSave = async (): Promise<void> => {
     if (!name.trim()) return
@@ -663,8 +670,47 @@ function SettingsTab({ bot, template, colorClass, onDelete }: {
     setTimeout(() => { setSaved(false) }, 2_000)
   }
 
+  const handleSaveKey = async (): Promise<void> => {
+    setSavingKey(true)
+    const trimmed = apiKey.trim()
+    if (trimmed) {
+      await useBotStore.getState().updateBot(bot.id, { apiKey: trimmed })
+    } else {
+      // Clear the key by patching with an empty object — the store's spread will
+      // preserve the existing apiKey unless we delete it explicitly.
+      const bots = useBotStore.getState().bots.map((b) =>
+        b.id === bot.id ? (() => { const { apiKey: _k, ...rest } = b; return rest as typeof b })() : b,
+      )
+      useBotStore.setState({ bots })
+    }
+    setSavingKey(false)
+    setSavedKey(true)
+    setTimeout(() => { setSavedKey(false) }, 2_000)
+  }
+
   return (
     <div className="space-y-6">
+      {/* Active Run — shown only when the bot is currently executing */}
+      {isRunning && (
+        <section>
+          <p className="mb-4 text-[10px] font-semibold uppercase tracking-wider text-blue-400">Active Run</p>
+          <div className="flex items-center justify-between rounded-2xl border border-blue-400/30 bg-blue-400/5 px-5 py-4">
+            <div className="flex items-center gap-3">
+              <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-blue-400" />
+              <div>
+                <p className="text-sm font-medium text-[var(--color-text-primary)]">Bot is currently running</p>
+                <p className="text-xs text-[var(--color-text-muted)]">Stop will cancel execution and mark the run as cancelled.</p>
+              </div>
+            </div>
+            <button
+              onClick={onStop}
+              className="rounded-xl border border-[var(--color-danger)]/40 bg-[var(--color-danger)]/10 px-4 py-2 text-xs font-semibold text-[var(--color-danger)] transition-colors hover:bg-[var(--color-danger)]/20"
+            >
+              ■ Stop Activity
+            </button>
+          </div>
+        </section>
+      )}
       <section>
         <p className="mb-4 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Identity</p>
         <div className="space-y-4 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
@@ -679,6 +725,63 @@ function SettingsTab({ bot, template, colorClass, onDelete }: {
           <button onClick={() => { void handleSave() }} disabled={!name.trim() || saving} className="rounded-xl bg-[var(--color-accent)] px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-50">
             {saved ? 'Saved' : saving ? 'Saving...' : 'Save Changes'}
           </button>
+        </div>
+      </section>
+      <section>
+        <p className="mb-4 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">API Key</p>
+        <div className="space-y-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+          <p className="text-xs leading-relaxed text-[var(--color-text-secondary)]">
+            Override the global AI key for this bot only.
+            Leave blank to use the app-wide key from <span className="font-medium text-[var(--color-text-primary)]">Settings › API Keys</span>.
+          </p>
+          <div className="relative">
+            <input
+              type={showKey ? 'text' : 'password'}
+              value={apiKey}
+              onChange={(e) => { setApiKey(e.target.value) }}
+              placeholder="sk-… or leave blank to inherit global key"
+              spellCheck={false}
+              autoComplete="off"
+              className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] px-4 py-2.5 pr-16 font-mono text-sm text-[var(--color-text-primary)] outline-none transition-colors focus:border-[var(--color-accent)]"
+            />
+            <button
+              type="button"
+              onClick={() => { setShowKey((v) => !v) }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+            >
+              {showKey ? 'Hide' : 'Show'}
+            </button>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => { void handleSaveKey() }}
+              disabled={savingKey}
+              className="rounded-xl bg-[var(--color-accent)] px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
+            >
+              {savedKey ? '✓ Saved' : savingKey ? 'Saving…' : 'Save Key'}
+            </button>
+            {apiKey.trim() && (
+              <button
+                type="button"
+                onClick={() => {
+                  setApiKey('')
+                  const bots = useBotStore.getState().bots.map((b) =>
+                    b.id === bot.id ? (() => { const { apiKey: _k, ...rest } = b; return rest as typeof b })() : b,
+                  )
+                  useBotStore.setState({ bots })
+                }}
+                className="text-xs text-[var(--color-danger)] hover:underline"
+              >
+                Clear Key
+              </button>
+            )}
+            {bot.apiKey && (
+              <span className="ml-auto flex items-center gap-1 text-[10px] text-[var(--color-success)]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-success)]" />
+                Custom key active
+              </span>
+            )}
+          </div>
         </div>
       </section>
       <section>
@@ -840,14 +943,23 @@ export function BotRunPanel({ onBack }: IBotRunPanelProps): React.JSX.Element {
             </div>
             {bot.description && <p className="mt-0.5 truncate text-xs text-[var(--color-text-secondary)]">{bot.description}</p>}
           </div>
-          <button
-            disabled={!canRun}
-            onClick={() => { void useBotStore.getState().runBot(bot.id); setTab('detail') }}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[var(--color-accent)] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[var(--color-accent-hover)] disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {isRunning ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" /> : null}
-            {busy ? 'Running...' : 'Run'}
-          </button>
+          {busy ? (
+            <button
+              onClick={() => { useBotStore.getState().stopBot(bot.id) }}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-[var(--color-danger)]/40 bg-[var(--color-danger)]/10 px-4 py-2 text-xs font-semibold text-[var(--color-danger)] transition-colors hover:bg-[var(--color-danger)]/20"
+            >
+              <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              Stop
+            </button>
+          ) : (
+            <button
+              disabled={!canRun}
+              onClick={() => { void useBotStore.getState().runBot(bot.id); setTab('detail') }}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[var(--color-accent)] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[var(--color-accent-hover)] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Run
+            </button>
+          )}
         </div>
         <div className="flex gap-1">
           {tabs.map((t) => (
@@ -883,7 +995,14 @@ export function BotRunPanel({ onBack }: IBotRunPanelProps): React.JSX.Element {
             />
           )}
           {tab === 'settings' && (
-            <SettingsTab bot={bot} template={template} colorClass={colorClass} onDelete={handleDelete} />
+            <SettingsTab
+              bot={bot}
+              template={template}
+              colorClass={colorClass}
+              onDelete={handleDelete}
+              isRunning={isRunning}
+              onStop={() => { useBotStore.getState().stopBot(bot.id) }}
+            />
           )}
         </div>
       </div>
