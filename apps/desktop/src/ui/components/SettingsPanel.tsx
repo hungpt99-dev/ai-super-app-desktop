@@ -11,7 +11,7 @@ type SettingsTab = 'appearance' | 'notifications' | 'privacy' | 'permissions' | 
 
 const KEYBOARD_SHORTCUTS: { key: string; description: string; group: string }[] = [
   { group: 'Navigation', key: '⌘ 1',     description: 'Go to Chat' },
-  { group: 'Navigation', key: '⌘ 2',     description: 'Go to Features' },
+  { group: 'Navigation', key: '⌘ 2',     description: 'Go to Bots' },
   { group: 'Navigation', key: '⌘ 3',     description: 'Go to Mini-App Store' },
   { group: 'Navigation', key: '⌘ ,',     description: 'Open Settings' },
   { group: 'Chat',       key: 'Enter',   description: 'Send message' },

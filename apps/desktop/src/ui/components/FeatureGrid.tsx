@@ -244,9 +244,9 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
       <div className="shrink-0 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-8 py-5">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">Features</h1>
+            <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">Bots</h1>
             <p className="mt-0.5 text-sm text-[var(--color-text-secondary)]">
-              Add features to expand what your AI can do for you.
+              Manage your AI bots and built-in tools.
             </p>
           </div>
           <button
@@ -272,7 +272,7 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
           </svg>
           <input
             type="text"
-            placeholder="Search features…"
+            placeholder="Search bots…"
             value={search}
             onChange={(e) => { setSearch(e.target.value) }}
             className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2.5 pl-10 pr-4 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-secondary)] outline-none focus:border-[var(--color-accent)] transition-colors"
@@ -312,7 +312,7 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
 
         {filtered.length === 0 && filteredBots.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <p className="text-sm text-[var(--color-text-secondary)]">No features match your search.</p>
+            <p className="text-sm text-[var(--color-text-secondary)]">No bots match your search.</p>
           </div>
         )}
       </div>

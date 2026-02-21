@@ -128,9 +128,9 @@ export function BotRunPanel({ onBack }: IBotRunPanelProps): React.JSX.Element {
     return () => { clearInterval(timer) }
   }, [selectedBotId, hasActive])
 
-  // Guard: if no bot is selected go back to features.
+  // Guard: if no bot is selected go back to bots.
   useEffect(() => {
-    if (!bot) setView('features')
+    if (!bot) setView('bots')
   }, [bot, setView])
 
   if (!bot) return <div />

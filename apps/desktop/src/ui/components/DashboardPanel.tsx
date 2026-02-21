@@ -460,10 +460,10 @@ export function DashboardPanel({ onNavigate }: IDashboardPanelProps): React.JSX.
               </p>
               {bots.length > 0 && (
                 <button
-                  onClick={() => { onNavigate('features') }}
+                  onClick={() => { onNavigate('activity') }}
                   className="text-xs text-[var(--color-accent)] hover:underline"
                 >
-                  View all bots →
+                  View all activity →
                 </button>
               )}
             </div>
@@ -475,12 +475,12 @@ export function DashboardPanel({ onNavigate }: IDashboardPanelProps): React.JSX.
                   No runs yet — create a bot and hit Run to get started.
                 </p>
                 <button
-                  onClick={() => { onNavigate('features') }}
+                  onClick={() => { onNavigate('bots') }}
                   className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-[var(--color-accent-dim)]
                              px-4 py-2 text-sm font-medium text-[var(--color-accent)]
                              transition-colors hover:bg-[var(--color-accent)] hover:text-white"
                 >
-                  Go to Features
+                  Go to Bots
                 </button>
               </div>
             ) : (

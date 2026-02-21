@@ -9,6 +9,7 @@ import { CryptoPanel } from './components/modules/CryptoPanel.js'
 import { WritingHelperPanel } from './components/modules/WritingHelperPanel.js'
 import { BotsPanel } from './components/BotsPanel.js'
 import { DashboardPanel } from './components/DashboardPanel.js'
+import { ActivityPanel } from './components/ActivityPanel.js'
 import { APIKeysPanel } from './components/APIKeysPanel.js'
 import { PermissionRequestDialog } from './components/PermissionRequestDialog.js'
 import { NotificationCenter } from './components/NotificationCenter.js'
@@ -147,13 +148,14 @@ export function App(): React.JSX.Element {
       <main className="flex h-full flex-1 flex-col overflow-hidden">
         {activeView === 'dashboard' && <DashboardPanel onNavigate={setView} />}
         {activeView === 'chat' && <ChatWindow />}
-        {activeView === 'features' && <FeatureGrid onOpenModule={handleOpenModule} />}
+        {activeView === 'bots' && <FeatureGrid onOpenModule={handleOpenModule} />}
+        {activeView === 'activity' && <ActivityPanel onNavigate={setView} />}
         {activeView === 'store' && <ModuleStore />}
         {activeView === 'settings' && <SettingsPanel onBack={() => { setView('chat') }} />}
         {activeView === 'api-keys' && <APIKeysPanel onBack={() => { setView('chat') }} />}
-        {activeView === 'crypto' && <CryptoPanel onBack={() => { setView('features') }} />}
-        {activeView === 'writing-helper' && <WritingHelperPanel onBack={() => { setView('features') }} />}
-        {activeView === 'bot-run' && <BotsPanel onBack={() => { setView('features') }} />}
+        {activeView === 'crypto' && <CryptoPanel onBack={() => { setView('bots') }} />}
+        {activeView === 'writing-helper' && <WritingHelperPanel onBack={() => { setView('bots') }} />}
+        {activeView === 'bot-run' && <BotsPanel onBack={() => { setView('bots') }} />}
       </main>
 
       {/* Global toast overlay — rendered outside main so it floats above all panels */}
