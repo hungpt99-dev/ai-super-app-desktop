@@ -106,6 +106,17 @@ function writeRuns(runs: Record<string, IDesktopBotRun[]>): void {
   try { localStorage.setItem(RUNS_KEY, JSON.stringify(runs)) } catch { /* ignore */ }
 }
 
+const CHAT_KEY = 'ai-superapp-bot-chat'
+
+function readChat(): Record<string, IChatMessage[]> {
+  try { return JSON.parse(localStorage.getItem(CHAT_KEY) ?? '{}') as Record<string, IChatMessage[]> }
+  catch { return {} }
+}
+
+function writeChat(chat: Record<string, IChatMessage[]>): void {
+  try { localStorage.setItem(CHAT_KEY, JSON.stringify(chat)) } catch { /* ignore */ }
+}
+
 function generateId(): string {
   return `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
 }
@@ -113,6 +124,14 @@ function generateId(): string {
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 export type RunStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+
+/** A single message in a bot conversation. */
+export interface IChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  ts: number
+}
 
 /** A bot as presented by the desktop UI — may be local-only or cloud-backed. */
 export interface IDesktopBot {
@@ -159,10 +178,14 @@ export interface IDesktopBotRun {
 interface IBotStore {
   bots: IDesktopBot[]
   runs: Record<string, IDesktopBotRun[]>
+  /** Per-bot conversation history, persisted in localStorage. */
+  chatHistory: Record<string, IChatMessage[]>
   selectedBotId: string | null
   loading: boolean
-  /** IDs of bots currently executing — one entry per bot so multiple bots can run in parallel. */
+  /** IDs of bots currently executing a task run. */
   runningBotIds: string[]
+  /** IDs of bots currently generating a chat reply. */
+  thinkingBotIds: string[]
   error: string | null
 
   /** Load bots: local always; merged with cloud when authenticated. */
@@ -174,11 +197,15 @@ interface IBotStore {
   /** Toggle active ↔ paused. Updates server when synced. */
   toggleStatus(id: string): Promise<void>
   /**
-   * Execute a bot run.
+   * Execute a task run for a bot.
    * • Cloud bot (synced + authenticated): queues on server; agent-loop executes it.
-   * • Local bot: executes immediately via bridge (module tool → AI → offline fallback).
+   * • Local bot: executes step-by-step via bridge and posts result to chat history.
    */
   runBot(id: string): Promise<void>
+  /** Send a chat message to a bot and receive an AI reply. */
+  sendMessage(botId: string, content: string): Promise<void>
+  /** Clear the conversation history for a bot. */
+  clearChat(botId: string): void
   /** Load run history for a bot (local + server when synced). */
   loadRuns(botId: string): Promise<void>
   /** Update editable fields of a bot (name, description, goal, apiKey). Local-only for now. */
@@ -245,9 +272,11 @@ function formatResult(raw: unknown): string {
 export const useBotStore = create<IBotStore>((set, get) => ({
   bots: readBots(),
   runs: readRuns(),
+  chatHistory: readChat(),
   selectedBotId: null,
   loading: false,
   runningBotIds: [],
+  thinkingBotIds: [],
   error: null,
 
   loadBots: async () => {
@@ -464,7 +493,86 @@ export const useBotStore = create<IBotStore>((set, get) => ({
       result,
       ended_at: new Date().toISOString(),
     })
+
+    // Post the run result as an assistant message so chat history reflects it.
+    if (result) {
+      const preview = result.length > 600 ? `${result.slice(0, 600)}…` : result
+      const runMsg: IChatMessage = {
+        id: generateId(),
+        role: 'assistant',
+        content: finalStatus === 'completed'
+          ? `✅ Task run completed.
+
+${preview}`
+          : `❌ Task run failed.
+
+${preview}`,
+        ts: Date.now(),
+      }
+      const chat = { ...get().chatHistory }
+      chat[id] = [...(chat[id] ?? []), runMsg]
+      writeChat(chat)
+      set({ chatHistory: chat })
+    }
+
     removeLock()
+  },
+
+  sendMessage: async (botId, content) => {
+    const bot = get().bots.find((b) => b.id === botId)
+    if (!bot) return
+
+    const pushMsg = (msg: IChatMessage): void => {
+      const chat = { ...get().chatHistory }
+      chat[botId] = [...(chat[botId] ?? []), msg]
+      writeChat(chat)
+      set({ chatHistory: chat })
+    }
+
+    pushMsg({ id: generateId(), role: 'user', content, ts: Date.now() })
+
+    if (bot.status === 'paused') {
+      pushMsg({
+        id: generateId(),
+        role: 'assistant',
+        content: `I’m currently paused and won’t process requests. Go to **Settings** to reactivate me.`,
+        ts: Date.now(),
+      })
+      return
+    }
+
+    set({ thinkingBotIds: [...get().thinkingBotIds, botId] })
+
+    try {
+      const bridge = getDesktopBridge()
+      // Build context from the last 4 messages (2 exchanges) for a compact prompt.
+      const recentHistory = (get().chatHistory[botId] ?? []).slice(-5, -1)
+      const contextLines = recentHistory
+        .map((m) => `${m.role === 'user' ? 'User' : 'Bot'}: ${m.content.slice(0, 200)}`)
+        .join('\n')
+      const prompt = `You are "${bot.name}", a focused AI agent. Your primary goal: ${bot.goal}${
+        contextLines ? `\n\nRecent conversation:\n${contextLines}` : ''
+      }\n\nUser: ${content}\nBot:`
+
+      const ai = await bridge.ai.generate('chat', prompt)
+
+      // Replace the dev-mode stub with a contextual placeholder.
+      const reply = ai.output.startsWith('[Dev mode]')
+        ? `I’m ${bot.name}. My goal is to: ${bot.goal.slice(0, 150)}${bot.goal.length > 150 ? '…' : ''}.\n\nAsk me anything, or use “▶ Trigger task run” below to execute my full task.`
+        : ai.output
+
+      pushMsg({ id: generateId(), role: 'assistant', content: reply, ts: Date.now() })
+    } catch {
+      pushMsg({ id: generateId(), role: 'assistant', content: 'Sorry, I encountered an error. Please try again.', ts: Date.now() })
+    } finally {
+      set({ thinkingBotIds: get().thinkingBotIds.filter((x) => x !== botId) })
+    }
+  },
+
+  clearChat: (botId) => {
+    const chat = { ...get().chatHistory, [botId]: [] as IChatMessage[] }
+    writeChat(chat)
+    set({ chatHistory: chat })
   },
 
   loadRuns: async (botId) => {

@@ -8,7 +8,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react'
-import { useBotStore, type IDesktopBot, type IDesktopBotRun } from '../store/bot-store.js'
+import { useBotStore, type IDesktopBot, type IDesktopBotRun, type IChatMessage } from '../store/bot-store.js'
 import { useAuthStore } from '../store/auth-store.js'
 import { useAppStore } from '../store/app-store.js'
 import {
@@ -24,7 +24,7 @@ const ALL_TEMPLATES = [...BOT_TEMPLATES, ...BOT_TYPE_CATALOG]
 
 // ─── Tab type ──────────────────────────────────────────────────────────────────
 
-type BotTab = 'custom' | 'detail' | 'settings'
+type BotTab = 'chat' | 'custom' | 'settings'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -168,110 +168,232 @@ function RunProgress({ botId, runId }: { botId: string; runId: string }): React.
   )
 }
 
-// ─── Shared chat ─────────────────────────────────────────────────────────────
+// ─── Run history section (collapsed by default) ───────────────────────────────
 
-interface IChatMessage { role: 'user' | 'assistant'; content: string; ts: number }
+function RunHistorySection({ botRuns, botId }: { botRuns: IDesktopBotRun[]; botId: string }): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  return (
+    <section>
+      <button
+        onClick={() => { setOpen((v) => !v) }}
+        className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+      >
+        <span className="text-[8px]">{open ? '▾' : '▸'}</span>
+        Run History
+        <span className="ml-1 rounded-full bg-[var(--color-surface-2)] px-1.5 py-0.5">{String(botRuns.length)}</span>
+      </button>
+      {open && (
+        <div className="mt-3 space-y-2">
+          {botRuns.map((run) => <RunItem key={run.id} run={run} />)}
+          <button
+            onClick={() => { void useBotStore.getState().loadRuns(botId) }}
+            className="text-xs text-[var(--color-accent)] hover:underline"
+          >
+            Refresh
+          </button>
+        </div>
+      )}
+    </section>
+  )
+}
 
-function BotChat({ bot, latestResult }: { bot: IDesktopBot; latestResult?: string | undefined }): React.JSX.Element {
-  const [messages, setMessages] = useState<IChatMessage[]>([])
-  const [input, setInput]       = useState('')
-  const [thinking, setThinking] = useState(false)
-  const bottomRef               = useRef<HTMLDivElement>(null)
+// ─── Chat tab ─────────────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    if (latestResult && messages.length === 0) {
-      setMessages([{
-        role: 'assistant',
-        content: `I just finished a run. Here is a summary:\n\n${latestResult.slice(0, 400)}${latestResult.length > 400 ? '…' : ''}\n\nAsk me anything.`,
-        ts: Date.now(),
-      }])
-    }
-  }, [latestResult]) // seed once
+interface IChatTabProps {
+  bot: IDesktopBot
+  botRuns: IDesktopBotRun[]
+  latestRun?: IDesktopBotRun | undefined
+  canRun: boolean
+  isRunning: boolean
+  runLabel: string
+}
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
+function ChatTab({ bot, botRuns, latestRun, canRun, isRunning, runLabel }: IChatTabProps): React.JSX.Element {
+  const messages   = useBotStore((s) => s.chatHistory[bot.id] ?? ([] as IChatMessage[]))
+  const isThinking = useBotStore((s) => s.thinkingBotIds.includes(bot.id))
+  const error      = useBotStore((s) => s.error)
+  const [input, setInput]             = useState('')
+  const [showGoal, setShowGoal]       = useState(false)
+  const [editingGoal, setEditingGoal] = useState(false)
+  const [goalDraft, setGoalDraft]     = useState('')
+  const bottomRef                     = useRef<HTMLDivElement>(null)
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, isThinking])
 
   const handleSend = (): void => {
     const text = input.trim()
-    if (!text || thinking) return
+    if (!text || isThinking) return
     setInput('')
-    setMessages((prev) => [...prev, { role: 'user', content: text, ts: Date.now() }])
-    setThinking(true)
-    setTimeout(() => {
-      const ctx = latestResult
-        ? `Bot goal: "${bot.goal}". Latest output excerpt: "${latestResult.slice(0, 200)}".`
-        : `Bot goal: "${bot.goal}".`
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: text.endsWith('?')
-            ? `Based on ${ctx} — this bot is designed to ${bot.goal.toLowerCase().slice(0, 100)}.`
-            : `Got it. I will keep that in mind for the next run.`,
-          ts: Date.now(),
-        },
-      ])
-      setThinking(false)
-    }, 900)
+    void useBotStore.getState().sendMessage(bot.id, text)
+  }
+
+  const handleSaveGoal = async (): Promise<void> => {
+    if (!goalDraft.trim()) return
+    await useBotStore.getState().updateBot(bot.id, { goal: goalDraft.trim() })
+    setEditingGoal(false)
   }
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]">
-      <div className="border-b border-[var(--color-border)] px-5 py-3">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
-          Chat with this Bot
-        </p>
+    <div className="space-y-4">
+      {error && (
+        <div className="flex items-center justify-between rounded-xl bg-[var(--color-danger)]/10 px-4 py-3 text-sm text-[var(--color-danger)]">
+          <span>{error}</span>
+          <button onClick={() => { useBotStore.getState().clearError() }} className="ml-4 text-xs underline">Dismiss</button>
+        </div>
+      )}
+
+      {/* Status strip */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className={`h-2 w-2 rounded-full ${
+            bot.status === 'active' ? 'animate-pulse bg-[var(--color-success)]' : 'bg-[var(--color-text-muted)]'
+          }`} />
+          <span className="text-xs text-[var(--color-text-muted)]">
+            {bot.status === 'active' ? 'Online · waiting for commands' : 'Paused · not responding'}
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => { if (!showGoal) setGoalDraft(bot.goal); setShowGoal((v) => !v); setEditingGoal(false) }}
+            className="text-[10px] text-[var(--color-accent)] hover:underline"
+          >
+            {showGoal ? 'Hide goal' : 'View goal'}
+          </button>
+          <button
+            onClick={() => { useBotStore.getState().clearChat(bot.id) }}
+            className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+          >
+            Clear
+          </button>
+        </div>
       </div>
-      <div className="min-h-[160px] max-h-60 flex-1 overflow-y-auto space-y-3 px-5 py-4">
-        {messages.length === 0 && (
-          <p className="pt-4 text-center text-xs text-[var(--color-text-muted)]">
-            Ask about this bot&apos;s goal or latest output.
-          </p>
-        )}
-        {messages.map((m) => (
-          <div key={m.ts} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
-              m.role === 'user'
-                ? 'bg-[var(--color-accent)] text-white'
-                : 'bg-[var(--color-surface-2)] text-[var(--color-text-primary)]'
-            }`}>
-              {m.content}
-            </div>
+
+      {/* Collapsible goal / instructions strip */}
+      {showGoal && (
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
+          <div className="mb-1.5 flex items-center justify-between">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Goal / Instructions</p>
+            {!editingGoal && (
+              <button onClick={() => { setGoalDraft(bot.goal); setEditingGoal(true) }} className="text-[10px] text-[var(--color-accent)] hover:underline">Edit</button>
+            )}
           </div>
-        ))}
-        {thinking && (
-          <div className="flex justify-start">
-            <div className="rounded-2xl bg-[var(--color-surface-2)] px-4 py-2.5">
-              <span className="flex gap-1">
-                {[0, 1, 2].map((i) => (
-                  <span
-                    key={i}
-                    className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--color-text-muted)]"
-                    style={{ animationDelay: `${String(i * 150)}ms` }}
-                  />
-                ))}
-              </span>
+          {editingGoal ? (
+            <div className="space-y-2">
+              <textarea
+                autoFocus
+                value={goalDraft}
+                onChange={(e) => { setGoalDraft(e.target.value) }}
+                rows={4}
+                className="w-full resize-y rounded-lg border border-[var(--color-accent)] bg-[var(--color-surface-2)] px-3 py-2 text-sm leading-relaxed text-[var(--color-text-primary)] outline-none"
+              />
+              <div className="flex gap-2">
+                <button onClick={() => { void handleSaveGoal() }} disabled={!goalDraft.trim()} className="rounded-lg bg-[var(--color-accent)] px-3 py-1 text-xs font-medium text-white disabled:opacity-50">Save</button>
+                <button onClick={() => { setEditingGoal(false) }} className="rounded-lg border border-[var(--color-border)] px-3 py-1 text-xs text-[var(--color-text-secondary)]">Cancel</button>
+              </div>
             </div>
+          ) : (
+            <p className="text-sm leading-relaxed text-[var(--color-text-secondary)]">{bot.goal}</p>
+          )}
+        </div>
+      )}
+
+      {/* Messages + input */}
+      <div className="overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]">
+        {/* Message list */}
+        <div className="min-h-[240px] max-h-[420px] overflow-y-auto space-y-3 px-5 py-5">
+          {messages.length === 0 && (
+            <div className="flex h-48 flex-col items-center justify-center gap-3 text-center">
+              <p className="text-3xl">{bot.status === 'active' ? '🤖' : '⏸'}</p>
+              <div>
+                <p className="text-sm font-medium text-[var(--color-text-primary)]">
+                  {bot.status === 'active' ? `${bot.name} is online` : `${bot.name} is paused`}
+                </p>
+                <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+                  {bot.status === 'active'
+                    ? 'Send a message or trigger a task run below.'
+                    : 'Activate this bot in Settings to start chatting.'}
+                </p>
+              </div>
+            </div>
+          )}
+          {messages.map((m) => (
+            <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              {m.role === 'assistant' && (
+                <div className="mr-2 mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--color-surface-2)] text-xs">
+                  {bot.templateId ? (ALL_TEMPLATES.find((t) => t.id === bot.templateId)?.icon ?? '🤖') : '🤖'}
+                </div>
+              )}
+              <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+                m.role === 'user'
+                  ? 'bg-[var(--color-accent)] text-white'
+                  : 'bg-[var(--color-surface-2)] text-[var(--color-text-primary)]'
+              }`}>
+                {m.content}
+              </div>
+            </div>
+          ))}
+          {isThinking && (
+            <div className="flex items-start gap-2">
+              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--color-surface-2)] text-xs">
+                {bot.templateId ? (ALL_TEMPLATES.find((t) => t.id === bot.templateId)?.icon ?? '🤖') : '🤖'}
+              </div>
+              <div className="rounded-2xl bg-[var(--color-surface-2)] px-4 py-3">
+                <span className="flex gap-1">
+                  {[0, 1, 2].map((i) => (
+                    <span
+                      key={i}
+                      className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--color-text-muted)]"
+                      style={{ animationDelay: `${String(i * 150)}ms` }}
+                    />
+                  ))}
+                </span>
+              </div>
+            </div>
+          )}
+          <div ref={bottomRef} />
+        </div>
+
+        {/* Input area */}
+        <div className="border-t border-[var(--color-border)]">
+          <div className="flex gap-2 px-4 py-3">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => { setInput(e.target.value) }}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
+              placeholder={bot.status === 'paused' ? `${bot.name} is paused…` : `Message ${bot.name}…`}
+              className="flex-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] px-4 py-2.5 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none transition-colors focus:border-[var(--color-accent)]"
+            />
+            <button
+              onClick={handleSend}
+              disabled={!input.trim() || isThinking}
+              className="rounded-xl bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-40"
+            >
+              ↑
+            </button>
           </div>
-        )}
-        <div ref={bottomRef} />
+          {/* Quick actions row */}
+          <div className="flex items-center gap-3 border-t border-[var(--color-border)] px-4 py-2.5">
+            <button
+              disabled={!canRun}
+              onClick={() => { void useBotStore.getState().runBot(bot.id) }}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-1.5 text-[11px] font-medium text-[var(--color-text-secondary)] transition-colors hover:border-[var(--color-accent)]/50 hover:text-[var(--color-accent)] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {isRunning
+                ? <span className="h-2.5 w-2.5 animate-spin rounded-full border border-[var(--color-accent)] border-t-transparent" />
+                : <span className="text-[10px]">▶</span>}
+              {runLabel}
+            </button>
+            <span className="text-[10px] text-[var(--color-text-muted)]">
+              {String(botRuns.length)} run{botRuns.length !== 1 ? 's' : ''}
+              {latestRun ? ` · last ${relativeTime(latestRun.started_at)}` : ''}
+            </span>
+          </div>
+        </div>
       </div>
-      <div className="flex gap-2 border-t border-[var(--color-border)] px-4 py-3">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => { setInput(e.target.value) }}
-          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
-          placeholder="Ask about this bot..."
-          className="flex-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] px-4 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none transition-colors focus:border-[var(--color-accent)]"
-        />
-        <button
-          onClick={handleSend}
-          disabled={!input.trim() || thinking}
-          className="rounded-xl bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-40"
-        >
-          ↑
-        </button>
-      </div>
+
+      {/* Run history — collapsed by default */}
+      {botRuns.length > 0 && <RunHistorySection botRuns={botRuns} botId={bot.id} />}
     </div>
   )
 }
@@ -584,128 +706,6 @@ function CustomTabContent({ template, bot, latestRun }: { template?: IBotTemplat
   }
 }
 
-// ─── Detail tab ───────────────────────────────────────────────────────────────
-
-interface IDetailTabProps {
-  bot: IDesktopBot
-  botRuns: IDesktopBotRun[]
-  latestRun?: IDesktopBotRun | undefined
-  canRun: boolean
-  isRunning: boolean
-  runLabel: string
-  hasSignInWarning: boolean
-}
-
-function DetailTab({ bot, botRuns, latestRun, canRun, isRunning, runLabel, hasSignInWarning }: IDetailTabProps): React.JSX.Element {
-  const error = useBotStore((s) => s.error)
-  const [editingGoal, setEditingGoal] = useState(false)
-  const [goalDraft, setGoalDraft]     = useState('')
-
-  const handleSaveGoal = async (): Promise<void> => {
-    if (!goalDraft.trim()) return
-    await useBotStore.getState().updateBot(bot.id, { goal: goalDraft.trim() })
-    setEditingGoal(false)
-  }
-
-  return (
-    <div className="space-y-6">
-      {error && (
-        <div className="flex items-center justify-between rounded-xl bg-[var(--color-danger)]/10 px-4 py-3 text-sm text-[var(--color-danger)]">
-          <span>{error}</span>
-          <button onClick={() => { useBotStore.getState().clearError() }} className="ml-4 text-xs underline">Dismiss</button>
-        </div>
-      )}
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: 'Total Runs',  value: String(botRuns.length) },
-          { label: 'Last Run',    value: latestRun ? relativeTime(latestRun.started_at) : 'Never' },
-          { label: 'Last Status', value: latestRun?.status ?? '—' },
-        ].map(({ label, value }) => (
-          <div key={label} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">{label}</p>
-            <p className="mt-1 truncate text-sm font-medium text-[var(--color-text-primary)] capitalize">{value}</p>
-          </div>
-        ))}
-      </div>
-      <section>
-        <div className="mb-2 flex items-center justify-between">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Goal</p>
-          {!editingGoal && (
-            <button onClick={() => { setGoalDraft(bot.goal); setEditingGoal(true) }} className="text-[10px] text-[var(--color-accent)] hover:underline">
-              Edit
-            </button>
-          )}
-        </div>
-        {editingGoal ? (
-          <div className="space-y-2">
-            <textarea
-              autoFocus
-              value={goalDraft}
-              onChange={(e) => { setGoalDraft(e.target.value) }}
-              rows={5}
-              className="w-full resize-y rounded-xl border border-[var(--color-accent)] bg-[var(--color-surface)] px-5 py-4 text-sm leading-relaxed text-[var(--color-text-primary)] outline-none"
-            />
-            <div className="flex gap-2">
-              <button onClick={() => { void handleSaveGoal() }} disabled={!goalDraft.trim()} className="rounded-lg bg-[var(--color-accent)] px-4 py-1.5 text-xs font-medium text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-50">Save</button>
-              <button onClick={() => { setEditingGoal(false) }} className="rounded-lg border border-[var(--color-border)] px-4 py-1.5 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Cancel</button>
-            </div>
-          </div>
-        ) : (
-          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
-            <p className="text-sm leading-relaxed text-[var(--color-text-primary)]">{bot.goal}</p>
-          </div>
-        )}
-      </section>
-      {hasSignInWarning && (
-        <div className="rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-4 py-3 text-sm text-yellow-400">
-          Sign in to queue this bot for cloud execution.
-        </div>
-      )}
-      <div className="flex items-center gap-4">
-        <button
-          disabled={!canRun}
-          onClick={() => { void useBotStore.getState().runBot(bot.id) }}
-          className="inline-flex items-center gap-2 rounded-xl bg-[var(--color-accent)] px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {isRunning && <span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />}
-          {runLabel}
-        </button>
-      </div>
-      {/* Latest output — visible only after a completed / failed run */}
-      {!isRunning && latestRun?.result && (
-        <section>
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Latest Output</p>
-          <div className="max-h-48 overflow-y-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-text-secondary)]">{latestRun.result}</p>
-          </div>
-        </section>
-      )}
-      <BotChat bot={bot} latestResult={latestRun?.result ?? undefined} />
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
-            Run History
-            {botRuns.length > 0 && (
-              <span className="ml-2 rounded-full bg-[var(--color-surface-2)] px-1.5 py-0.5 text-[10px]">{String(botRuns.length)}</span>
-            )}
-          </p>
-          <button onClick={() => { void useBotStore.getState().loadRuns(bot.id) }} className="text-xs text-[var(--color-accent)] transition-opacity hover:opacity-70">
-            Refresh
-          </button>
-        </div>
-        {botRuns.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-[var(--color-border)] px-6 py-10 text-center">
-            <p className="text-2xl">📋</p>
-            <p className="mt-2 text-sm text-[var(--color-text-secondary)]">No runs yet. Hit <strong>Run</strong> to execute this bot.</p>
-          </div>
-        ) : (
-          <div className="space-y-2">{botRuns.map((run) => <RunItem key={run.id} run={run} />)}</div>
-        )}
-      </section>
-    </div>
-  )
-}
-
 // ─── Settings tab ─────────────────────────────────────────────────────────────
 
 function SettingsTab({ bot, template, colorClass, onDelete, isRunning, onStop }: {
@@ -1008,10 +1008,10 @@ export function BotRunPanel({ onBack }: IBotRunPanelProps): React.JSX.Element {
   const colorClass = template ? TEMPLATE_CATEGORY_COLORS[template.category] : 'bg-[var(--color-surface-2)] text-[var(--color-text-muted)]'
   const hasCustom  = template !== undefined
 
-  const [tab, setTab] = useState<BotTab>(hasCustom ? 'custom' : 'detail')
+  const [tab, setTab] = useState<BotTab>('chat')
 
   useEffect(() => {
-    if (!hasCustom && tab === 'custom') setTab('detail')
+    if (!hasCustom && tab === 'custom') setTab('chat')
   }, [hasCustom, tab])
 
   useEffect(() => {
@@ -1028,7 +1028,6 @@ export function BotRunPanel({ onBack }: IBotRunPanelProps): React.JSX.Element {
 
   const busy             = isRunning || hasActive
   const canRun           = !busy && !(bot.synced && !user) && bot.status === 'active'
-  const hasSignInWarning = bot.synced && !user
 
   const runLabel = busy
     ? (bot.synced ? 'Queuing…' : 'Running…')
@@ -1042,8 +1041,8 @@ export function BotRunPanel({ onBack }: IBotRunPanelProps): React.JSX.Element {
 
   const customTabLabel = template ? `${template.icon} ${template.name}` : ''
   const tabs: { id: BotTab; label: string }[] = [
+    { id: 'chat',     label: '💬 Chat' },
     ...(hasCustom ? [{ id: 'custom' as BotTab, label: customTabLabel }] : []),
-    { id: 'detail',   label: 'Detail' },
     { id: 'settings', label: 'Settings' },
   ]
 
@@ -1091,7 +1090,7 @@ export function BotRunPanel({ onBack }: IBotRunPanelProps): React.JSX.Element {
           ) : (
             <button
               disabled={!canRun}
-              onClick={() => { void useBotStore.getState().runBot(bot.id); setTab('detail') }}
+              onClick={() => { void useBotStore.getState().runBot(bot.id); setTab('chat') }}
               className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[var(--color-accent)] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[var(--color-accent-hover)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               Run
@@ -1125,15 +1124,14 @@ export function BotRunPanel({ onBack }: IBotRunPanelProps): React.JSX.Element {
           {tab === 'custom' && hasCustom && (
             <CustomTabContent template={template} bot={bot} latestRun={latestRun} />
           )}
-          {tab === 'detail' && (
-            <DetailTab
+          {tab === 'chat' && (
+            <ChatTab
               bot={bot}
               botRuns={botRuns}
               latestRun={latestRun}
               canRun={canRun}
               isRunning={isRunning}
               runLabel={runLabel}
-              hasSignInWarning={hasSignInWarning}
             />
           )}
           {tab === 'settings' && (
