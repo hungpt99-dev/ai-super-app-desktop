@@ -8,9 +8,11 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import {
   deleteAPIKey,
+  getDefaultKeyId,
   listAPIKeys,
   saveAPIKey,
   setAPIKeyActive,
+  setDefaultKeyId,
   type ILocalAPIKey,
 } from '../../sdk/api-key-store.js'
 
@@ -147,11 +149,13 @@ function AddKeyForm({ onSaved, onCancel }: IAddFormProps): React.JSX.Element {
 
 interface IKeyRowProps {
   apiKey: ILocalAPIKey
+  isDefault: boolean
   onToggle: (id: string, active: boolean) => Promise<void>
+  onSetDefault: (id: string) => Promise<void>
   onDelete: (id: string) => Promise<void>
 }
 
-function KeyRow({ apiKey, onToggle, onDelete }: IKeyRowProps): React.JSX.Element {
+function KeyRow({ apiKey, isDefault, onToggle, onSetDefault, onDelete }: IKeyRowProps): React.JSX.Element {
   const [busy, setBusy] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const provider = PROVIDERS.find((p) => p.value === apiKey.provider)
@@ -163,6 +167,11 @@ function KeyRow({ apiKey, onToggle, onDelete }: IKeyRowProps): React.JSX.Element
     try { await onToggle(apiKey.id, !apiKey.isActive) } finally { setBusy(false) }
   }
 
+  const handleSetDefault = async (): Promise<void> => {
+    setBusy(true)
+    try { await onSetDefault(apiKey.id) } finally { setBusy(false) }
+  }
+
   const handleDelete = async (): Promise<void> => {
     setBusy(true)
     setConfirmDelete(false)
@@ -170,14 +179,23 @@ function KeyRow({ apiKey, onToggle, onDelete }: IKeyRowProps): React.JSX.Element
   }
 
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-[var(--color-border)]
-                    bg-[var(--color-surface)] px-4 py-3">
+    <div className={`flex items-center gap-3 rounded-xl border bg-[var(--color-surface)] px-4 py-3 ${
+      isDefault ? 'border-[var(--color-accent)]/50' : 'border-[var(--color-border)]'
+    }`}>
       <span className="text-xl">{provider?.icon ?? '🔑'}</span>
 
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-[var(--color-text-primary)]">
-          {provider?.label ?? apiKey.provider}
-        </p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-sm font-medium text-[var(--color-text-primary)]">
+            {provider?.label ?? apiKey.provider}
+          </p>
+          {isDefault && (
+            <span className="rounded-full bg-[var(--color-accent)]/15 px-1.5 py-0.5
+                             text-[10px] font-semibold text-[var(--color-accent)]">
+              Default
+            </span>
+          )}
+        </div>
         <p className="text-xs text-[var(--color-text-secondary)] truncate">
           {apiKey.label ? `${apiKey.label} · ` : ''}{masked}
         </p>
@@ -192,6 +210,21 @@ function KeyRow({ apiKey, onToggle, onDelete }: IKeyRowProps): React.JSX.Element
       >
         {apiKey.isActive ? 'Active' : 'Off'}
       </span>
+
+      {/* Set as default */}
+      {!isDefault && (
+        <button
+          onClick={() => { void handleSetDefault() }}
+          disabled={busy}
+          title="Set as default key for all bots"
+          className="shrink-0 rounded-lg border border-[var(--color-border)] px-2.5 py-1 text-xs
+                     text-[var(--color-text-secondary)] transition-colors
+                     hover:border-[var(--color-accent)]/50 hover:text-[var(--color-accent)]
+                     disabled:opacity-50"
+        >
+          ★ Set default
+        </button>
+      )}
 
       <button
         onClick={() => void handleToggle()}
@@ -240,13 +273,15 @@ interface IAPIKeysPanelProps {
 
 export function APIKeysPanel({ onBack }: IAPIKeysPanelProps): React.JSX.Element {
   const [keys, setKeys] = useState<ILocalAPIKey[]>([])
+  const [defaultKeyId, setDefaultKeyIdState] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
-    const data = await listAPIKeys()
+    const [data, defId] = await Promise.all([listAPIKeys(), getDefaultKeyId()])
     setKeys(data)
+    setDefaultKeyIdState(defId)
     setLoading(false)
   }, [])
 
@@ -254,6 +289,9 @@ export function APIKeysPanel({ onBack }: IAPIKeysPanelProps): React.JSX.Element 
 
   const handleSaved = (key: ILocalAPIKey): void => {
     setKeys((prev) => [...prev, key])
+    // Auto-set as default if it's the first key ever added.
+    setDefaultKeyIdState((prev) => prev ?? key.id)
+    if (defaultKeyId === null) void setDefaultKeyId(key.id)
     setShowForm(false)
   }
 
@@ -262,8 +300,18 @@ export function APIKeysPanel({ onBack }: IAPIKeysPanelProps): React.JSX.Element 
     if (updated) setKeys((prev) => prev.map((k) => (k.id === id ? updated : k)))
   }
 
+  const handleSetDefault = async (id: string): Promise<void> => {
+    await setDefaultKeyId(id)
+    setDefaultKeyIdState(id)
+  }
+
   const handleDelete = async (id: string): Promise<void> => {
     await deleteAPIKey(id)
+    // If the deleted key was the default, clear it.
+    if (defaultKeyId === id) {
+      await setDefaultKeyId(null)
+      setDefaultKeyIdState(null)
+    }
     setKeys((prev) => prev.filter((k) => k.id !== id))
   }
 
@@ -328,7 +376,9 @@ export function APIKeysPanel({ onBack }: IAPIKeysPanelProps): React.JSX.Element 
               <KeyRow
                 key={key.id}
                 apiKey={key}
+                isDefault={key.id === defaultKeyId}
                 onToggle={handleToggle}
+                onSetDefault={handleSetDefault}
                 onDelete={handleDelete}
               />
             ))}
