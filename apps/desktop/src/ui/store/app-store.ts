@@ -5,14 +5,33 @@ export type AppView = 'chat' | 'features' | 'store' | 'settings' | 'api-keys' | 
 export type Theme = 'dark' | 'light' | 'system'
 export type { IToastNotification }
 
+/** Persisted notification entry shown in the notification center. */
+export interface INotificationEntry {
+  id: string
+  title: string
+  body: string
+  level: IToastNotification['level']
+  /** Optional source label — e.g. mini-app name or agent name. */
+  source?: string
+  timestamp: number
+  read: boolean
+}
+
 interface IAppState {
   activeView: AppView
+  /** Live toasts (auto-dismissed after 4.5 s). */
   notifications: IToastNotification[]
+  /** Persistent history shown in the notification center (max 100 entries). */
+  notificationHistory: INotificationEntry[]
+  /** Count of unread notifications. */
+  unreadCount: number
   theme: Theme
   setView(view: AppView): void
   setTheme(theme: Theme): void
-  pushNotification(n: Omit<IToastNotification, 'id'>): void
+  pushNotification(n: Omit<IToastNotification, 'id'> & { source?: string }): void
   dismissNotification(id: string): void
+  markAllRead(): void
+  clearHistory(): void
 }
 
 const THEME_KEY = 'ai-superapp-theme'
@@ -41,9 +60,11 @@ let notifCounter = 0
 export const useAppStore = create<IAppState>((set) => ({
   activeView: 'chat',
   notifications: [],
+  notificationHistory: [],
+  unreadCount: 0,
   theme: readSavedTheme(),
 
-  setView: (view) => set({ activeView: view }),
+  setView: (view) => { set({ activeView: view }) },
 
   setTheme: (theme) => {
     try {
@@ -56,18 +77,48 @@ export const useAppStore = create<IAppState>((set) => ({
   },
 
   pushNotification: (n) => {
-    const id = `notif-${++notifCounter}-${Date.now()}`
-    const notification: IToastNotification = { ...n, id }
-    set((s) => ({ notifications: [...s.notifications, notification] }))
-    // Auto-dismiss after 4.5 s
+    const id = `notif-${String(++notifCounter)}-${String(Date.now())}`
+    const toast: IToastNotification = { id, title: n.title, body: n.body, level: n.level }
+    const entry: INotificationEntry = {
+      id,
+      title: n.title,
+      body: n.body,
+      level: n.level,
+      ...(n.source !== undefined ? { source: n.source } : {}),
+      timestamp: Date.now(),
+      read: false,
+    }
+    set((s) => ({
+      notifications: [...s.notifications, toast],
+      notificationHistory: [entry, ...s.notificationHistory].slice(0, 100),
+      unreadCount: s.unreadCount + 1,
+    }))
+    // Auto-dismiss toast after 4.5 s
     setTimeout(() => {
       set((s) => ({ notifications: s.notifications.filter((t) => t.id !== id) }))
     }, 4500)
   },
 
-  dismissNotification: (id) =>
-    set((s) => ({ notifications: s.notifications.filter((t) => t.id !== id) })),
+  dismissNotification: (id) => { set((s) => ({ notifications: s.notifications.filter((t) => t.id !== id) })) },
+
+  markAllRead: () => {
+    set((s) => ({
+      notificationHistory: s.notificationHistory.map((n) => ({ ...n, read: true })),
+      unreadCount: 0,
+    }))
+  },
+
+  clearHistory: () => { set({ notificationHistory: [], unreadCount: 0 }) },
 }))
 
 // Apply theme immediately when the module loads in the browser
 applyTheme(readSavedTheme())
+
+// Re-apply when the OS preference changes and the user has 'system' selected
+try {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (readSavedTheme() === 'system') applyTheme('system')
+  })
+} catch {
+  /* Not in a browser context — e.g. unit tests */
+}

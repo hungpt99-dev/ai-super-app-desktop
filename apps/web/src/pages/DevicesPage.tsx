@@ -3,6 +3,7 @@
  */
 
 import React, { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useDeviceStore } from '../store/device-store.js'
 import type { IDevice } from '../lib/api-client.js'
 // IDevice is used in onRegister return type and DeviceRow prop
@@ -127,6 +128,7 @@ interface IDeviceRowProps {
 }
 
 function DeviceRow({ device, onRename, onRemove }: IDeviceRowProps): React.JSX.Element {
+  const navigate = useNavigate()
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState(device.name)
   const [loading, setLoading] = useState(false)
@@ -192,6 +194,14 @@ function DeviceRow({ device, onRename, onRemove }: IDeviceRowProps): React.JSX.E
         )}
 
         <button
+          onClick={() => { navigate(`/devices/${device.id}`) }}
+          title="View machine detail"
+          className="rounded-lg border border-[var(--color-border)] px-2.5 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:border-[var(--color-accent)]/50 hover:text-[var(--color-accent)]"
+        >
+          View →
+        </button>
+
+        <button
           onClick={() => setEditing(true)}
           disabled={loading}
           title="Rename"
@@ -223,6 +233,9 @@ export function DevicesPage(): React.JSX.Element {
 
   useEffect(() => {
     void fetchDevices()
+    // Auto-refresh device status every 30 s
+    const handle = setInterval(() => { void fetchDevices() }, 30_000)
+    return () => { clearInterval(handle) }
   }, [fetchDevices])
 
   const onlineCount = devices.filter((d) => d.status === 'online').length

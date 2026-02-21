@@ -128,6 +128,8 @@ export interface IUpdateBotInput {
 
 // ── HTTP core ─────────────────────────────────────────────────────────────────
 
+const REQUEST_TIMEOUT_MS = 15_000
+
 async function request<T>(
   method: string,
   path: string,
@@ -138,11 +140,20 @@ async function request<T>(
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (token) headers['Authorization'] = `Bearer ${token}`
 
-  const res = await fetch(`${GATEWAY}${path}`, {
-    method,
-    headers,
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-  })
+  const controller = new AbortController()
+  const timeout = setTimeout(() => { controller.abort() }, REQUEST_TIMEOUT_MS)
+
+  let res: Response
+  try {
+    res = await fetch(`${GATEWAY}${path}`, {
+      method,
+      signal: controller.signal,
+      headers,
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    })
+  } finally {
+    clearTimeout(timeout)
+  }
 
   if (res.status === 401 && retry) {
     const refreshed = await tryRefresh()
@@ -250,6 +261,16 @@ export const authApi = {
 
 // ── Devices ───────────────────────────────────────────────────────────────────
 
+/** Live agent system metrics — stored in Redis with a 5 min TTL. */
+export interface IDeviceMetrics {
+  device_id: string
+  cpu_percent: number
+  mem_percent: number
+  uptime_seconds: number
+  tasks_done: number
+  updated_at: string | null
+}
+
 export const devicesApi = {
   list: (): Promise<IDevice[]> =>
     request<IDevice[]>('GET', '/v1/devices'),
@@ -265,6 +286,35 @@ export const devicesApi = {
 
   heartbeat: (id: string): Promise<void> =>
     request<void>('POST', `/v1/devices/${id}/heartbeat`),
+
+  /** Fetch the latest reported metrics for a device (returns null if none yet or on error). */
+  getMetrics: (id: string): Promise<IDeviceMetrics | null> => fetchDeviceMetrics(id),
+}
+
+/**
+ * Standalone metrics fetch — extracted so ESLint/TS can infer the return type
+ * cleanly without the object-literal inference ambiguity.
+ */
+async function fetchDeviceMetrics(id: string): Promise<IDeviceMetrics | null> {
+  const token = getToken()
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  const controller = new AbortController()
+  const timeout = setTimeout(() => { controller.abort() }, REQUEST_TIMEOUT_MS)
+  try {
+    const res = await fetch(`${GATEWAY}/v1/devices/${id}/metrics`, {
+      method: 'GET',
+      signal: controller.signal,
+      headers,
+    })
+    if (res.status === 204 || res.status === 404) return null
+    if (!res.ok) return null
+    return (await res.json()) as IDeviceMetrics
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 // ── Marketplace ───────────────────────────────────────────────────────────────
@@ -350,6 +400,19 @@ export const botsApi = {
 
   getRuns: (id: string, limit = 20): Promise<IBotRun[]> =>
     request<IBotRun[]>('GET', `/v1/bots/${id}/runs?limit=${limit}`),
+
+  /** Report progress or final status for a bot run (used by web Control Tower). */
+  updateRun: (
+    runId: string,
+    status: 'running' | 'completed' | 'failed',
+    steps: number,
+    result?: string,
+  ): Promise<void> =>
+    request<void>('PATCH', `/v1/bots/runs/${runId}`, {
+      status,
+      steps,
+      ...(result !== undefined ? { result } : {}),
+    }),
 }
 
 // ── Stats ─────────────────────────────────────────────────────────────────────

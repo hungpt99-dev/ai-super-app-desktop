@@ -6,7 +6,8 @@ import { useModuleStore } from '../store/module-store.js'
  * Lists installed modules, allows uninstall.
  */
 export function ModuleStore(): React.JSX.Element {
-  const { modules, isLoading, uninstall } = useModuleStore()
+  const modStore = useModuleStore()
+  const { modules, isLoading } = modStore
 
   return (
     <div className="flex h-full flex-col bg-[var(--color-bg)]">
@@ -26,8 +27,8 @@ export function ModuleStore(): React.JSX.Element {
         <div className="mb-6 grid grid-cols-3 gap-4">
           {[
             { label: 'Installed', value: isLoading ? '…' : String(modules.length) },
-            { label: 'AI Models', value: '3' },
-            { label: 'Status', value: 'Active' },
+            { label: 'Sandboxed', value: 'Yes' },
+            { label: 'Status', value: modules.length > 0 ? 'Running' : 'Idle' },
           ].map((stat) => (
             <div
               key={stat.label}
@@ -91,7 +92,7 @@ export function ModuleStore(): React.JSX.Element {
                     Active
                   </span>
                   <button
-                    onClick={() => void uninstall(mod.id)}
+                    onClick={() => void modStore.uninstall(mod.id)}
                     className="rounded-lg border border-red-800/40 px-3 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-950/40"
                   >
                     Remove

@@ -22,6 +22,7 @@ const BUILT_IN_FEATURES = [
     label: 'Personal Finance',
     description: 'Track budgets, savings goals, and get AI advice on your spending.',
     badge: 'Finance',
+    comingSoon: true,
   },
   {
     id: 'study',
@@ -29,6 +30,7 @@ const BUILT_IN_FEATURES = [
     label: 'Study Assistant',
     description: 'Generate flashcards, summaries, quizzes and explanations instantly.',
     badge: 'Education',
+    comingSoon: true,
   },
   {
     id: 'automation',
@@ -36,6 +38,7 @@ const BUILT_IN_FEATURES = [
     label: 'Automation',
     description: 'Build AI workflows that run automatically on a schedule or trigger.',
     badge: 'Power',
+    comingSoon: true,
   },
   {
     id: 'image',
@@ -92,7 +95,7 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
             type="text"
             placeholder="Search features…"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value) }}
             className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2.5 pl-10 pr-4 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-secondary)] outline-none focus:border-[var(--color-accent)] transition-colors"
           />
         </div>
@@ -170,7 +173,7 @@ function FeatureCard({
           </span>
         ) : isActive ? (
           <button
-            onClick={() => onOpen(id)}
+            onClick={() => { onOpen(id) }}
             className="inline-flex items-center gap-1.5 rounded-full bg-emerald-950/50 px-3 py-1.5 text-xs font-medium text-emerald-400 transition-colors hover:bg-emerald-900/50"
           >
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
@@ -178,7 +181,7 @@ function FeatureCard({
           </button>
         ) : (
           <button
-            onClick={() => onOpen(id)}
+            onClick={() => { onOpen(id) }}
             className="rounded-full bg-[var(--color-accent-dim)] px-3 py-1.5 text-xs font-medium text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)] hover:text-white"
           >
             + Add feature

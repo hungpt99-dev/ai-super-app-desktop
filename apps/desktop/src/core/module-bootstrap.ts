@@ -1,4 +1,4 @@
-import type { INotifyOptions } from '@ai-super-app/sdk'
+import type { INotifyOptions, Permission } from '@ai-super-app/sdk'
 import { PermissionEngine } from './permission-engine.js'
 import { ModuleManager } from './module-manager.js'
 import { BUILTIN_MODULES } from './builtin-modules.js'
@@ -23,7 +23,9 @@ let _moduleManager: ModuleManager | null = null
  *   - Tauri: emits a `notification:push` Tauri event (received by bridge.notifications.onPush)
  *   - Browser dev: dispatches a DOM CustomEvent on `window`
  */
-export async function initModuleManager(): Promise<ModuleManager> {
+export async function initModuleManager(
+  permissionRequestHandler?: (moduleId: string, permissions: Permission[]) => Promise<boolean>,
+): Promise<ModuleManager> {
   if (_moduleManager) return _moduleManager
 
   const permEngine = new PermissionEngine()
@@ -39,6 +41,10 @@ export async function initModuleManager(): Promise<ModuleManager> {
   }
 
   const mm = new ModuleManager(permEngine, CORE_VERSION, notifyRenderer)
+
+  if (permissionRequestHandler) {
+    mm.setPermissionRequestHandler(permissionRequestHandler)
+  }
 
   for (const { id, definition } of BUILTIN_MODULES) {
     mm.registerBuiltin(id, definition)

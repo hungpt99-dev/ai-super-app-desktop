@@ -28,6 +28,19 @@ export interface IUsageSummary {
   window_start_unix: number
 }
 
+export interface IAuthTokens {
+  access_token: string
+  refresh_token: string
+}
+
+export interface IUserProfile {
+  id: string
+  email: string
+  name: string
+  plan: 'free' | 'pro' | 'enterprise'
+  created_at: string
+}
+
 /**
  * GatewayClient — Gateway Pattern + Retry Pattern.
  *
@@ -81,6 +94,31 @@ export class GatewayClient {
 
   async getUsage(): Promise<IUsageSummary> {
     return this.get<IUsageSummary>('/v1/usage')
+  }
+
+  /** Exchange email + password for JWT + refresh token. */
+  async login(email: string, password: string): Promise<IAuthTokens> {
+    return this.post<IAuthTokens>('/v1/auth/login', { email, password })
+  }
+
+  /** Create a new account and return tokens (auto-login on register). */
+  async register(email: string, password: string, name?: string): Promise<IAuthTokens> {
+    return this.post<IAuthTokens>('/v1/auth/register', { email, password, ...(name ? { name } : {}) })
+  }
+
+  /** Return the profile of the currently authenticated user. */
+  async me(): Promise<IUserProfile> {
+    return this.get<IUserProfile>('/v1/auth/me')
+  }
+
+  /** Revoke the given refresh token (server-side logout). */
+  async logout(refreshToken: string): Promise<void> {
+    await this.post<void>('/v1/auth/logout', { refresh_token: refreshToken })
+  }
+
+  /** Rotate a refresh token and receive a new access + refresh token pair. */
+  async refreshTokens(refreshToken: string): Promise<IAuthTokens> {
+    return this.post<IAuthTokens>('/v1/auth/refresh', { refresh_token: refreshToken })
   }
 
   async issueToken(clientId: string, clientSecret: string): Promise<string> {

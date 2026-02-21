@@ -45,4 +45,9 @@ export class PermissionEngine implements IPermissionEngine {
   hasPermission(moduleId: string, permission: Permission): boolean {
     return this.grants.get(moduleId)?.has(permission) ?? false
   }
+
+  /** Return all current in-memory grants (read-only). Used by the Settings UI. */
+  getGrants(): ReadonlyMap<string, ReadonlySet<Permission>> {
+    return this.grants as ReadonlyMap<string, ReadonlySet<Permission>>
+  }
 }

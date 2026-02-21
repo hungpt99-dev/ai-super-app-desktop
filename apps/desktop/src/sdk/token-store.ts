@@ -110,7 +110,7 @@ export async function initTokenStore(): Promise<void> {
  * In Tauri mode this is only used by the AiSdkProxy dev fallback path.
  * In browser dev mode it is the sole HTTP transport.
  */
-export const gatewayClient = new GatewayClient({
+export const gatewayClient: GatewayClient = new GatewayClient({
   baseURL: import.meta.env['VITE_GATEWAY_URL'] ?? 'http://localhost:3000',
   getToken: () => tokenStore.getToken(),
 })

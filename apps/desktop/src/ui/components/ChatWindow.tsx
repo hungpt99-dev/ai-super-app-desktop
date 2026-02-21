@@ -4,7 +4,7 @@ import type { IChatMessage } from '../hooks/use-chat.js'
 
 /** ChatWindow — chat-first interface, the core UX surface. */
 export function ChatWindow(): React.JSX.Element {
-  const { messages, isLoading, error, sendMessage, setError } = useChat()
+  const { messages, isLoading, error, sendMessage, clearMessages, setError } = useChat()
   const [input, setInput] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -50,7 +50,21 @@ export function ChatWindow(): React.JSX.Element {
             </p>
           </div>
         </div>
-        <div className="flex h-2 w-2 rounded-full bg-[var(--color-success)]" title="Connected" />
+        <div className="flex items-center gap-2">
+          {messages.length > 0 && (
+            <button
+              onClick={() => { clearMessages() }}
+              className="flex h-7 items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-2.5 text-[11px] font-medium text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)]/50 hover:text-[var(--color-text-secondary)]"
+              title="Clear conversation (⌘K)"
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4h6v2" />
+              </svg>
+              Clear
+            </button>
+          )}
+          <div className="flex h-2 w-2 rounded-full bg-[var(--color-success)]" title="Connected" />
+        </div>
       </div>
 
       {/* Messages */}
@@ -74,13 +88,13 @@ export function ChatWindow(): React.JSX.Element {
             <circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" />
           </svg>
           <span className="flex-1">{error}</span>
-          <button onClick={() => setError(null)} className="transition-colors hover:text-red-300" aria-label="Dismiss">✕</button>
+          <button onClick={() => { setError(null) }} className="transition-colors hover:text-red-300" aria-label="Dismiss">✕</button>
         </div>
       )}
 
       {/* Input bar */}
       <div className="shrink-0 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-6 py-4">
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={(e) => { void handleSubmit(e) }}>
           <div className="flex items-end gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-3 transition-colors focus-within:border-[var(--color-accent)]">
             <textarea
               ref={textareaRef}
@@ -89,7 +103,7 @@ export function ChatWindow(): React.JSX.Element {
               onChange={(e) => {
                 setInput(e.target.value)
                 e.target.style.height = 'auto'
-                e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`
+                e.target.style.height = `${String(Math.min(e.target.scrollHeight, 120))}px`
               }}
               onKeyDown={handleKeyDown}
               placeholder="Ask anything… (Enter to send, Shift+Enter for newline)"
@@ -142,7 +156,7 @@ function EmptyState({ onSuggest }: { onSuggest: (text: string) => void }): React
         {SUGGESTIONS.map((s) => (
           <button
             key={s}
-            onClick={() => onSuggest(s)}
+            onClick={() => { onSuggest(s) }}
             className="rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-text-secondary)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
           >
             {s}
@@ -159,10 +173,10 @@ function MessageBubble({ message }: { message: IChatMessage }): React.JSX.Elemen
   const isUser = message.role === 'user'
   const [copied, setCopied] = useState(false)
 
-  const handleCopy = async () => {
+  const handleCopy = async (): Promise<void> => {
     await navigator.clipboard.writeText(message.content)
     setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    setTimeout(() => { setCopied(false) }, 2000)
   }
 
   return (

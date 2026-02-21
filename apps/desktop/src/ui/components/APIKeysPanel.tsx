@@ -154,6 +154,7 @@ interface IKeyRowProps {
 
 function KeyRow({ apiKey, onToggle, onDelete }: IKeyRowProps): React.JSX.Element {
   const [busy, setBusy] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const provider = PROVIDERS.find((p) => p.value === apiKey.provider)
 
   const masked = `${'•'.repeat(8)}${apiKey.rawKey.slice(-4)}`
@@ -164,8 +165,8 @@ function KeyRow({ apiKey, onToggle, onDelete }: IKeyRowProps): React.JSX.Element
   }
 
   const handleDelete = async (): Promise<void> => {
-    if (!confirm(`Remove ${provider?.label ?? apiKey.provider} key?`)) return
     setBusy(true)
+    setConfirmDelete(false)
     try { await onDelete(apiKey.id) } finally { setBusy(false) }
   }
 
@@ -203,14 +204,31 @@ function KeyRow({ apiKey, onToggle, onDelete }: IKeyRowProps): React.JSX.Element
         {apiKey.isActive ? 'Disable' : 'Enable'}
       </button>
 
-      <button
-        onClick={() => void handleDelete()}
-        disabled={busy}
-        className="shrink-0 rounded-lg px-2.5 py-1 text-xs text-[var(--color-danger)]
-                   transition-colors hover:bg-[var(--color-danger)]/10 disabled:opacity-50"
-      >
-        Remove
-      </button>
+      {confirmDelete ? (
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => { setConfirmDelete(false) }}
+            className="shrink-0 rounded-lg border border-[var(--color-border)] px-2 py-1 text-xs text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-2)]"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => void handleDelete()}
+            disabled={busy}
+            className="shrink-0 rounded-lg bg-red-950/60 px-2 py-1 text-xs font-medium text-red-400 transition-colors hover:bg-red-900/60 disabled:opacity-50"
+          >
+            Confirm
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => { setConfirmDelete(true) }}
+          disabled={busy}
+          className="shrink-0 rounded-lg px-2.5 py-1 text-xs text-[var(--color-danger)] transition-colors hover:bg-[var(--color-danger)]/10 disabled:opacity-50"
+        >
+          Remove
+        </button>
+      )}
     </div>
   )
 }
@@ -259,65 +277,74 @@ export function APIKeysPanel({ onBack }: IAPIKeysPanelProps): React.JSX.Element 
   }
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto p-5">
+    <div className="flex h-full flex-col bg-[var(--color-bg)]">
       {/* Header */}
-      <div className="mb-5 flex items-center gap-3">
+      <div className="flex shrink-0 items-center gap-3 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-3.5">
         <button
           onClick={onBack}
-          className="rounded-lg p-1.5 text-[var(--color-text-secondary)] transition-colors
-                     hover:bg-[var(--color-surface-2)]"
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text-primary)]"
+          aria-label="Back"
         >
-          ←
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
         </button>
         <div className="flex-1">
           <h1 className="text-sm font-semibold text-[var(--color-text-primary)]">API Keys</h1>
-          <p className="text-xs text-[var(--color-text-secondary)]">
-            Stored locally on this device — never sent to the cloud.
+          <p className="text-[11px] text-[var(--color-text-muted)]">
+            Stored on-device only — never sent to the cloud
           </p>
         </div>
         {!showForm && (
           <button
-            onClick={() => setShowForm(true)}
-            className="rounded-lg bg-[var(--color-accent)] px-3 py-1.5 text-xs font-medium
-                       text-white transition-colors hover:bg-[var(--color-accent-hover)]"
+            onClick={() => { setShowForm(true) }}
+            className="rounded-lg bg-[var(--color-accent)] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)]"
           >
-            + Add
+            + Add key
           </button>
         )}
       </div>
 
-      {showForm && (
-        <div className="mb-4">
-          <AddKeyForm
-            existingProviders={keys.map((k) => k.provider)}
-            onSaved={handleSaved}
-            onCancel={() => setShowForm(false)}
-          />
-        </div>
-      )}
-
-      {loading ? (
-        <p className="text-xs text-[var(--color-text-secondary)]">Loading…</p>
-      ) : keys.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-[var(--color-border)] p-8 text-center">
-          <p className="text-lg mb-1">🔑</p>
-          <p className="text-sm font-medium text-[var(--color-text-primary)]">No keys saved</p>
-          <p className="mt-0.5 text-xs text-[var(--color-text-secondary)]">
-            Add a provider key to use your own quota.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {keys.map((key) => (
-            <KeyRow
-              key={key.id}
-              apiKey={key}
-              onToggle={handleToggle}
-              onDelete={handleDelete}
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-5">
+        {showForm && (
+          <div className="mb-4">
+            <AddKeyForm
+              existingProviders={keys.map((k) => k.provider)}
+              onSaved={handleSaved}
+              onCancel={() => { setShowForm(false) }}
             />
-          ))}
-        </div>
-      )}
+          </div>
+        )}
+
+        {loading ? (
+          <div className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)]">
+            <div className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--color-accent)] border-t-transparent" />
+            Loading…
+          </div>
+        ) : keys.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[var(--color-border)] py-12 text-center">
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--color-surface-2)] text-2xl">
+              🔑
+            </div>
+            <p className="text-sm font-medium text-[var(--color-text-primary)]">No keys saved yet</p>
+            <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
+              Add a provider API key to use your own AI quota.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {keys.map((key) => (
+              <KeyRow
+                key={key.id}
+                apiKey={key}
+                onToggle={handleToggle}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

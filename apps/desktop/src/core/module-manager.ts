@@ -1,4 +1,4 @@
-import type { IAppPackage, IModuleDefinition, IModuleManager, INotifyOptions, IToolInput } from '@ai-super-app/sdk'
+import type { IAppPackage, IModuleDefinition, IModuleManager, INotifyOptions, IToolInput, Permission } from '@ai-super-app/sdk'
 
 /** True when running inside the Tauri WebView runtime. */
 const IS_TAURI = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
@@ -8,6 +8,7 @@ import {
   ModuleInstallError,
   ModuleNotFoundError,
   ModuleVersionIncompatibleError,
+  PermissionDeniedError,
   SignatureVerificationError,
   logger,
 } from '@ai-super-app/shared'
@@ -27,6 +28,15 @@ export class ModuleManager implements IModuleManager {
   /** moduleId → sandbox instance */
   private readonly sandboxes = new Map<string, ModuleSandbox>()
 
+  /**
+   * Optional async callback invoked before permissions are granted.
+   * Return false to block activation (user denied).
+   */
+  private permissionRequestHandler?: (
+    moduleId: string,
+    permissions: Permission[],
+  ) => Promise<boolean>
+
   constructor(
     private readonly permissionEngine: PermissionEngine,
     private readonly coreVersion: string,
@@ -44,9 +54,30 @@ export class ModuleManager implements IModuleManager {
     log.info('Module installed', { moduleId, version: pkg.manifest.version })
   }
 
+  /** Wire the UI-layer handler that is called before permissions are granted on activate(). */
+  setPermissionRequestHandler(
+    handler: (moduleId: string, permissions: Permission[]) => Promise<boolean>,
+  ): void {
+    this.permissionRequestHandler = handler
+  }
+
   async activate(moduleId: string): Promise<void> {
     const definition = this.registry.get(moduleId)
     if (!definition) throw new ModuleNotFoundError(`Module not found: ${moduleId}`)
+
+    if (this.permissionRequestHandler) {
+      const approved = await this.permissionRequestHandler(
+        moduleId,
+        definition.manifest.permissions,
+      )
+      if (!approved) {
+        log.warn('Module activation denied by user', { moduleId })
+        throw new PermissionDeniedError(
+          `User denied permissions for module: ${moduleId}`,
+          { moduleId },
+        )
+      }
+    }
 
     this.permissionEngine.grant(moduleId, definition.manifest.permissions)
 
@@ -112,7 +143,8 @@ export class ModuleManager implements IModuleManager {
       log.warn('runTool called on non-active module — activating on demand', { moduleId })
       await this.activate(moduleId)
       const reloadedSandbox = this.sandboxes.get(moduleId)
-      const freshCtx = reloadedSandbox!.getCtx()!
+      const freshCtx = reloadedSandbox?.getCtx() ?? null
+      if (!freshCtx) throw new ModuleNotFoundError(`Failed to activate module: ${moduleId}`)
       return tool.run(input, freshCtx)
     }
 
