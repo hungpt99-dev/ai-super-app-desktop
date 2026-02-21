@@ -127,8 +127,8 @@ interface IBotStore {
   runs: Record<string, IDesktopBotRun[]>
   selectedBotId: string | null
   loading: boolean
-  /** ID of the bot currently being executed (local run in progress). */
-  runningBotId: string | null
+  /** IDs of bots currently executing — one entry per bot so multiple bots can run in parallel. */
+  runningBotIds: string[]
   error: string | null
 
   /** Load bots: local always; merged with cloud when authenticated. */
@@ -175,7 +175,7 @@ export const useBotStore = create<IBotStore>((set, get) => ({
   runs: readRuns(),
   selectedBotId: null,
   loading: false,
-  runningBotId: null,
+  runningBotIds: [],
   error: null,
 
   loadBots: async () => {
@@ -293,9 +293,14 @@ export const useBotStore = create<IBotStore>((set, get) => ({
 
   runBot: async (id) => {
     const bot = get().bots.find((b) => b.id === id)
-    if (!bot || get().runningBotId !== null) return
+    // Per-bot lock — the same bot can't be queued twice, but different bots run freely.
+    if (!bot || get().runningBotIds.includes(id)) return
 
-    set({ runningBotId: id, error: null })
+    set({ runningBotIds: [...get().runningBotIds, id], error: null })
+
+    const removeLock = (): void => {
+      set({ runningBotIds: get().runningBotIds.filter((x) => x !== id) })
+    }
 
     // ── Cloud bot: queue on server; agent-loop handles execution ──────────────
     if (bot.synced && tokenStore.getToken()) {
@@ -305,7 +310,7 @@ export const useBotStore = create<IBotStore>((set, get) => ({
       } catch (err) {
         set({ error: (err as Error).message })
       } finally {
-        set({ runningBotId: null })
+        removeLock()
       }
       return
     }
@@ -369,7 +374,7 @@ export const useBotStore = create<IBotStore>((set, get) => ({
       result,
       ended_at: new Date().toISOString(),
     })
-    set({ runningBotId: null })
+    removeLock()
   },
 
   loadRuns: async (botId) => {

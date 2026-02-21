@@ -291,12 +291,14 @@ function CreateBotModal({ initialTemplateId, allTemplates, onClose }: ICreateBot
 
 interface IBotInstanceRowProps {
   bot: IDesktopBot
-  runningBotId: string | null
+  runningBotIds: string[]
+  templateIcon?: string
+  templateName?: string
   onOpen: (id: string) => void
 }
 
-function BotInstanceRow({ bot, runningBotId, onOpen }: IBotInstanceRowProps): React.JSX.Element {
-  const isRunning = runningBotId === bot.id
+function BotInstanceRow({ bot, runningBotIds, templateIcon, templateName, onOpen }: IBotInstanceRowProps): React.JSX.Element {
+  const isRunning = runningBotIds.includes(bot.id)
 
   return (
     <div className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-3 transition-colors hover:border-[var(--color-accent)]/40">
@@ -309,9 +311,15 @@ function BotInstanceRow({ bot, runningBotId, onOpen }: IBotInstanceRowProps): Re
               : 'bg-yellow-400'
         }`}
       />
+      {templateIcon && <span className="shrink-0 text-base">{templateIcon}</span>}
       <span className="min-w-0 flex-1 truncate text-sm text-[var(--color-text-primary)]">
         {bot.name}
       </span>
+      {templateName && (
+        <span className="hidden shrink-0 rounded-full bg-[var(--color-surface-2)] px-2 py-0.5 text-[10px] text-[var(--color-text-muted)] sm:inline">
+          {templateName}
+        </span>
+      )}
       {bot.synced && (
         <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]" title="Cloud synced">☁</span>
       )}
@@ -334,145 +342,27 @@ function BotInstanceRow({ bot, runningBotId, onOpen }: IBotInstanceRowProps): Re
   )
 }
 
-// ─── Bot type section (expandable) ───────────────────────────────────────────
+// ─── Unified bot-type card (same visual for agent types AND built-in bots) ─────────────
 
-interface IBotTypeSectionProps {
-  template: IBotTemplate
-  bots: IDesktopBot[]
-  runningBotId: string | null
-  onOpen: (id: string) => void
-  onAddBot: (templateId: string) => void
+interface IBotTypeCardProps {
+  icon: string
+  label: string
+  description: string
+  badge: string
+  badgeClass: string
+  /** undefined = built-in bot (no user instances); 0+ = agent bot type */
+  botCount?: number
+  runningCount?: number
+  /** true when the built-in panel is currently open */
+  isActive?: boolean
+  onAction: () => void
 }
 
-function BotTypeSection({
-  template, bots, runningBotId, onOpen, onAddBot,
-}: IBotTypeSectionProps): React.JSX.Element {
-  const [expanded, setExpanded] = useState(bots.length > 0)
-  const colorClass   = TEMPLATE_CATEGORY_COLORS[template.category]
-  const runningCount = bots.filter((b) => b.id === runningBotId).length
-
-  return (
-    <div className="overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] transition-all">
-      <button
-        type="button"
-        onClick={() => { setExpanded((v) => !v) }}
-        className="flex w-full items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-[var(--color-surface-2)]"
-      >
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--color-surface-2)] text-xl">
-          {template.icon}
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-[var(--color-text-primary)]">
-              {template.name}
-            </span>
-            <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${colorClass}`}>
-              {template.category}
-            </span>
-            {runningCount > 0 && (
-              <span className="flex items-center gap-1 rounded-full bg-blue-400/15 px-2 py-0.5 text-[10px] font-medium text-blue-400">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-400" />
-                {String(runningCount)} running
-              </span>
-            )}
-          </div>
-          <p className="mt-0.5 truncate text-[11px] text-[var(--color-text-secondary)]">
-            {template.description}
-          </p>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-3">
-          <span className="text-xs text-[var(--color-text-muted)]">
-            {String(bots.length)} bot{bots.length !== 1 ? 's' : ''}
-          </span>
-          <svg
-            width="14" height="14" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-            className={`shrink-0 text-[var(--color-text-muted)] transition-transform ${expanded ? 'rotate-180' : ''}`}
-          >
-            <polyline points="6 9 12 15 18 9" />
-          </svg>
-        </div>
-      </button>
-
-      {expanded && (
-        <div className="space-y-2 border-t border-[var(--color-border)] px-5 pb-4 pt-3">
-          {bots.length === 0 ? (
-            <p className="py-2 text-center text-xs text-[var(--color-text-muted)]">
-              No bots of this type yet.
-            </p>
-          ) : (
-            bots.map((bot) => (
-              <BotInstanceRow
-                key={bot.id}
-                bot={bot}
-                runningBotId={runningBotId}
-                onOpen={onOpen}
-              />
-            ))
-          )}
-          <button
-            type="button"
-            onClick={() => { onAddBot(template.id) }}
-            className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-[var(--color-border)] py-2.5 text-xs text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
-          >
-            + Add another {template.name} bot
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ─── Custom bot row (no template) ─────────────────────────────────────────────
-
-interface ICustomBotRowProps {
-  bot: IDesktopBot
-  runningBotId: string | null
-  onOpen: (id: string) => void
-}
-
-function CustomBotRow({ bot, runningBotId, onOpen }: ICustomBotRowProps): React.JSX.Element {
-  const isRunning = runningBotId === bot.id
-
-  return (
-    <div className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 transition-colors hover:border-[var(--color-accent)]/40">
-      <span
-        className={`h-2 w-2 shrink-0 rounded-full ${
-          isRunning ? 'animate-pulse bg-blue-400' : bot.status === 'active' ? 'bg-[var(--color-success)]' : 'bg-yellow-400'
-        }`}
-      />
-      <span className="text-base">✏️</span>
-      <span className="min-w-0 flex-1 truncate text-sm text-[var(--color-text-primary)]">{bot.name}</span>
-      {bot.synced && <span className="text-[10px] text-[var(--color-text-muted)]">☁</span>}
-      <span
-        className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-          bot.status === 'active'
-            ? 'bg-[var(--color-success)]/15 text-[var(--color-success)]'
-            : 'bg-yellow-400/15 text-yellow-400'
-        }`}
-      >
-        {bot.status}
-      </span>
-      <button
-        onClick={() => { onOpen(bot.id) }}
-        className="shrink-0 rounded-lg bg-[var(--color-accent-dim)] px-3 py-1.5 text-xs font-medium text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)] hover:text-white"
-      >
-        ▶ Open
-      </button>
-    </div>
-  )
-}
-
-// ─── Built-in tool card ───────────────────────────────────────────────────────
-
-interface IToolCardProps {
-  id: string; icon: string; label: string; description: string; badge: string
-  isActive: boolean; onOpen: (id: string) => void
-}
-
-function ToolCard({ id, icon, label, description, badge, isActive, onOpen }: IToolCardProps): React.JSX.Element {
+function BotTypeCard({
+  icon, label, description, badge, badgeClass,
+  botCount, runningCount = 0, isActive = false, onAction,
+}: IBotTypeCardProps): React.JSX.Element {
+  const isTool = botCount === undefined
   return (
     <div
       className={`flex flex-col rounded-2xl border bg-[var(--color-surface)] p-5 transition-all ${
@@ -481,26 +371,42 @@ function ToolCard({ id, icon, label, description, badge, isActive, onOpen }: ITo
           : 'border-[var(--color-border)] hover:border-[var(--color-accent)] hover:shadow-[0_0_0_1px_var(--color-accent-dim)]'
       }`}
     >
-      <div className="mb-4 flex items-start justify-between">
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--color-surface-2)] text-2xl">
+      <div className="mb-3 flex items-start justify-between gap-2">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--color-surface-2)] text-2xl">
           {icon}
         </div>
-        <span className="rounded-full border border-[var(--color-border)] px-2.5 py-0.5 text-[10px] font-medium text-[var(--color-text-secondary)]">
-          {badge}
-        </span>
+        <div className="flex flex-col items-end gap-1">
+          <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium ${badgeClass}`}>
+            {badge}
+          </span>
+          {!isTool && (
+            <span className="text-[10px] text-[var(--color-text-muted)]">
+              {String(botCount)} bot{botCount !== 1 ? 's' : ''}
+            </span>
+          )}
+          {runningCount > 0 && (
+            <span className="flex items-center gap-1 text-[10px] text-blue-400">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-400" />
+              {String(runningCount)} running
+            </span>
+          )}
+        </div>
       </div>
+
       <h3 className="mb-1 text-sm font-semibold text-[var(--color-text-primary)]">{label}</h3>
       <p className="mb-4 flex-1 text-xs leading-relaxed text-[var(--color-text-secondary)]">{description}</p>
+
       <button
-        onClick={() => { onOpen(id) }}
+        onClick={onAction}
         className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
           isActive
             ? 'bg-emerald-950/50 text-emerald-400 hover:bg-emerald-900/50'
             : 'bg-[var(--color-accent-dim)] text-[var(--color-accent)] hover:bg-[var(--color-accent)] hover:text-white'
         }`}
       >
-        {isActive && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />}
-        Open
+        {isTool
+          ? (isActive ? '● Open' : '→ Open')
+          : '+ Add Bot'}
       </button>
     </div>
   )
@@ -517,7 +423,7 @@ function ToolCard({ id, icon, label, description, badge, isActive, onOpen }: ITo
 export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Element {
   const { modules }       = useModules()
   const bots              = useBotStore((s) => s.bots)
-  const runningBotId      = useBotStore((s) => s.runningBotId)
+  const runningBotIds     = useBotStore((s) => s.runningBotIds)
   const installedTypeIds  = useBotTypeStore((s) => s.installedTypeIds)
   const activeIds         = new Set(modules.map((m) => m.id))
 
@@ -526,8 +432,6 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
     ...BOT_TEMPLATES,
     ...BOT_TYPE_CATALOG.filter((t) => installedTypeIds.includes(t.id)),
   ], [installedTypeIds])
-
-  const allTemplateIdSet = useMemo(() => new Set(allTemplates.map((t) => t.id)), [allTemplates])
 
   const [search, setSearch]            = useState('')
   const [showCreate, setShowCreate]    = useState(false)
@@ -540,7 +444,7 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
     setShowCreate(true)
   }
 
-  // Group bots by templateId.
+  // Group bots by templateId — used for bot count on type cards.
   const botsByTemplate = useMemo<Record<string, IDesktopBot[]>>(() => {
     const map: Record<string, IDesktopBot[]> = {}
     for (const t of allTemplates) map[t.id] = []
@@ -553,10 +457,10 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
     return map
   }, [bots, allTemplates])
 
-  // Bots not linked to any known template.
-  const customBots = useMemo(
-    () => bots.filter((b) => b.templateId === undefined || !allTemplateIdSet.has(b.templateId)),
-    [bots, allTemplateIdSet],
+  // All bots sorted newest-first for the flat "My Bots" list.
+  const allBots = useMemo(
+    () => [...bots].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+    [bots],
   )
 
   // Search filtering.
@@ -566,15 +470,19 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
     ? allTemplates
     : allTemplates.filter((t) =>
         t.name.toLowerCase().includes(q) ||
-        t.description.toLowerCase().includes(q) ||
-        (botsByTemplate[t.id] ?? []).some(
-          (b) => b.name.toLowerCase().includes(q) || b.goal.toLowerCase().includes(q),
-        ),
+        t.description.toLowerCase().includes(q),
       )
 
-  const visibleCustomBots = search.length === 0
-    ? customBots
-    : customBots.filter((b) => b.name.toLowerCase().includes(q) || b.goal.toLowerCase().includes(q))
+  const visibleAllBots = search.length === 0
+    ? allBots
+    : allBots.filter((b) => {
+        const tmpl = b.templateId ? allTemplates.find((t) => t.id === b.templateId) : undefined
+        return (
+          b.name.toLowerCase().includes(q) ||
+          b.goal.toLowerCase().includes(q) ||
+          (tmpl?.name.toLowerCase().includes(q) ?? false)
+        )
+      })
 
   const visibleTools = search.length === 0
     ? BUILT_IN_TOOLS
@@ -582,7 +490,7 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
         (t) => t.label.toLowerCase().includes(q) || t.description.toLowerCase().includes(q),
       )
 
-  const isEmpty = visibleTemplates.length === 0 && visibleCustomBots.length === 0 && visibleTools.length === 0
+  const isEmpty = visibleTemplates.length === 0 && visibleAllBots.length === 0 && visibleTools.length === 0
 
   return (
     <div className="flex h-full flex-col bg-[var(--color-bg)]">
@@ -627,12 +535,12 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
             />
           </div>
 
-          {/* Bot Types */}
-          {visibleTemplates.length > 0 && (
+          {/* All Bot Types — unified card grid: agent types + built-in bots */}
+          {(visibleTemplates.length > 0 || visibleTools.length > 0) && (
             <section>
               <div className="mb-4 flex items-center justify-between">
                 <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
-                  Bot Types
+                  All Bot Types
                 </p>
                 <button
                   type="button"
@@ -642,59 +550,62 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
                   Browse more →
                 </button>
               </div>
-              <div className="space-y-3">
-                {visibleTemplates.map((template) => (
-                  <BotTypeSection
-                    key={template.id}
-                    template={template}
-                    bots={botsByTemplate[template.id] ?? []}
-                    runningBotId={runningBotId}
-                    onOpen={onOpenModule}
-                    onAddBot={(tid) => { openCreate(tid) }}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
-
-          {/* Custom Bots */}
-          {visibleCustomBots.length > 0 && (
-            <section>
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
-                Custom Bots
-              </p>
-              <div className="space-y-2">
-                {visibleCustomBots.map((bot) => (
-                  <CustomBotRow
-                    key={bot.id}
-                    bot={bot}
-                    runningBotId={runningBotId}
-                    onOpen={onOpenModule}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
-
-          {/* Built-in Tools */}
-          {visibleTools.length > 0 && (
-            <section>
-              <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
-                Built-in Tools
-              </p>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {/* Agent bot type cards */}
+                {visibleTemplates.map((template) => {
+                  const typeBots     = botsByTemplate[template.id] ?? []
+                  const runningCount = typeBots.filter((b) => runningBotIds.includes(b.id)).length
+                  return (
+                    <BotTypeCard
+                      key={template.id}
+                      icon={template.icon}
+                      label={template.name}
+                      description={template.description}
+                      badge={template.category}
+                      badgeClass={TEMPLATE_CATEGORY_COLORS[template.category]}
+                      botCount={typeBots.length}
+                      runningCount={runningCount}
+                      onAction={() => { openCreate(template.id) }}
+                    />
+                  )
+                })}
+                {/* Built-in bot cards — same card visual, "Built-in" badge */}
                 {visibleTools.map((tool) => (
-                  <ToolCard
+                  <BotTypeCard
                     key={tool.id}
-                    id={tool.id}
                     icon={tool.icon}
                     label={tool.label}
                     description={tool.description}
                     badge={tool.badge}
+                    badgeClass="border border-[var(--color-border)] text-[var(--color-text-secondary)]"
                     isActive={activeIds.has(tool.id)}
-                    onOpen={onOpenModule}
+                    onAction={() => { onOpenModule(tool.id) }}
                   />
                 ))}
+              </div>
+            </section>
+          )}
+
+          {/* My Bots — flat list of all bot instances (newest first) */}
+          {visibleAllBots.length > 0 && (
+            <section>
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+                My Bots
+              </p>
+              <div className="space-y-2">
+                {visibleAllBots.map((bot) => {
+                  const tmpl = bot.templateId ? allTemplates.find((t) => t.id === bot.templateId) : undefined
+                  return (
+                    <BotInstanceRow
+                      key={bot.id}
+                      bot={bot}
+                      runningBotIds={runningBotIds}
+                      templateIcon={tmpl?.icon ?? '✏️'}
+                      templateName={tmpl?.name ?? 'Custom'}
+                      onOpen={onOpenModule}
+                    />
+                  )
+                })}
               </div>
             </section>
           )}

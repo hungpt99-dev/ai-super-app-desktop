@@ -114,14 +114,14 @@ export function BotRunPanel({ onBack }: IBotRunPanelProps): React.JSX.Element {
   const selectedBotId = useBotStore((s) => s.selectedBotId)
   const bots          = useBotStore((s) => s.bots)
   const runs          = useBotStore((s) => s.runs)
-  const runningBotId  = useBotStore((s) => s.runningBotId)
+  const runningBotIds = useBotStore((s) => s.runningBotIds)
   const error         = useBotStore((s) => s.error)
   const { user }      = useAuthStore()
   const setView       = useAppStore((s) => s.setView)
 
   const bot       = bots.find((b) => b.id === selectedBotId)
   const botRuns   = selectedBotId ? (runs[selectedBotId] ?? []) : []
-  const isRunning = runningBotId === selectedBotId
+  const isRunning = selectedBotId !== null && runningBotIds.includes(selectedBotId)
   const hasActive = botRuns.some((r) => ACTIVE_STATUSES.has(r.status))
   const latestRun = botRuns[0]
 
