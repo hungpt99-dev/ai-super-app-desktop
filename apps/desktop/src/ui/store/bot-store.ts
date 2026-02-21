@@ -131,6 +131,14 @@ export interface IChatMessage {
   role: 'user' | 'assistant'
   content: string
   ts: number
+  /**
+   * When present, this message is a run-proposal card awaiting user confirmation.
+   * The orchestrator posts this instead of immediately executing a task.
+   */
+  pendingAction?: {
+    label: string
+    status: 'pending' | 'confirmed' | 'dismissed'
+  }
 }
 
 /** A bot as presented by the desktop UI — may be local-only or cloud-backed. */
@@ -204,6 +212,16 @@ interface IBotStore {
   runBot(id: string): Promise<void>
   /** Send a chat message to a bot and receive an AI reply. */
   sendMessage(botId: string, content: string): Promise<void>
+  /**
+   * Confirm a pending-action card and execute the task run.
+   * Called when the user clicks "Yes, run it" in the confirmation card.
+   */
+  confirmRun(botId: string, msgId: string): Promise<void>
+  /**
+   * Dismiss a pending-action card without executing.
+   * Called when the user clicks "Skip" in the confirmation card.
+   */
+  dismissRun(botId: string, msgId: string): void
   /** Clear the conversation history for a bot. */
   clearChat(botId: string): void
   /** Load run history for a bot (local + server when synced). */
@@ -545,7 +563,37 @@ ${preview}`,
 
     try {
       const bridge = getDesktopBridge()
-      // Build context from the last 4 messages (2 exchanges) for a compact prompt.
+
+      // ── Orchestration: decide if the message implies a task to execute ──────────
+      const ACTION_KEYWORDS = [
+        'run', 'execute', 'do', 'start', 'check', 'analyze', 'analyse', 'search',
+        'generate', 'create', 'write', 'fetch', 'monitor', 'scan', 'review',
+        'update', 'send', 'find', 'get', 'make', 'build', 'show me', 'give me',
+        'tell me', 'report', 'summarize', 'summarise', 'compute', 'calculate',
+        'track', 'watch', 'go ahead', 'proceed',
+      ]
+      // Pure informational patterns — not actionable
+      const INFO_PATTERN = /^(what is|what’s|who is|who’s|why |when |how does|how do|explain|describe|is it|are you)/i
+      const lower = content.toLowerCase()
+      const isActionIntent =
+        !INFO_PATTERN.test(lower) &&
+        ACTION_KEYWORDS.some((w) => lower.includes(w))
+
+      if (isActionIntent) {
+        // Brief thinking pause so the typing indicator is visible.
+        await sleep(700)
+        const taskLabel = bot.goal.length > 120 ? `${bot.goal.slice(0, 120)}…` : bot.goal
+        pushMsg({
+          id: generateId(),
+          role: 'assistant',
+          content: `Sure! Before I proceed, please confirm you’d like me to run the following task:`,
+          ts: Date.now(),
+          pendingAction: { label: taskLabel, status: 'pending' },
+        })
+        return
+      }
+
+      // ── Plain conversation: answer without running ─────────────────────────
       const recentHistory = (get().chatHistory[botId] ?? []).slice(-5, -1)
       const contextLines = recentHistory
         .map((m) => `${m.role === 'user' ? 'User' : 'Bot'}: ${m.content.slice(0, 200)}`)
@@ -556,9 +604,8 @@ ${preview}`,
 
       const ai = await bridge.ai.generate('chat', prompt)
 
-      // Replace the dev-mode stub with a contextual placeholder.
       const reply = ai.output.startsWith('[Dev mode]')
-        ? `I’m ${bot.name}. My goal is to: ${bot.goal.slice(0, 150)}${bot.goal.length > 150 ? '…' : ''}.\n\nAsk me anything, or use “▶ Trigger task run” below to execute my full task.`
+        ? `I’m ${bot.name}. My goal is to ${bot.goal.slice(0, 150)}${bot.goal.length > 150 ? '…' : ''}. Ask me anything!`
         : ai.output
 
       pushMsg({ id: generateId(), role: 'assistant', content: reply, ts: Date.now() })
@@ -567,6 +614,33 @@ ${preview}`,
     } finally {
       set({ thinkingBotIds: get().thinkingBotIds.filter((x) => x !== botId) })
     }
+  },
+
+  confirmRun: async (botId, msgId) => {
+    // Mark the card as confirmed immediately so the UI updates.
+    const patch = (status: 'confirmed' | 'dismissed'): void => {
+      const chat = { ...get().chatHistory }
+      chat[botId] = (chat[botId] ?? []).map((m) =>
+        m.id === msgId && m.pendingAction
+          ? { ...m, pendingAction: { ...m.pendingAction, status } }
+          : m,
+      )
+      writeChat(chat)
+      set({ chatHistory: chat })
+    }
+    patch('confirmed')
+    await get().runBot(botId)
+  },
+
+  dismissRun: (botId, msgId) => {
+    const chat = { ...get().chatHistory }
+    chat[botId] = (chat[botId] ?? []).map((m) =>
+      m.id === msgId && m.pendingAction
+        ? { ...m, pendingAction: { ...m.pendingAction, status: 'dismissed' } }
+        : m,
+    )
+    writeChat(chat)
+    set({ chatHistory: chat })
   },
 
   clearChat: (botId) => {
