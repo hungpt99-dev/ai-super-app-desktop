@@ -8,7 +8,7 @@
  *
  * Creating a bot is a 2-step wizard:
  *   Step 1 — Pick a bot type (required; or choose "Custom").
- *   Step 2 — Customise name + goal (pre-filled from the type).
+ *   Step 2 — Customise name + description (pre-filled from the type).
  */
 
 import React, { useEffect, useMemo, useState } from 'react'
@@ -49,7 +49,6 @@ function CreateBotModal({ initialTemplateId, allTemplates, onClose }: ICreateBot
   const [typeId, setTypeId]    = useState<string>(initialTemplateId ?? '')
   const [name, setName]        = useState('')
   const [description, setDesc] = useState('')
-  const [goal, setGoal]        = useState('')
   const [loading, setLoading]  = useState(false)
   const [error, setError]      = useState<string | null>(null)
   const { user }               = useAuthStore()
@@ -58,7 +57,7 @@ function CreateBotModal({ initialTemplateId, allTemplates, onClose }: ICreateBot
   /** Pre-fill fields from a template. */
   const applyType = (id: string): void => {
     if (id === CUSTOM_TYPE_ID || id === '') {
-      setName(''); setDesc(''); setGoal('')
+      setName(''); setDesc('')
       return
     }
     const t = allTemplates.find((x) => x.id === id)
@@ -66,7 +65,6 @@ function CreateBotModal({ initialTemplateId, allTemplates, onClose }: ICreateBot
     const count = bots.filter((b) => b.templateId === id).length
     setName(count === 0 ? t.name : `${t.name} #${String(count + 1)}`)
     setDesc(t.description)
-    setGoal(t.defaultGoal)
   }
 
   // Pre-fill when opened with an initial template (run once on mount).
@@ -82,14 +80,13 @@ function CreateBotModal({ initialTemplateId, allTemplates, onClose }: ICreateBot
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
-    if (!name.trim() || !goal.trim()) return
+    if (!name.trim()) return
     setLoading(true)
     setError(null)
     try {
       await useBotStore.getState().createBot({
         name: name.trim(),
         description: description.trim(),
-        goal: goal.trim(),
         ...(typeId !== '' && typeId !== CUSTOM_TYPE_ID ? { templateId: typeId } : {}),
       })
       onClose()
@@ -148,7 +145,7 @@ function CreateBotModal({ initialTemplateId, allTemplates, onClose }: ICreateBot
               </div>
             )}
             <p className="mb-3 text-xs text-[var(--color-text-secondary)]">
-              Select a type. You can create as many bots of the same type as you need — each with its own goal.
+              Select a type. You can create as many bots of the same type as you need.
             </p>
             <div className="grid grid-cols-2 gap-3">
               {allTemplates.map((t) => {
@@ -192,7 +189,7 @@ function CreateBotModal({ initialTemplateId, allTemplates, onClose }: ICreateBot
                 <div>
                   <p className="text-sm font-semibold text-[var(--color-text-primary)]">Custom</p>
                   <p className="mt-0.5 text-[11px] leading-snug text-[var(--color-text-secondary)]">
-                    Start from scratch with your own goal.
+                    Start from scratch with your own setup.
                   </p>
                 </div>
               </button>
@@ -225,18 +222,6 @@ function CreateBotModal({ initialTemplateId, allTemplates, onClose }: ICreateBot
               />
             </label>
 
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-[var(--color-text-secondary)]">Goal *</span>
-              <textarea
-                value={goal}
-                onChange={(e) => { setGoal(e.target.value) }}
-                placeholder="Describe what this bot should do…"
-                required
-                rows={4}
-                className="resize-y rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent)]"
-              />
-            </label>
-
             {error && (
               <p className="rounded-lg bg-[var(--color-danger)]/10 px-3 py-2 text-xs text-[var(--color-danger)]">
                 {error}
@@ -253,7 +238,7 @@ function CreateBotModal({ initialTemplateId, allTemplates, onClose }: ICreateBot
               </button>
               <button
                 type="submit"
-                disabled={loading || !name.trim() || !goal.trim()}
+                disabled={loading || !name.trim()}
                 className="rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
               >
                 {loading ? 'Creating…' : 'Create Bot'}
@@ -397,7 +382,7 @@ function BotTypeCard({
  * FeatureGrid — the Bots tab.
  * Bot types (templates) are the primary organisational unit.
  * Each type card is expandable and shows all its bot instances.
- * One bot type can power any number of bots with different names and goals.
+ * One bot type can power any number of bots with different names and configurations.
  */
 export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Element {
   const bots              = useBotStore((s) => s.bots)
@@ -456,7 +441,6 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
         const tmpl = b.templateId ? allTemplates.find((t) => t.id === b.templateId) : undefined
         return (
           b.name.toLowerCase().includes(q) ||
-          b.goal.toLowerCase().includes(q) ||
           (tmpl?.name.toLowerCase().includes(q) ?? false)
         )
       })
@@ -472,7 +456,7 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
           <div>
             <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">Bots</h1>
             <p className="mt-0.5 text-sm text-[var(--color-text-secondary)]">
-              Create multiple bots from the same type, each with its own goal.
+              Create multiple bots from the same type, each with its own name.
             </p>
           </div>
           <button

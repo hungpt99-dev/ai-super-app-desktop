@@ -23,7 +23,7 @@ import { getDesktopBridge } from '../lib/bridge.js'
 
 const BOTS_KEY = 'ai-superapp-bots'
 const RUNS_KEY = 'ai-superapp-bot-runs'
-const SEEDED_KEY = 'ai-superapp:bots-seeded-v2'
+const SEEDED_KEY = 'ai-superapp:bots-seeded-v3'
 
 /** Pre-loaded bots shown on first launch so the Bots tab is never empty. */
 const DEFAULT_BOTS: IDesktopBot[] = [
@@ -31,7 +31,6 @@ const DEFAULT_BOTS: IDesktopBot[] = [
     id: 'seed-morning-digest',
     name: 'Morning Digest',
     description: "Summarises today's top news headlines into a quick read.",
-    goal: "Search the web for today's top 5 headlines, summarise each into 1-2 sentences, and output a clean bullet-point digest.",
     status: 'active',
     created_at: '2026-01-01T00:00:00.000Z',
     synced: false,
@@ -41,7 +40,6 @@ const DEFAULT_BOTS: IDesktopBot[] = [
     id: 'seed-btc-watch',
     name: 'BTC Price Watch',
     description: 'Monitors BTC/USD price and reports 5 %+ movements.',
-    goal: 'Check the current BTC/USD price, compare it to 24 hours ago, and generate a brief report if price moved more than 5 % in either direction.',
     status: 'active',
     created_at: '2026-01-01T00:00:00.000Z',
     synced: false,
@@ -51,7 +49,6 @@ const DEFAULT_BOTS: IDesktopBot[] = [
     id: 'seed-code-reviewer',
     name: 'Code Reviewer',
     description: 'Reviews the latest git commits for bugs and improvements.',
-    goal: 'Review the latest git commit diff in the current repository, identify potential bugs, and suggest concrete code improvements.',
     status: 'active',
     created_at: '2026-01-01T00:00:00.000Z',
     synced: false,
@@ -61,7 +58,6 @@ const DEFAULT_BOTS: IDesktopBot[] = [
     id: 'seed-crypto-analysis',
     name: 'Crypto Analysis',
     description: 'Live market data + AI analysis for BTC, ETH, SOL and BNB.',
-    goal: 'Monitor BTC, ETH, SOL and BNB market data, detect significant price movements, and generate an AI-powered market outlook.',
     status: 'active',
     created_at: '2026-01-01T00:00:00.000Z',
     synced: false,
@@ -71,7 +67,6 @@ const DEFAULT_BOTS: IDesktopBot[] = [
     id: 'seed-writing-helper',
     name: 'Writing Helper',
     description: 'Improve, summarize, expand, translate, or fix grammar in any text.',
-    goal: 'Process text using AI to improve clarity, summarize, expand, translate, or fix grammar based on the selected action.',
     status: 'active',
     created_at: '2026-01-01T00:00:00.000Z',
     synced: false,
@@ -146,7 +141,6 @@ export interface IDesktopBot {
   id: string
   name: string
   description: string
-  goal: string
   status: 'active' | 'paused'
   created_at: string
   /** true = this bot exists on the backend and is associated with the current account. */
@@ -226,8 +220,8 @@ interface IBotStore {
   clearChat(botId: string): void
   /** Load run history for a bot (local + server when synced). */
   loadRuns(botId: string): Promise<void>
-  /** Update editable fields of a bot (name, description, goal, apiKey). Local-only for now. */
-  updateBot(id: string, patch: Partial<Pick<IDesktopBot, 'name' | 'description' | 'goal' | 'apiKey' | 'aiProvider'>>): Promise<void>
+  /** Update editable fields of a bot (name, description, apiKey). Local-only for now. */
+  updateBot(id: string, patch: Partial<Pick<IDesktopBot, 'name' | 'description' | 'apiKey' | 'aiProvider'>>): Promise<void>
   /**
    * Cancel any active run for the bot — sets its status to 'cancelled' and
    * removes the bot from the running set so the UI unlocks immediately.
@@ -266,7 +260,7 @@ const EXEC_STEPS: Readonly<Record<string, readonly [string, string, string, stri
 
 const DEFAULT_EXEC_STEPS = [
   'Initialising task…',
-  'Processing goal…',
+  'Processing task…',
   'Executing with AI…',
   'Reviewing output…',
   'Completing run…',
@@ -315,7 +309,6 @@ export const useBotStore = create<IBotStore>((set, get) => ({
         id: b.id,
         name: b.name,
         description: b.description,
-        goal: b.goal,
         status: b.status,
         created_at: b.created_at,
         synced: true,
@@ -350,7 +343,6 @@ export const useBotStore = create<IBotStore>((set, get) => ({
           id: generateId(),
           name: input.name,
           description: input.description,
-          goal: input.goal,
           status: 'active',
           created_at: new Date().toISOString(),
           synced: false,
@@ -397,7 +389,6 @@ export const useBotStore = create<IBotStore>((set, get) => ({
         await botApi.update(id, {
           name: bot.name,
           description: bot.description,
-          goal: bot.goal,
           status: next,
         })
       } catch (err) {
@@ -486,14 +477,14 @@ export const useBotStore = create<IBotStore>((set, get) => ({
           if (!get().runningBotIds.includes(id)) return
           // Perform the actual AI call.
           try {
-            const ai = await bridge.ai.generate('chat', `Complete this task: ${bot.goal}`)
+            const ai = await bridge.ai.generate('chat', `Complete this task: ${bot.description}`)
             // Unwrap the dev-mode stub into a realistic placeholder.
             result = ai.output.startsWith('[Dev mode]')
-              ? `✦ Demo run completed\n\nGoal: "${bot.goal.slice(0, 200)}"\n\nSign in with a paid plan to enable real AI execution and see actual results.`
+              ? `✦ Demo run completed\n\n${bot.description}\n\nSign in with a paid plan to enable real AI execution and see actual results.`
               : ai.output
           } catch {
-            const preview = bot.goal.length > 120 ? `${bot.goal.slice(0, 120)}…` : bot.goal
-            result = `✦ Demo run completed\n\nGoal: "${preview}"\n\nSign in with a paid plan to enable real AI execution.`
+            const preview = bot.description.length > 120 ? `${bot.description.slice(0, 120)}…` : bot.description
+            result = `✦ Demo run completed\n\n${preview}\n\nSign in with a paid plan to enable real AI execution.`
           }
         } else {
           await sleep(STEP_DELAYS[i] ?? 300)
@@ -582,7 +573,7 @@ ${preview}`,
       if (isActionIntent) {
         // Brief thinking pause so the typing indicator is visible.
         await sleep(700)
-        const taskLabel = bot.goal.length > 120 ? `${bot.goal.slice(0, 120)}…` : bot.goal
+        const taskLabel = bot.description.length > 120 ? `${bot.description.slice(0, 120)}…` : bot.description
         pushMsg({
           id: generateId(),
           role: 'assistant',
@@ -598,14 +589,14 @@ ${preview}`,
       const contextLines = recentHistory
         .map((m) => `${m.role === 'user' ? 'User' : 'Bot'}: ${m.content.slice(0, 200)}`)
         .join('\n')
-      const prompt = `You are "${bot.name}", a focused AI agent. Your primary goal: ${bot.goal}${
+      const prompt = `You are "${bot.name}", a focused AI agent. Your purpose: ${bot.description}${
         contextLines ? `\n\nRecent conversation:\n${contextLines}` : ''
       }\n\nUser: ${content}\nBot:`
 
       const ai = await bridge.ai.generate('chat', prompt)
 
       const reply = ai.output.startsWith('[Dev mode]')
-        ? `I’m ${bot.name}. My goal is to ${bot.goal.slice(0, 150)}${bot.goal.length > 150 ? '…' : ''}. Ask me anything!`
+        ? `I'm ${bot.name}. ${bot.description.slice(0, 150)}${bot.description.length > 150 ? '…' : ''} Ask me anything!`
         : ai.output
 
       pushMsg({ id: generateId(), role: 'assistant', content: reply, ts: Date.now() })

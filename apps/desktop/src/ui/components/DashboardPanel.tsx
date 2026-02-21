@@ -262,20 +262,18 @@ function CreateFromTemplateModal({
 }: ICreateFromTemplateModalProps): React.JSX.Element {
   const defaultName = instanceCount === 0 ? template.name : `${template.name} #${String(instanceCount + 1)}`
   const [name, setName] = useState(defaultName)
-  const [goal, setGoal] = useState(template.defaultGoal)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
-    if (!name.trim() || !goal.trim()) return
+    if (!name.trim()) return
     setBusy(true)
     setError(null)
     try {
       await useBotStore.getState().createBot({
         name: name.trim(),
         description: template.description,
-        goal: goal.trim(),
         templateId: template.id,
       })
       // Find the newly-created bot (first in list after creation).
@@ -325,24 +323,6 @@ function CreateFromTemplateModal({
             />
           </label>
 
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-[var(--color-text-secondary)]">
-              Goal *
-              <span className="ml-1 font-normal text-[var(--color-text-muted)]">
-                (customise the pre-filled goal)
-              </span>
-            </span>
-            <textarea
-              value={goal}
-              onChange={(e) => { setGoal(e.target.value) }}
-              required
-              rows={4}
-              className="resize-y rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)]
-                         px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none
-                         focus:border-[var(--color-accent)]"
-            />
-          </label>
-
           {error && (
             <p className="rounded-lg bg-[var(--color-danger)]/10 px-3 py-2 text-xs text-[var(--color-danger)]">
               {error}
@@ -360,7 +340,7 @@ function CreateFromTemplateModal({
             </button>
             <button
               type="submit"
-              disabled={busy || !name.trim() || !goal.trim()}
+              disabled={busy || !name.trim()}
               className="rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium
                          text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
             >
@@ -516,7 +496,7 @@ export function DashboardPanel({ onNavigate }: IDashboardPanelProps): React.JSX.
                 Create from Template
               </p>
               <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
-                Each template can be instantiated multiple times with different goals.
+                Each template can be instantiated multiple times with different names.
               </p>
             </div>
 

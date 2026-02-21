@@ -46,7 +46,7 @@ async function botFetch<T>(method: string, path: string, body?: unknown): Promis
 export interface ICreateBotInput {
   name: string
   description: string
-  goal: string
+  goal?: string
 }
 
 /** A bot record returned by the backend. */
@@ -83,7 +83,7 @@ export const botApi = {
 
   update: (
     id: string,
-    input: { name: string; description: string; goal: string; status: 'active' | 'paused' },
+    input: { name: string; description: string; goal?: string; status: 'active' | 'paused' },
   ): Promise<ICloudBot> =>
     botFetch<ICloudBot>('PUT', `/v1/bots/${id}`, input),
 
