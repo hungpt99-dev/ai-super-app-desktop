@@ -726,10 +726,14 @@ function SettingsTab({ bot, template, colorClass, onDelete, isRunning, onStop }:
   const [saving,    setSaving]    = useState(false)
   const [saved,     setSaved]     = useState(false)
   // API key override state
-  const [apiKey,    setApiKey]    = useState(bot.apiKey ?? '')
-  const [showKey,   setShowKey]   = useState(false)
-  const [savingKey, setSavingKey] = useState(false)
-  const [savedKey,  setSavedKey]  = useState(false)
+  const [apiKey,       setApiKey]       = useState(bot.apiKey ?? '')
+  const [showKey,      setShowKey]      = useState(false)
+  const [savingKey,    setSavingKey]    = useState(false)
+  const [savedKey,     setSavedKey]     = useState(false)
+  // AI provider override state
+  const [aiProvider,   setAiProvider]   = useState(bot.aiProvider ?? '')
+  const [savingProv,   setSavingProv]   = useState(false)
+  const [savedProv,    setSavedProv]    = useState(false)
 
   const handleSave = async (): Promise<void> => {
     if (!name.trim()) return
@@ -756,6 +760,21 @@ function SettingsTab({ bot, template, colorClass, onDelete, isRunning, onStop }:
     setSavingKey(false)
     setSavedKey(true)
     setTimeout(() => { setSavedKey(false) }, 2_000)
+  }
+
+  const handleSaveProvider = async (): Promise<void> => {
+    setSavingProv(true)
+    if (aiProvider) {
+      await useBotStore.getState().updateBot(bot.id, { aiProvider })
+    } else {
+      const bots = useBotStore.getState().bots.map((b) =>
+        b.id === bot.id ? (() => { const { aiProvider: _p, ...rest } = b; return rest as typeof b })() : b,
+      )
+      useBotStore.setState({ bots })
+    }
+    setSavingProv(false)
+    setSavedProv(true)
+    setTimeout(() => { setSavedProv(false) }, 2_000)
   }
 
   return (
@@ -849,6 +868,59 @@ function SettingsTab({ bot, template, colorClass, onDelete, isRunning, onStop }:
               <span className="ml-auto flex items-center gap-1 text-[10px] text-[var(--color-success)]">
                 <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-success)]" />
                 Custom key active
+              </span>
+            )}
+          </div>
+        </div>
+      </section>
+      <section>
+        <p className="mb-4 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">AI Provider</p>
+        <div className="space-y-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+          <p className="text-xs leading-relaxed text-[var(--color-text-secondary)]">
+            Override the AI provider for this bot. Leave on <span className="font-medium text-[var(--color-text-primary)]">Auto</span> to inherit
+            the app-wide provider from <span className="font-medium text-[var(--color-text-primary)]">Settings › API Keys</span>.
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            {([
+              { value: '',          label: 'Auto',    icon: '✦', hint: 'App default' },
+              { value: 'openai',    label: 'OpenAI',  icon: '⬡', hint: 'GPT-4o' },
+              { value: 'anthropic', label: 'Anthropic', icon: '◈', hint: 'Claude' },
+              { value: 'gemini',    label: 'Gemini',  icon: '◇', hint: 'Gemini 2.0' },
+              { value: 'groq',      label: 'Groq',    icon: '⚡', hint: 'Llama 3' },
+              { value: 'ollama',    label: 'Ollama',  icon: '🦙', hint: 'Local model' },
+            ] as const).map(({ value, label, icon, hint }) => {
+              const active = aiProvider === value
+              return (
+                <button
+                  key={value || '__auto'}
+                  type="button"
+                  onClick={() => { setAiProvider(value) }}
+                  className={[
+                    'flex flex-col items-start gap-0.5 rounded-xl border px-3 py-2.5 text-left transition-colors',
+                    active
+                      ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10'
+                      : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/50',
+                  ].join(' ')}
+                >
+                  <span className="text-base leading-none">{icon}</span>
+                  <span className={`mt-1 text-xs font-semibold ${active ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-primary)]'}`}>{label}</span>
+                  <span className="text-[10px] text-[var(--color-text-muted)]">{hint}</span>
+                </button>
+              )
+            })}
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => { void handleSaveProvider() }}
+              disabled={savingProv}
+              className="rounded-xl bg-[var(--color-accent)] px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
+            >
+              {savedProv ? '✓ Saved' : savingProv ? 'Saving…' : 'Save Provider'}
+            </button>
+            {bot.aiProvider && (
+              <span className="ml-auto flex items-center gap-1 text-[10px] text-[var(--color-success)]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-success)]" />
+                Custom provider active
               </span>
             )}
           </div>

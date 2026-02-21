@@ -131,6 +131,11 @@ export interface IDesktopBot {
    * When set, this key is passed to the AI provider instead of the global app key.
    */
   apiKey?: string
+  /**
+   * Per-bot AI provider override (e.g. 'openai', 'anthropic', 'gemini').
+   * When undefined the app-wide provider from Settings › API Keys is used.
+   */
+  aiProvider?: string
 }
 
 /** A run record — may live in localStorage or be fetched from the server. */
@@ -177,7 +182,7 @@ interface IBotStore {
   /** Load run history for a bot (local + server when synced). */
   loadRuns(botId: string): Promise<void>
   /** Update editable fields of a bot (name, description, goal, apiKey). Local-only for now. */
-  updateBot(id: string, patch: Partial<Pick<IDesktopBot, 'name' | 'description' | 'goal' | 'apiKey'>>): Promise<void>
+  updateBot(id: string, patch: Partial<Pick<IDesktopBot, 'name' | 'description' | 'goal' | 'apiKey' | 'aiProvider'>>): Promise<void>
   /**
    * Cancel any active run for the bot — sets its status to 'cancelled' and
    * removes the bot from the running set so the UI unlocks immediately.
