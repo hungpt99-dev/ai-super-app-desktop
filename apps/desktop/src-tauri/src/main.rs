@@ -415,6 +415,11 @@ fn main() {
         .setup(|app| {
             let mem_db = memory::open_db(app.handle()).expect("failed to open memory.db");
             app.manage(mem_db);
+            // Auto-open devtools in debug builds so JS errors are immediately visible.
+            #[cfg(debug_assertions)]
+            if let Some(win) = app.get_webview_window("main") {
+                win.open_devtools();
+            }
             Ok(())
         })
         .manage(AppState { gateway_url, http_client })

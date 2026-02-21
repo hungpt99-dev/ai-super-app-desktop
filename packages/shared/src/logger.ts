@@ -28,12 +28,16 @@ class ConcreteLogger implements ILogger {
       ...(this.context !== undefined && { context: this.context }),
       ...(data !== undefined && { data }),
     }
-    // In production, replace with a proper transport (pino, winston, etc.)
+    // Use console so this works in both Node.js and the browser/WebView.
     const output = JSON.stringify(entry)
-    if (level === 'error' || level === 'warn') {
-      process.stderr.write(output + '\n')
+    if (level === 'error') {
+      console.error(output)
+    } else if (level === 'warn') {
+      console.warn(output)
+    } else if (level === 'debug') {
+      console.debug(output)
     } else {
-      process.stdout.write(output + '\n')
+      console.info(output)
     }
   }
 
