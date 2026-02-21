@@ -19,12 +19,9 @@ export function BotListPage(): React.JSX.Element {
   }, [fetchBots])
 
   const handleStart = async (botId: string): Promise<void> => {
-    try {
-      await startBot(botId)
-      navigate(`/bots/${botId}`)
-    } catch {
-      // error shown in store
-    }
+    await startBot(botId)
+    // Navigate to detail page so the user can watch the run appear in history.
+    navigate(`/bots/${botId}`)
   }
 
   return (

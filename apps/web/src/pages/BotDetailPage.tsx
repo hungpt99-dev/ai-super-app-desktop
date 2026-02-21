@@ -96,10 +96,11 @@ export function BotDetailPage(): React.JSX.Element {
           <button
             className="rounded-lg bg-[var(--color-accent)] px-3 py-1.5 text-xs font-medium text-white
                        transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
-            disabled={bot.status !== 'active' || startLoading}
+            disabled={startLoading}
+            title="Dispatch this bot to run on your connected desktop device"
             onClick={() => void handleStart()}
           >
-            {startLoading ? 'Starting…' : '▶ Run Now'}
+            {startLoading ? 'Dispatching…' : '▶ Run Now'}
           </button>
           <button
             className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium
