@@ -4,7 +4,7 @@ import { useAuthStore } from '../store/auth-store.js'
 import { useAgentStore } from '../store/agent-store.js'
 
 /** Views that map directly to a top-level nav item (excludes sub-views like crypto/writing-helper). */
-type INavView = 'chat' | 'features' | 'bots' | 'store' | 'api-keys' | 'settings'
+type INavView = 'chat' | 'features' | 'store' | 'api-keys' | 'settings'
 
 interface ISidebarProps {
   activeView: AppView
@@ -33,24 +33,6 @@ const NAV_ITEMS: { id: INavView; label: string; icon: React.ReactNode }[] = [
         <rect x="14" y="3" width="7" height="7" rx="1" />
         <rect x="3" y="14" width="7" height="7" rx="1" />
         <rect x="14" y="14" width="7" height="7" rx="1" />
-      </svg>
-    ),
-  },
-  {
-    id: 'bots',
-    label: 'Bots',
-    icon: (
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="4" y="4" width="16" height="16" rx="2" />
-        <rect x="9" y="9" width="6" height="6" />
-        <line x1="9" y1="1" x2="9" y2="4" />
-        <line x1="15" y1="1" x2="15" y2="4" />
-        <line x1="9" y1="20" x2="9" y2="23" />
-        <line x1="15" y1="20" x2="15" y2="23" />
-        <line x1="20" y1="9" x2="23" y2="9" />
-        <line x1="20" y1="14" x2="23" y2="14" />
-        <line x1="1" y1="9" x2="4" y2="9" />
-        <line x1="1" y1="14" x2="4" y2="14" />
       </svg>
     ),
   },
@@ -88,7 +70,7 @@ const NAV_ITEMS: { id: INavView; label: string; icon: React.ReactNode }[] = [
 
 /** Returns the matching top-level nav id for a given AppView (module sub-views map to 'features'). */
 function toNavView(view: AppView): INavView {
-  if (view === 'crypto' || view === 'writing-helper') return 'features'
+  if (view === 'crypto' || view === 'writing-helper' || view === 'bot-run') return 'features'
   return view as INavView
 }
 

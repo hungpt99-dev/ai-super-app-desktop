@@ -16,6 +16,7 @@ import { useAuthStore } from './store/auth-store.js'
 import { useAppStore } from './store/app-store.js'
 import { startAgentLoop, stopAgentLoop } from '../core/agent-loop.js'
 import { usePermissionStore } from './store/permission-store.js'
+import { useBotStore } from './store/bot-store.js'
 import { getDesktopBridge } from './lib/bridge.js'
 import { initModuleManager } from '../core/module-bootstrap.js'
 import { initTokenStore } from '../sdk/token-store.js'
@@ -113,6 +114,13 @@ export function App(): React.JSX.Element {
     if (moduleId === 'crypto' || moduleId === 'writing-helper') {
       const view: 'crypto' | 'writing-helper' = moduleId
       setView(view)
+      return
+    }
+    // User-created bot — select it and open the run panel.
+    const { bots } = useBotStore.getState()
+    if (bots.some((b) => b.id === moduleId)) {
+      useBotStore.getState().selectBot(moduleId)
+      setView('bot-run')
     }
   }
 
@@ -143,7 +151,7 @@ export function App(): React.JSX.Element {
         {activeView === 'api-keys' && <APIKeysPanel onBack={() => { setView('chat') }} />}
         {activeView === 'crypto' && <CryptoPanel onBack={() => { setView('features') }} />}
         {activeView === 'writing-helper' && <WritingHelperPanel onBack={() => { setView('features') }} />}
-        {activeView === 'bots' && <BotsPanel onSignIn={() => { setAuthOpen(true) }} />}
+        {activeView === 'bot-run' && <BotsPanel onBack={() => { setView('features') }} />}
       </main>
 
       {/* Global toast overlay — rendered outside main so it floats above all panels */}
