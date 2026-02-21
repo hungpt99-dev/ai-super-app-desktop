@@ -80,7 +80,6 @@ function RunItem({ run }: { run: IDesktopBotRun }): React.JSX.Element {
             {String(run.steps)} step{run.steps !== 1 ? 's' : ''}
           </span>
         )}
-        {run.local && <span className="text-[10px] text-[var(--color-text-muted)]">local</span>}
         <span className="ml-auto text-[10px] text-[var(--color-text-muted)]">
           {relativeTime(run.started_at)} · {formatDuration(run.started_at, run.ended_at)}
         </span>
@@ -672,10 +671,6 @@ function DetailTab({ bot, botRuns, latestRun, canRun, isRunning, runLabel, hasSi
           {runLabel}
         </button>
       </div>
-      {/* Live execution progress — visible while the bot is running */}
-      {isRunning && latestRun?.plannedSteps && (
-        <RunProgress botId={bot.id} runId={latestRun.id} />
-      )}
       {/* Latest output — visible only after a completed / failed run */}
       {!isRunning && latestRun?.result && (
         <section>
@@ -1036,9 +1031,9 @@ export function BotRunPanel({ onBack }: IBotRunPanelProps): React.JSX.Element {
   const hasSignInWarning = bot.synced && !user
 
   const runLabel = busy
-    ? (bot.synced ? 'Queuing...' : 'Running...')
+    ? (bot.synced ? 'Queuing…' : 'Running…')
     : bot.status === 'paused' ? 'Bot Paused'
-    : bot.synced  ? 'Queue Run' : 'Run Locally'
+    : bot.synced  ? '▶ Queue Run' : '▶ Run Bot'
 
   const handleDelete = (): void => {
     if (!window.confirm(`Delete bot "${bot.name}"? This cannot be undone.`)) return
@@ -1119,6 +1114,12 @@ export function BotRunPanel({ onBack }: IBotRunPanelProps): React.JSX.Element {
           ))}
         </div>
       </div>
+      {/* Live execution progress — shown above tab content on ALL tabs */}
+      {isRunning && latestRun?.plannedSteps && (
+        <div className="shrink-0 border-b border-blue-400/15 px-6 py-4">
+          <RunProgress botId={bot.id} runId={latestRun.id} />
+        </div>
+      )}
       <div className="flex-1 overflow-y-auto px-6 py-6">
         <div className="mx-auto max-w-2xl">
           {tab === 'custom' && hasCustom && (

@@ -421,8 +421,9 @@ export const useBotStore = create<IBotStore>((set, get) => ({
     let result = ''
     let finalStatus: RunStatus = 'completed'
 
-    // Delays per step index (ms). Step 2 is the AI call so it has no sleep.
-    const STEP_DELAYS = [380, 520, 0, 420, 180] as const
+    // Delays per step index (ms).
+    // Step 2 also gets its own pre-AI thinking pause below.
+    const STEP_DELAYS = [900, 1400, 0, 800, 400] as const
 
     try {
       for (let i = 0; i < execSteps.length; i++) {
@@ -433,13 +434,19 @@ export const useBotStore = create<IBotStore>((set, get) => ({
         patchRuns({ steps: i + 1, logs: execSteps.slice(0, i + 1) })
 
         if (i === 2) {
-          // Step 3: perform the actual AI call.
+          // Simulate AI thinking time before the actual call.
+          await sleep(1200)
+          if (!get().runningBotIds.includes(id)) return
+          // Perform the actual AI call.
           try {
             const ai = await bridge.ai.generate('chat', `Complete this task: ${bot.goal}`)
-            result = ai.output
+            // Unwrap the dev-mode stub into a realistic placeholder.
+            result = ai.output.startsWith('[Dev mode]')
+              ? `✦ Demo run completed\n\nGoal: "${bot.goal.slice(0, 200)}"\n\nSign in with a paid plan to enable real AI execution and see actual results.`
+              : ai.output
           } catch {
             const preview = bot.goal.length > 120 ? `${bot.goal.slice(0, 120)}…` : bot.goal
-            result = `Task saved locally: "${preview}"\n\nSign in with a paid plan to run AI-powered bots.`
+            result = `✦ Demo run completed\n\nGoal: "${preview}"\n\nSign in with a paid plan to enable real AI execution.`
           }
         } else {
           await sleep(STEP_DELAYS[i] ?? 300)
