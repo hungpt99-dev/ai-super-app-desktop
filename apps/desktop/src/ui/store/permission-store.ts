@@ -60,6 +60,25 @@ function saveStoredGrants(grants: Record<string, Permission[]>): void {
   }
 }
 
+const BLOCKED_KEY = 'ai-superapp-blocked-permissions'
+
+function loadBlockedPermissions(): Set<Permission> {
+  try {
+    const raw = localStorage.getItem(BLOCKED_KEY)
+    return raw ? new Set(JSON.parse(raw) as Permission[]) : new Set()
+  } catch {
+    return new Set()
+  }
+}
+
+function saveBlockedPermissions(blocked: Set<Permission>): void {
+  try {
+    localStorage.setItem(BLOCKED_KEY, JSON.stringify([...blocked]))
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 // ── Pending request type ─────────────────────────────────────────────────────
 
 export interface IPendingPermissionRequest {
@@ -106,6 +125,21 @@ interface IPermissionStore {
    * at which point the user will be prompted again.
    */
   revokeStored: (moduleId: string) => void
+
+  /** Globally blocked permissions — any module requesting these is auto-denied. */
+  blockedPermissions: ReadonlySet<Permission>
+
+  /**
+   * Toggle a global permission block on/off.
+   * When a permission is blocked no module can ever be granted it.
+   */
+  toggleBlock: (permission: Permission) => void
+
+  /** Remove a single permission from a module's stored grants. */
+  revokePermission: (moduleId: string, permission: Permission) => void
+
+  /** Revoke all stored permission grants across all modules. */
+  revokeAll: () => void
 }
 
 let requestCounter = 0
@@ -113,9 +147,16 @@ let requestCounter = 0
 export const usePermissionStore = create<IPermissionStore>((set, get) => ({
   pending: null,
   storedGrants: loadStoredGrants(),
+  blockedPermissions: loadBlockedPermissions(),
 
   requestPermissions: async (moduleId, moduleName, permissions) => {
     const hasHighRisk = permissions.some((p) => HIGH_RISK_PERMISSIONS.has(p))
+
+    // Auto-deny if any requested permission is globally blocked.
+    if (permissions.some((p) => get().blockedPermissions.has(p))) {
+      log.warn('Permission request auto-denied — contains globally blocked permission', { moduleId })
+      return false
+    }
 
     if (!hasHighRisk) {
       // Auto-approve non-high-risk modules silently.
@@ -180,5 +221,43 @@ export const usePermissionStore = create<IPermissionStore>((set, get) => ({
       return { storedGrants: rest }
     })
     log.info('Stored permissions cleared — will prompt on next activation', { moduleId })
+  },
+
+  toggleBlock: (permission) => {
+    set((s) => {
+      const updated = new Set(s.blockedPermissions)
+      if (updated.has(permission)) {
+        updated.delete(permission)
+      } else {
+        updated.add(permission)
+      }
+      saveBlockedPermissions(updated)
+      return { blockedPermissions: updated }
+    })
+    log.info('Permission global block toggled', { permission })
+  },
+
+  revokePermission: (moduleId, permission) => {
+    set((s) => {
+      const current = s.storedGrants[moduleId]
+      if (!current) return s
+      const remaining = current.filter((p) => p !== permission)
+      if (remaining.length === 0) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { [moduleId]: _removed, ...rest } = s.storedGrants
+        saveStoredGrants(rest)
+        return { storedGrants: rest }
+      }
+      const updated = { ...s.storedGrants, [moduleId]: remaining }
+      saveStoredGrants(updated)
+      return { storedGrants: updated }
+    })
+    log.info('Single permission revoked from module', { moduleId, permission })
+  },
+
+  revokeAll: () => {
+    saveStoredGrants({})
+    set({ storedGrants: {} })
+    log.info('All stored permission grants revoked')
   },
 }))
