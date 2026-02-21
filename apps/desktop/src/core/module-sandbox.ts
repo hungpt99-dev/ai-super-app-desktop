@@ -6,6 +6,8 @@ import { SandboxedUI } from '../sdk/sandboxed-ui.js'
 import { SandboxedEventBus } from '../sdk/sandboxed-event-bus.js'
 import { SandboxedComputer } from '../sdk/sandboxed-computer.js'
 import { SandboxedMemory } from '../sdk/sandboxed-memory.js'
+import { SandboxedHttp } from '../sdk/sandboxed-http.js'
+import { SandboxedLogger } from '../sdk/sandboxed-logger.js'
 import { logger } from '@ai-super-app/shared'
 
 const log = logger.child('ModuleSandbox')
@@ -59,6 +61,8 @@ export class ModuleSandbox {
       events: new SandboxedEventBus(moduleId, permissionEngine),
       computer: new SandboxedComputer(moduleId, permissionEngine, ai),
       memory: new SandboxedMemory(moduleId, permissionEngine),
+      http: new SandboxedHttp(moduleId, permissionEngine),
+      log: new SandboxedLogger(moduleId),
     }
   }
 }

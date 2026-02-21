@@ -37,6 +37,7 @@ export const PERMISSION_META: Record<Permission, IPermissionMeta> = {
   [Permission.ComputerFiles]:      { label: 'File System Access',  description: 'Read and write files anywhere on your machine',          risk: 'high'     },
   [Permission.MemoryRead]:         { label: 'Memory Read',         description: 'Read your local AI memory store',                        risk: 'standard' },
   [Permission.MemoryWrite]:        { label: 'Memory Write',        description: 'Write to and delete from your local AI memory store',    risk: 'standard' },
+  [Permission.NetworkFetch]:       { label: 'Network Access',      description: 'Make outbound HTTP requests to external URLs',           risk: 'standard' },
 }
 
 // ── localStorage persistence ─────────────────────────────────────────────────

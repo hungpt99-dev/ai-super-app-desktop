@@ -27,6 +27,12 @@ export enum Permission {
   MemoryRead = 'memory.read',
   /** Write to (and delete from) the local persistent memory store. */
   MemoryWrite = 'memory.write',
+  // ── Network permissions ───────────────────────────────────────────────────
+  /**
+   * Make outbound HTTP/HTTPS requests to any URL.
+   * Covers `ctx.http.get/post/put/patch/delete/request`.
+   */
+  NetworkFetch = 'network.fetch',
 }
 
 // ─── AI Client ───────────────────────────────────────────────────────────────
@@ -334,6 +340,66 @@ export interface IMemoryAPI {
   clearSession(sessionId: string): Promise<void>
 }
 
+// ─── HTTP API ─────────────────────────────────────────────────────────────────
+
+export interface IHttpRequestOptions {
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+  headers?: Record<string, string>
+  /** Request body. Objects are automatically JSON-serialised. */
+  body?: unknown
+  /** Request timeout in milliseconds. Default: 30 000. */
+  timeoutMs?: number
+}
+
+export interface IHttpResponse<T = unknown> {
+  /** HTTP status code. */
+  status: number
+  /** True when status is 200–299. */
+  ok: boolean
+  headers: Record<string, string>
+  /** Response body parsed as JSON when possible, otherwise the raw text. */
+  data: T
+  /** Raw response body text. */
+  text: string
+}
+
+/**
+ * HTTP client exposed to modules as `ctx.http`.
+ *
+ * Requires `Permission.NetworkFetch`. All methods forward the
+ * `Authorization` and custom headers the caller provides — no credential
+ * injection is done automatically.
+ */
+export interface IHttpAPI {
+  get<T = unknown>(url: string, options?: Omit<IHttpRequestOptions, 'method' | 'body'>): Promise<IHttpResponse<T>>
+  post<T = unknown>(url: string, body?: unknown, options?: Omit<IHttpRequestOptions, 'method' | 'body'>): Promise<IHttpResponse<T>>
+  put<T = unknown>(url: string, body?: unknown, options?: Omit<IHttpRequestOptions, 'method' | 'body'>): Promise<IHttpResponse<T>>
+  patch<T = unknown>(url: string, body?: unknown, options?: Omit<IHttpRequestOptions, 'method' | 'body'>): Promise<IHttpResponse<T>>
+  delete<T = unknown>(url: string, options?: Omit<IHttpRequestOptions, 'method' | 'body'>): Promise<IHttpResponse<T>>
+  /** Low-level method — all other methods delegate here. */
+  request<T = unknown>(url: string, options?: IHttpRequestOptions): Promise<IHttpResponse<T>>
+}
+
+// ─── Logger API ───────────────────────────────────────────────────────────────
+
+/**
+ * Structured logger exposed to modules as `ctx.log`.
+ *
+ * Each call writes a timestamped entry to the desktop Logs tab with
+ * `source: 'bot'` and the module id prepended to the message.
+ * No permission is required — logging is always available.
+ */
+export interface ILogAPI {
+  /** Fine-grained diagnostic information. */
+  debug(message: string, data?: Record<string, unknown>): void
+  /** General informational messages about module progress. */
+  info(message: string, data?: Record<string, unknown>): void
+  /** Something unexpected but recoverable. */
+  warn(message: string, data?: Record<string, unknown>): void
+  /** An error that caused a task to fail. */
+  error(message: string, data?: Record<string, unknown>): void
+}
+
 // ─── Module Context (injected into every module) ─────────────────────────────
 
 export interface IModuleContext {
@@ -349,6 +415,16 @@ export interface IModuleContext {
    * Requires `Permission.MemoryRead` / `Permission.MemoryWrite`.
    */
   readonly memory: IMemoryAPI
+  /**
+   * Outbound HTTP client — makes fetch requests to any URL.
+   * Requires `Permission.NetworkFetch`.
+   */
+  readonly http: IHttpAPI
+  /**
+   * Structured logger — writes to the desktop Logs tab with source 'bot'.
+   * Always available; no permission required.
+   */
+  readonly log: ILogAPI
 }
 
 // ─── Tool Definition ─────────────────────────────────────────────────────────
