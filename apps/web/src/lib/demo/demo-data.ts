@@ -33,7 +33,7 @@ export const DEMO_USER: IUser = {
 }
 
 export const DEMO_AUTH_RESPONSE: IAuthResponse = {
-  token: DEMO_TOKEN,
+  access_token: DEMO_TOKEN,
   refresh_token: DEMO_REFRESH_TOKEN,
   expires_in: 86_400,
   user: DEMO_USER,

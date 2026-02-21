@@ -36,6 +36,7 @@ export interface IUser {
   email: string
   name: string
   plan: 'free' | 'pro' | 'enterprise'
+  created_at?: string
 }
 
 interface IAuthState {
@@ -96,6 +97,7 @@ export const useAuthStore = create<IAuthState>((set) => ({
           email: profile.email,
           name: profile.name,
           plan: profile.plan,
+          created_at: profile.created_at,
         },
       })
       log.info('User signed in', { userId: profile.id })
@@ -120,6 +122,7 @@ export const useAuthStore = create<IAuthState>((set) => ({
           email: profile.email,
           name: profile.name,
           plan: profile.plan,
+          created_at: profile.created_at,
         },
       })
       log.info('User registered', { userId: profile.id })
@@ -160,6 +163,7 @@ export const useAuthStore = create<IAuthState>((set) => ({
             email: profile.email,
             name: profile.name,
             plan: profile.plan,
+            created_at: profile.created_at,
           },
         })
         return
@@ -180,6 +184,7 @@ export const useAuthStore = create<IAuthState>((set) => ({
             email: profile.email,
             name: profile.name,
             plan: profile.plan,
+            created_at: profile.created_at,
           },
         })
         return

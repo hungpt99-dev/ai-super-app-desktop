@@ -33,12 +33,12 @@ export interface IUser {
   id: string
   email: string
   name: string
-  plan: string
+  plan: 'free' | 'pro' | 'enterprise'
   created_at: string
 }
 
 export interface IAuthResponse {
-  token: string
+  access_token: string
   refresh_token: string
   expires_in: number
   user: IUser
@@ -167,7 +167,7 @@ async function tryRefresh(): Promise<boolean> {
     })
     if (!res.ok) return false
     const data = await res.json() as IAuthResponse
-    setToken(data.token)
+    setToken(data.access_token)
     setRefreshToken(data.refresh_token)
     return true
   } catch {
@@ -189,7 +189,7 @@ export async function register(email: string, name: string, password: string): P
     throw new Error(err.message ?? 'Registration failed')
   }
   const data = await res.json() as IAuthResponse
-  setToken(data.token)
+  setToken(data.access_token)
   setRefreshToken(data.refresh_token)
   return data
 }
@@ -206,7 +206,7 @@ export async function loginWithEmail(email: string, password: string): Promise<I
     throw new Error(err.message ?? 'Invalid credentials')
   }
   const data = await res.json() as IAuthResponse
-  setToken(data.token)
+  setToken(data.access_token)
   setRefreshToken(data.refresh_token)
   return data
 }

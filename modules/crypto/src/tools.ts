@@ -12,6 +12,9 @@ export interface IMarketData {
   price: number
   change24h: number
   volume: number
+  marketCap: number
+  high24h: number
+  low24h: number
   fetchedAt: string
 }
 
@@ -38,11 +41,23 @@ export async function getMarketData(
     BNB: 420,
   }
 
+  const MOCK_MARKET_CAPS: Record<CryptoSymbol, number> = {
+    BTC: 1_800_000_000_000,
+    ETH: 420_000_000_000,
+    SOL: 80_000_000_000,
+    BNB: 60_000_000_000,
+  }
+
+  const basePrice = MOCK_PRICES[symbol as CryptoSymbol] ?? 0
+
   return {
     symbol,
-    price: MOCK_PRICES[symbol as CryptoSymbol] ?? 0,
+    price: basePrice,
     change24h: Math.round((Math.random() - 0.5) * 10 * 100) / 100,
     volume: Math.round(Math.random() * 1_000_000_000),
+    marketCap: MOCK_MARKET_CAPS[symbol as CryptoSymbol] ?? 0,
+    high24h: Math.round(basePrice * 1.05 * 100) / 100,
+    low24h: Math.round(basePrice * 0.95 * 100) / 100,
     fetchedAt: new Date().toISOString(),
   }
 }
