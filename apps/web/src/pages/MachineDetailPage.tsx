@@ -15,16 +15,19 @@ import { useNavigate, useParams } from 'react-router-dom'
 import {
   botsApi,
   devicesApi,
+  marketplaceApi,
   type IBot,
   type IBotRun,
   type IDevice,
   type IDeviceMetrics,
+  type IMiniApp,
 } from '../lib/api-client.js'
+import { MiniAppPanel } from '../components/miniapps/MiniAppPanel.js'
 import { useDeviceStore } from '../store/device-store.js'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
-type ActiveTab = 'overview' | 'activity' | 'info'
+type ActiveTab = 'overview' | 'activity' | 'miniapps' | 'info'
 type RunFilter = 'all' | 'pending' | 'running' | 'completed' | 'failed'
 
 interface IRunEntry extends IBotRun {
@@ -513,6 +516,75 @@ function InfoTab({ device, runs, bots }: IInfoTabProps): React.JSX.Element {
   )
 }
 
+// ─── Mini Apps tab ─────────────────────────────────────────────────────────────
+
+interface IMiniAppsTabProps {
+  apps: IMiniApp[]
+  selectedApp: IMiniApp | null
+  onSelectApp: (app: IMiniApp | null) => void
+}
+
+function MiniAppsTab({ apps, selectedApp, onSelectApp }: IMiniAppsTabProps): React.JSX.Element {
+  // When an app is selected, show its full UI panel
+  if (selectedApp !== null) {
+    return (
+      <div className="-mx-6 -my-0 flex h-[calc(100vh-200px)] flex-col">
+        <MiniAppPanel app={selectedApp} onBack={() => { onSelectApp(null) }} />
+      </div>
+    )
+  }
+
+  // App grid
+  if (apps.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-[var(--color-border)] p-12 text-center">
+        <p className="text-3xl">🧩</p>
+        <p className="mt-3 text-sm font-medium text-[var(--color-text-secondary)]">No mini apps installed</p>
+        <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+          Visit the Marketplace to discover and install apps.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <p className="mb-4 text-xs text-[var(--color-text-muted)]">
+        {String(apps.length)} app{apps.length !== 1 ? 's' : ''} installed · click to open
+      </p>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        {apps.map((app) => (
+          <button
+            key={app.id}
+            onClick={() => { onSelectApp(app) }}
+            className="group flex flex-col items-start gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-left transition-all hover:border-[var(--color-accent)]/60 hover:bg-[var(--color-surface-2)]"
+          >
+            {app.icon_url ? (
+              <img src={app.icon_url} alt="" className="h-10 w-10 rounded-xl object-cover" />
+            ) : (
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--color-surface-2)] text-xl group-hover:bg-[var(--color-border)]">
+                🧩
+              </div>
+            )}
+            <div className="min-w-0 w-full">
+              <p className="truncate text-sm font-semibold text-[var(--color-text-primary)]">{app.name}</p>
+              <p className="mt-0.5 line-clamp-2 text-xs text-[var(--color-text-muted)]">{app.description}</p>
+            </div>
+            <div className="flex w-full items-center justify-between">
+              <span className="rounded-full bg-[var(--color-surface-2)] px-2 py-0.5 text-[10px] text-[var(--color-text-muted)]">
+                {app.category}
+              </span>
+              <span className="text-[10px] text-[var(--color-text-muted)] opacity-0 transition-opacity group-hover:opacity-100">
+                Open →
+              </span>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 export function MachineDetailPage(): React.JSX.Element {
@@ -524,6 +596,8 @@ export function MachineDetailPage(): React.JSX.Element {
   const [bots, setBots] = useState<IBot[]>([])
   const [runs, setRuns] = useState<IRunEntry[]>([])
   const [metrics, setMetrics] = useState<IDeviceMetrics | null>(null)
+  const [installedApps, setInstalledApps] = useState<IMiniApp[]>([])
+  const [selectedApp, setSelectedApp] = useState<IMiniApp | null>(null)
   const [selectedBotId, setSelectedBotId] = useState<string>('')
   const [dispatching, setDispatching] = useState(false)
   const [heartbeating, setHeartbeating] = useState(false)
@@ -553,8 +627,12 @@ export function MachineDetailPage(): React.JSX.Element {
       setError(null)
       try {
         await useDeviceStore.getState().fetchDevices()
-        const botList = await botsApi.list()
+        const [botList, apps] = await Promise.all([
+          botsApi.list(),
+          marketplaceApi.getInstalled().catch(() => [] as IMiniApp[]),
+        ])
         setBots(botList)
+        setInstalledApps(apps)
         if (botList.length > 0 && botList[0] !== undefined) {
           setSelectedBotId(botList[0].id)
         }
@@ -636,9 +714,10 @@ export function MachineDetailPage(): React.JSX.Element {
   const activeRunCount = runs.filter((r) => r.status === 'running' || r.status === 'pending').length
 
   const tabs: { id: ActiveTab; label: string; badge?: number }[] = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'activity', label: 'Activity', badge: activeRunCount },
-    { id: 'info',     label: 'Info' },
+    { id: 'overview',  label: 'Overview' },
+    { id: 'activity',  label: 'Activity', ...(activeRunCount > 0 ? { badge: activeRunCount } : {}) },
+    { id: 'miniapps',  label: 'Mini Apps', ...(installedApps.length > 0 ? { badge: installedApps.length } : {}) },
+    { id: 'info',      label: 'Info' },
   ]
 
   return (
@@ -689,6 +768,14 @@ export function MachineDetailPage(): React.JSX.Element {
 
       {activeTab === 'activity' && (
         <ActivityTab runs={runs} refreshedAt={refreshedAt} />
+      )}
+
+      {activeTab === 'miniapps' && (
+        <MiniAppsTab
+          apps={installedApps}
+          selectedApp={selectedApp}
+          onSelectApp={setSelectedApp}
+        />
       )}
 
       {activeTab === 'info' && (
