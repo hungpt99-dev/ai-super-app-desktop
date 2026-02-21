@@ -5,7 +5,12 @@
  * Handles JWT access tokens + refresh token rotation automatically.
  */
 
+import { handleDemoRequest, DEMO_USER } from './demo-data.js'
+
 const GATEWAY = import.meta.env['VITE_GATEWAY_URL'] ?? 'http://localhost:3000'
+
+/** When true, all API calls are intercepted and return fake demo data. */
+export const IS_DEMO = import.meta.env['VITE_DEMO_MODE'] === 'true'
 
 // ── Token management ──────────────────────────────────────────────────────────
 
@@ -136,6 +141,8 @@ async function request<T>(
   body?: unknown,
   retry = true,
 ): Promise<T> {
+  if (IS_DEMO) return handleDemoRequest<T>(method, path, body)
+
   const token = getToken()
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (token) headers['Authorization'] = `Bearer ${token}`
@@ -212,6 +219,12 @@ export async function register(email: string, name: string, password: string): P
 
 /** Login with email and password, store the issued tokens. */
 export async function loginWithEmail(email: string, password: string): Promise<IAuthResponse> {
+  if (IS_DEMO) {
+    setToken('demo-token')
+    setRefreshToken('demo-refresh')
+    return { token: 'demo-token', refresh_token: 'demo-refresh', expires_in: 86400, user: DEMO_USER }
+  }
+
   const res = await fetch(`${GATEWAY}/v1/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
