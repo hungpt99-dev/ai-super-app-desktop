@@ -142,7 +142,7 @@ const tauriBridge: IDesktopBridge = {
 
 // ─── Dev bridge (browser-only mode) ──────────────────────────────────────────
 // Used when running `npm run dev:renderer` directly in a browser.
-// All HTTP calls go directly to the cloud gateway with a dev token.
+// When a BYOK key is configured the AI provider is called directly.
 
 let _streamHandler: ((chunk: string) => void) | null = null
 
@@ -153,20 +153,169 @@ window.addEventListener('app:notification', (e) => {
   _notifyListeners.forEach((fn) => { fn(detail) })
 })
 
+// ── Dev-bridge direct provider constants ──────────────────────────────────────
+
+const DEV_PROVIDER_MODELS: Record<string, string> = {
+  anthropic: 'claude-3-haiku-20240307',
+  google:    'gemini-1.5-flash',
+  gemini:    'gemini-1.5-flash',
+  groq:      'llama3-8b-8192',
+  mistral:   'mistral-small-latest',
+}
+const DEFAULT_OPENAI_MODEL = 'gpt-4o-mini'
+
+const OPENAI_COMPAT_BASE: Record<string, string> = {
+  groq:    'https://api.groq.com/openai/v1',
+  mistral: 'https://api.mistral.ai/v1',
+}
+const OPENAI_DEFAULT_BASE = 'https://api.openai.com/v1'
+
+// ── SSE stream readers ────────────────────────────────────────────────────────
+
 /**
- * devBridge — calls the real cloud API over HTTP.
+ * Reads a fetch SSE ReadableStream line by line. Applies `extractChunk` to
+ * each `data:` payload and calls `onChunk` with each non-null result.
+ * Returns the full concatenated output.
+ */
+async function readSSEStream(
+  body: ReadableStream<Uint8Array>,
+  extractChunk: (data: string) => string | null,
+  onChunk?: (chunk: string) => void,
+): Promise<string> {
+  const reader = body.getReader()
+  const decoder = new TextDecoder()
+  let buf = ''
+  let full = ''
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buf += decoder.decode(value, { stream: true })
+      let nl: number
+      while ((nl = buf.indexOf('\n')) !== -1) {
+        const line = buf.slice(0, nl).replace(/\r$/, '')
+        buf = buf.slice(nl + 1)
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6)
+          if (data === '[DONE]') return full
+          const chunk = extractChunk(data)
+          if (chunk) {
+            full += chunk
+            onChunk?.(chunk)
+          }
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock()
+  }
+  return full
+}
+
+function extractOpenAIChunk(data: string): string | null {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const parsed = JSON.parse(data) as { choices?: Array<{ delta?: { content?: string } }> }
+    return parsed.choices?.[0]?.delta?.content ?? null
+  } catch { return null }
+}
+
+function extractAnthropicChunk(data: string): string | null {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const parsed = JSON.parse(data) as { type?: string; delta?: { text?: string } }
+    if (parsed.type !== 'content_block_delta') return null
+    return parsed.delta?.text ?? null
+  } catch { return null }
+}
+
+function extractGoogleChunk(data: string): string | null {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const parsed = JSON.parse(data) as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
+    }
+    return parsed.candidates?.[0]?.content?.parts?.[0]?.text ?? null
+  } catch { return null }
+}
+
+/**
+ * Calls an AI provider directly from browser dev mode using the BYOK key.
+ * Forwards each streaming token to `onChunk` and returns the full output.
+ */
+async function callDevProvider(
+  provider: string,
+  apiKey: string,
+  message: string,
+  onChunk?: (chunk: string) => void,
+): Promise<string> {
+  const model = DEV_PROVIDER_MODELS[provider] ?? DEFAULT_OPENAI_MODEL
+
+  if (provider === 'anthropic') {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model, max_tokens: 4096, stream: true,
+        messages: [{ role: 'user', content: message }],
+      }),
+    })
+    if (!res.ok || !res.body) throw new Error(`Anthropic API error: ${String(res.status)}`)
+    return readSSEStream(res.body, extractAnthropicChunk, onChunk)
+  }
+
+  if (provider === 'google' || provider === 'gemini') {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?key=${apiKey}&alt=sse`
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: message }] }] }),
+    })
+    if (!res.ok || !res.body) throw new Error(`Google API error: ${String(res.status)}`)
+    return readSSEStream(res.body, extractGoogleChunk, onChunk)
+  }
+
+  // OpenAI, Groq, Mistral, and other OpenAI-compatible providers.
+  const baseUrl = OPENAI_COMPAT_BASE[provider] ?? OPENAI_DEFAULT_BASE
+  const res = await fetch(`${baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      model, stream: true,
+      messages: [{ role: 'user', content: message }],
+    }),
+  })
+  if (!res.ok || !res.body) throw new Error(`${provider} API error: ${String(res.status)}`)
+  return readSSEStream(res.body, extractOpenAIChunk, onChunk)
+}
+
+/**
+ * devBridge — calls AI providers directly over HTTP.
  *
  * Used ONLY when `npm run dev:renderer` is started directly in a browser
- * (no Tauri runtime). Requires the cloud server to be running.
+ * (no Tauri runtime). Requires a BYOK key to be configured in Settings → API Keys.
  */
 const devBridge: IDesktopBridge = {
   // ── Chat ─────────────────────────────────────────────────────────────────
   chat: {
-    send: async (message: string, _options?: IAiRequestOptions) => {
-      // Dev-mode stub — the AI streaming endpoint is not available without a
-      // live Tauri + backend session. Simulates a streaming response.
-      const preview = message.slice(0, 80) + (message.length > 80 ? '…' : '')
-      const reply = `[Dev mode] Received: “${preview}”. Start the full app to enable AI responses.`
+    send: async (message: string, options?: IAiRequestOptions) => {
+      // If a BYOK key is configured, call the AI provider directly.
+      if (options?.apiKey && options.provider) {
+        const output = await callDevProvider(
+          options.provider,
+          options.apiKey,
+          message,
+          (chunk) => { _streamHandler?.(chunk) },
+        )
+        return { output }
+      }
+
+      // No key configured — surface a helpful placeholder via the stream handler.
+      const reply = '[Dev mode] No API key configured. Add a key in Settings → API Keys and set it as default.'
       for (const char of reply) {
         if (_streamHandler) _streamHandler(char)
         await new Promise<void>((resolve) => setTimeout(resolve, 12))
@@ -205,12 +354,17 @@ const devBridge: IDesktopBridge = {
 
   // ── AI ───────────────────────────────────────────────────────────────────
   ai: {
-    generate: (_capability: string, _input: string, _context?: Record<string, unknown>, _options?: IAiRequestOptions): Promise<{ output: string; tokensUsed: number }> =>
-      // Dev-mode stub — AI generation requires a live Tauri + backend session.
-      Promise.resolve({
-        output: '[Dev mode] AI generation is not available without the full app.',
+    generate: async (capability: string, input: string, _context?: Record<string, unknown>, options?: IAiRequestOptions): Promise<{ output: string; tokensUsed: number }> => {
+      if (options?.apiKey && options.provider) {
+        const prompt = `[${capability}] ${input}`
+        const output = await callDevProvider(options.provider, options.apiKey, prompt)
+        return { output, tokensUsed: 0 }
+      }
+      return {
+        output: '[Dev mode] No API key configured. Add a key in Settings → API Keys and set it as default.',
         tokensUsed: 0,
-      }),
+      }
+    },
   },
 
   // ── Notifications ─────────────────────────────────────────────────────────

@@ -47,7 +47,7 @@ fn delete_token(app: &AppHandle) {
     }
 }
 
-// ── SSE pipe helper ────────────────────────────────────────────────────────────
+// ── SSE pipe helpers ───────────────────────────────────────────────────────────
 
 /// Maximum total output length accepted from the SSE stream (4 MB).
 const MAX_OUTPUT_BYTES: usize = 4 * 1024 * 1024;
@@ -57,6 +57,7 @@ const MAX_LINE_BYTES: usize = 64 * 1024;
 
 /// Reads an SSE `text/event-stream` response line-by-line, emitting each
 /// `data:` value as a Tauri event. Returns the full concatenated output.
+/// Used for the cloud gateway path (raw passthrough of `data:` lines).
 async fn pipe_sse(
     app: &AppHandle,
     resp: reqwest::Response,
@@ -96,6 +97,302 @@ async fn pipe_sse(
     }
 
     Ok(full)
+}
+
+/// Reads an SSE stream, applies `extract_fn` to each `data:` line, emits the
+/// extracted text chunk as a Tauri event, and returns the full concatenated output.
+/// Used for the direct provider path so only the text content is forwarded.
+async fn pipe_provider_sse<F>(
+    app: &AppHandle,
+    resp: reqwest::Response,
+    event_name: &str,
+    extract_fn: F,
+) -> Result<String, String>
+where
+    F: Fn(&str) -> Option<String>,
+{
+    let mut full = String::new();
+    let mut buf = String::new();
+    let mut stream = resp.bytes_stream();
+
+    while let Some(item) = stream.next().await {
+        let bytes = item.map_err(|_| "stream read error".to_string())?;
+
+        if buf.len() + bytes.len() > MAX_LINE_BYTES {
+            return Err("SSE line buffer exceeded maximum size".to_string());
+        }
+        buf.push_str(&String::from_utf8_lossy(&bytes));
+
+        loop {
+            if let Some(nl) = buf.find('\n') {
+                let line = buf[..nl].trim_end_matches('\r').to_owned();
+                buf = buf[nl + 1..].to_owned();
+
+                if let Some(data) = line.strip_prefix("data: ") {
+                    if data == "[DONE]" {
+                        return Ok(full);
+                    }
+                    if let Some(chunk) = extract_fn(data) {
+                        if full.len() + chunk.len() > MAX_OUTPUT_BYTES {
+                            return Err("SSE output exceeded maximum allowed size".to_string());
+                        }
+                        full.push_str(&chunk);
+                        let _ = app.emit(event_name, &chunk);
+                    }
+                }
+            } else {
+                break;
+            }
+        }
+    }
+
+    Ok(full)
+}
+
+// ── Direct AI provider constants ───────────────────────────────────────────────
+
+const OPENAI_API_BASE:    &str = "https://api.openai.com/v1";
+const ANTHROPIC_API_BASE: &str = "https://api.anthropic.com/v1";
+const GROQ_API_BASE:      &str = "https://api.groq.com/openai/v1";
+const MISTRAL_API_BASE:   &str = "https://api.mistral.ai/v1";
+const GOOGLE_API_BASE:    &str = "https://generativelanguage.googleapis.com/v1beta";
+const ANTHROPIC_VERSION:  &str = "2023-06-01";
+
+/// Returns the default model identifier for a given provider slug.
+fn default_model(provider: &str) -> &'static str {
+    match provider {
+        "anthropic"        => "claude-3-haiku-20240307",
+        "google" | "gemini" => "gemini-1.5-flash",
+        "groq"             => "llama3-8b-8192",
+        "mistral"          => "mistral-small-latest",
+        _                  => "gpt-4o-mini",  // openai + fallback
+    }
+}
+
+/// Returns the OpenAI-compatible API base URL for a given provider slug.
+fn openai_compat_base(provider: &str) -> &'static str {
+    match provider {
+        "groq"    => GROQ_API_BASE,
+        "mistral" => MISTRAL_API_BASE,
+        _         => OPENAI_API_BASE,
+    }
+}
+
+// ── SSE chunk extractors ───────────────────────────────────────────────────────
+
+/// Extracts the text delta from one OpenAI-style SSE `data:` line.
+fn extract_openai_chunk(data: &str) -> Option<String> {
+    let val: serde_json::Value = serde_json::from_str(data).ok()?;
+    val.pointer("/choices/0/delta/content")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(String::from)
+}
+
+/// Extracts the text delta from one Anthropic SSE `data:` line.
+fn extract_anthropic_chunk(data: &str) -> Option<String> {
+    let val: serde_json::Value = serde_json::from_str(data).ok()?;
+    if val.get("type").and_then(|t| t.as_str()) != Some("content_block_delta") {
+        return None;
+    }
+    val.pointer("/delta/text")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(String::from)
+}
+
+/// Extracts the text delta from one Google Gemini SSE `data:` line.
+fn extract_google_chunk(data: &str) -> Option<String> {
+    let val: serde_json::Value = serde_json::from_str(data).ok()?;
+    val.pointer("/candidates/0/content/parts/0/text")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(String::from)
+}
+
+// ── Direct provider: streaming ─────────────────────────────────────────────────
+
+/// Calls an AI provider's streaming endpoint directly, bypassing the cloud gateway.
+/// Emits each text chunk as `event_name` Tauri events and returns the full output.
+async fn call_provider_stream(
+    app: &AppHandle,
+    http: &reqwest::Client,
+    provider: &str,
+    api_key: &str,
+    message: &str,
+    event_name: &str,
+) -> Result<String, String> {
+    let model = default_model(provider);
+
+    match provider {
+        "anthropic" => {
+            let resp = http
+                .post(format!("{}/messages", ANTHROPIC_API_BASE))
+                .header("x-api-key", api_key)
+                .header("anthropic-version", ANTHROPIC_VERSION)
+                .json(&serde_json::json!({
+                    "model": model,
+                    "max_tokens": 4096,
+                    "stream": true,
+                    "messages": [{ "role": "user", "content": message }],
+                }))
+                .send()
+                .await
+                .map_err(|e| e.to_string())?;
+
+            if !resp.status().is_success() {
+                let status = resp.status().as_u16();
+                let body = resp.text().await.unwrap_or_default();
+                return Err(format!("Anthropic API error {status}: {body}"));
+            }
+            pipe_provider_sse(app, resp, event_name, extract_anthropic_chunk).await
+        }
+
+        "google" | "gemini" => {
+            let url = format!(
+                "{}/models/{}:streamGenerateContent?key={}&alt=sse",
+                GOOGLE_API_BASE, model, api_key
+            );
+            let resp = http
+                .post(&url)
+                .json(&serde_json::json!({
+                    "contents": [{ "parts": [{ "text": message }] }],
+                }))
+                .send()
+                .await
+                .map_err(|e| e.to_string())?;
+
+            if !resp.status().is_success() {
+                let status = resp.status().as_u16();
+                let body = resp.text().await.unwrap_or_default();
+                return Err(format!("Google API error {status}: {body}"));
+            }
+            pipe_provider_sse(app, resp, event_name, extract_google_chunk).await
+        }
+
+        _ => {
+            // OpenAI, Groq, Mistral, and other OpenAI-compatible providers.
+            let base = openai_compat_base(provider);
+            let resp = http
+                .post(format!("{}/chat/completions", base))
+                .bearer_auth(api_key)
+                .json(&serde_json::json!({
+                    "model": model,
+                    "stream": true,
+                    "messages": [{ "role": "user", "content": message }],
+                }))
+                .send()
+                .await
+                .map_err(|e| e.to_string())?;
+
+            if !resp.status().is_success() {
+                let status = resp.status().as_u16();
+                let body = resp.text().await.unwrap_or_default();
+                return Err(format!("{provider} API error {status}: {body}"));
+            }
+            pipe_provider_sse(app, resp, event_name, extract_openai_chunk).await
+        }
+    }
+}
+
+// ── Direct provider: non-streaming generate ────────────────────────────────────
+
+/// Calls an AI provider's completion endpoint directly and returns `(output, tokens_used)`.
+async fn call_provider_generate(
+    http: &reqwest::Client,
+    provider: &str,
+    api_key: &str,
+    input: &str,
+) -> Result<(String, i64), String> {
+    let model = default_model(provider);
+
+    match provider {
+        "anthropic" => {
+            let resp = http
+                .post(format!("{}/messages", ANTHROPIC_API_BASE))
+                .header("x-api-key", api_key)
+                .header("anthropic-version", ANTHROPIC_VERSION)
+                .json(&serde_json::json!({
+                    "model": model,
+                    "max_tokens": 4096,
+                    "messages": [{ "role": "user", "content": input }],
+                }))
+                .send()
+                .await
+                .map_err(|e| e.to_string())?;
+
+            if !resp.status().is_success() {
+                let status = resp.status().as_u16();
+                let body = resp.text().await.unwrap_or_default();
+                return Err(format!("Anthropic API error {status}: {body}"));
+            }
+            let val: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+            let text = val.pointer("/content/0/text")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_owned();
+            let tokens = val.pointer("/usage/input_tokens").and_then(|v| v.as_i64()).unwrap_or(0)
+                + val.pointer("/usage/output_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
+            Ok((text, tokens))
+        }
+
+        "google" | "gemini" => {
+            let url = format!(
+                "{}/models/{}:generateContent?key={}",
+                GOOGLE_API_BASE, model, api_key
+            );
+            let resp = http
+                .post(&url)
+                .json(&serde_json::json!({
+                    "contents": [{ "parts": [{ "text": input }] }],
+                }))
+                .send()
+                .await
+                .map_err(|e| e.to_string())?;
+
+            if !resp.status().is_success() {
+                let status = resp.status().as_u16();
+                let body = resp.text().await.unwrap_or_default();
+                return Err(format!("Google API error {status}: {body}"));
+            }
+            let val: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+            let text = val.pointer("/candidates/0/content/parts/0/text")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_owned();
+            let tokens = val.pointer("/usageMetadata/promptTokenCount").and_then(|v| v.as_i64()).unwrap_or(0)
+                + val.pointer("/usageMetadata/candidatesTokenCount").and_then(|v| v.as_i64()).unwrap_or(0);
+            Ok((text, tokens))
+        }
+
+        _ => {
+            let base = openai_compat_base(provider);
+            let resp = http
+                .post(format!("{}/chat/completions", base))
+                .bearer_auth(api_key)
+                .json(&serde_json::json!({
+                    "model": model,
+                    "messages": [{ "role": "user", "content": input }],
+                }))
+                .send()
+                .await
+                .map_err(|e| e.to_string())?;
+
+            if !resp.status().is_success() {
+                let status = resp.status().as_u16();
+                let body = resp.text().await.unwrap_or_default();
+                return Err(format!("{provider} API error {status}: {body}"));
+            }
+            let val: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+            let text = val.pointer("/choices/0/message/content")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_owned();
+            let tokens = val.pointer("/usage/prompt_tokens").and_then(|v| v.as_i64()).unwrap_or(0)
+                + val.pointer("/usage/completion_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
+            Ok((text, tokens))
+        }
+    }
 }
 
 // ── Token commands (used by TypeScript TokenStore) ─────────────────────────────
@@ -213,9 +510,11 @@ struct ChatResponse {
     output: String,
 }
 
-/// Streams a chat completion from the backend SSE endpoint.
-/// Each token is emitted as a `chat:stream-chunk` Tauri event so the renderer
-/// can update the UI word-by-word. Returns the full concatenated output.
+/// Streams a chat completion.
+///
+/// When a BYOK `api_key` + `provider` are supplied the request goes directly to
+/// the AI provider — no cloud gateway is required. Falls back to the gateway
+/// only when no key is configured (managed-key / server-side billing path).
 #[tauri::command]
 async fn chat_send(
     app: AppHandle,
@@ -224,12 +523,17 @@ async fn chat_send(
     api_key: Option<String>,
     provider: Option<String>,
 ) -> Result<ChatResponse, String> {
-    let token = load_token(&app).unwrap_or_default();
+    // BYOK path — call the AI provider directly.
+    if let (Some(key), Some(prov)) = (api_key.as_deref(), provider.as_deref()) {
+        let output = call_provider_stream(
+            &app, &state.http_client, prov, key, &message, "chat:stream-chunk",
+        ).await?;
+        return Ok(ChatResponse { output });
+    }
 
-    let mut body = serde_json::json!({
-        "capability": "general-chat",
-        "input": message,
-    });
+    // Managed-key path — route through the cloud gateway.
+    let token = load_token(&app).unwrap_or_default();
+    let mut body = serde_json::json!({ "capability": "general-chat", "input": message });
     if let Some(k) = api_key  { body["api_key"]  = serde_json::Value::String(k); }
     if let Some(p) = provider { body["provider"] = serde_json::Value::String(p); }
 
@@ -267,8 +571,10 @@ struct AiGenerateResponse {
     tokens_used: i64,
 }
 
-/// Returns a buffered AI completion from the backend. Used by module tools
-/// (via SandboxedAiClient → AiSdkProxy → invoke('ai_generate')).
+/// Returns a buffered AI completion.
+///
+/// When a BYOK `api_key` + `provider` are supplied the request goes directly to
+/// the AI provider — no cloud gateway is required.
 #[tauri::command]
 async fn ai_generate(
     app: AppHandle,
@@ -279,8 +585,19 @@ async fn ai_generate(
     api_key: Option<String>,
     provider: Option<String>,
 ) -> Result<AiGenerateResponse, String> {
-    let token = load_token(&app).unwrap_or_default();
+    // BYOK path — call the AI provider directly.
+    if let (Some(key), Some(prov)) = (api_key.as_deref(), provider.as_deref()) {
+        let prompt = match context.as_ref() {
+            Some(_) => format!("[{capability}] {input}"),
+            None    => input.clone(),
+        };
+        let (output, tokens_used) =
+            call_provider_generate(&state.http_client, prov, key, &prompt).await?;
+        return Ok(AiGenerateResponse { output, tokens_used });
+    }
 
+    // Managed-key path — route through the cloud gateway.
+    let token = load_token(&app).unwrap_or_default();
     let mut body = serde_json::json!({ "capability": capability, "input": input });
     if let Some(ctx) = context  { body["context"]  = ctx; }
     if let Some(k)   = api_key  { body["api_key"]  = serde_json::Value::String(k); }
@@ -307,6 +624,9 @@ async fn ai_generate(
 }
 
 /// Streams an AI completion for module use (ctx.ai.stream()).
+///
+/// When a BYOK `api_key` + `provider` are supplied the request goes directly to
+/// the AI provider — no cloud gateway is required.
 /// Emits `ai:stream-chunk` events per token and `ai:stream-done` on completion.
 #[tauri::command]
 async fn ai_stream(
@@ -318,8 +638,21 @@ async fn ai_stream(
     api_key: Option<String>,
     provider: Option<String>,
 ) -> Result<(), String> {
-    let token = load_token(&app).unwrap_or_default();
+    // BYOK path — call the AI provider directly.
+    if let (Some(key), Some(prov)) = (api_key.as_deref(), provider.as_deref()) {
+        let prompt = match context.as_ref() {
+            Some(_) => format!("[{capability}] {input}"),
+            None    => input.clone(),
+        };
+        call_provider_stream(
+            &app, &state.http_client, prov, key, &prompt, "ai:stream-chunk",
+        ).await?;
+        let _ = app.emit("ai:stream-done", ());
+        return Ok(());
+    }
 
+    // Managed-key path — route through the cloud gateway.
+    let token = load_token(&app).unwrap_or_default();
     let mut body = serde_json::json!({ "capability": capability, "input": input });
     if let Some(ctx) = context  { body["context"]  = ctx; }
     if let Some(k)   = api_key  { body["api_key"]  = serde_json::Value::String(k); }
