@@ -1,4 +1,4 @@
-import type { IDesktopBridge, IToastNotification, IBotPollResult, IBotRunUpdate } from '../../shared/bridge-types.js'
+import type { IDesktopBridge, IAiRequestOptions, IToastNotification, IBotPollResult, IBotRunUpdate } from '../../shared/bridge-types.js'
 import { getModuleManager } from '../../core/module-bootstrap.js'
 
 /** True when running inside the Tauri WebView runtime. */
@@ -24,8 +24,12 @@ async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T
 const tauriBridge: IDesktopBridge = {
   // ── Chat ─────────────────────────────────────────────────────────────────
   chat: {
-    send: (message: string) =>
-      invoke<{ output: string }>('chat_send', { message }),
+    send: (message: string, options?: IAiRequestOptions) =>
+      invoke<{ output: string }>('chat_send', {
+        message,
+        ...(options?.apiKey   ? { apiKey:    options.apiKey   } : {}),
+        ...(options?.provider ? { provider: options.provider } : {}),
+      }),
 
     onStream: (handler) => {
       let unlisten: (() => void) | null = null
@@ -59,10 +63,16 @@ const tauriBridge: IDesktopBridge = {
 
   // ── AI ───────────────────────────────────────────────────────────────────
   ai: {
-    generate: async (capability, input, context) => {
+    generate: async (capability, input, context, options) => {
       const res = await invoke<{ output: string; tokens_used: number }>(
         'ai_generate',
-        { capability, input, ...(context ? { context } : {}) },
+        {
+          capability,
+          input,
+          ...(context            ? { context }             : {}),
+          ...(options?.apiKey   ? { apiKey:    options.apiKey   } : {}),
+          ...(options?.provider ? { provider: options.provider } : {}),
+        },
       )
       return { output: res.output, tokensUsed: res.tokens_used }
     },
@@ -152,7 +162,7 @@ window.addEventListener('app:notification', (e) => {
 const devBridge: IDesktopBridge = {
   // ── Chat ─────────────────────────────────────────────────────────────────
   chat: {
-    send: async (message: string) => {
+    send: async (message: string, _options?: IAiRequestOptions) => {
       // Dev-mode stub — the AI streaming endpoint is not available without a
       // live Tauri + backend session. Simulates a streaming response.
       const preview = message.slice(0, 80) + (message.length > 80 ? '…' : '')
@@ -195,7 +205,7 @@ const devBridge: IDesktopBridge = {
 
   // ── AI ───────────────────────────────────────────────────────────────────
   ai: {
-    generate: (_capability: string, _input: string): Promise<{ output: string; tokensUsed: number }> =>
+    generate: (_capability: string, _input: string, _context?: Record<string, unknown>, _options?: IAiRequestOptions): Promise<{ output: string; tokensUsed: number }> =>
       // Dev-mode stub — AI generation requires a live Tauri + backend session.
       Promise.resolve({
         output: '[Dev mode] AI generation is not available without the full app.',

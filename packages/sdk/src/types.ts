@@ -35,6 +35,14 @@ export interface IAiGenerateRequest {
   capability: string
   input: string
   context?: Record<string, unknown>
+  /**
+   * Optional BYOK API key forwarded to the cloud gateway per-request.
+   * Never stored server-side. Only used when the user has configured a
+   * Bring-Your-Own-Key entry in Settings → API Keys.
+   */
+  apiKey?: string
+  /** AI provider slug matching the apiKey, e.g. "openai", "anthropic". */
+  provider?: string
 }
 
 export interface IAiGenerateResponse {

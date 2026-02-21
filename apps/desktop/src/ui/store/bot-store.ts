@@ -483,7 +483,10 @@ export const useBotStore = create<IBotStore>((set, get) => ({
           if (!get().runningBotIds.includes(id)) return
           // Perform the actual AI call.
           try {
-            const ai = await bridge.ai.generate('chat', `Complete this task: ${bot.description}`)
+            const aiOptions = bot.apiKey
+              ? { apiKey: bot.apiKey, ...(bot.aiProvider ? { provider: bot.aiProvider } : {}) }
+              : undefined
+            const ai = await bridge.ai.generate('chat', `Complete this task: ${bot.description}`, undefined, aiOptions)
             result = ai.output.startsWith('[Dev mode]')
               ? `[Offline] Start the full Tauri app to enable real AI execution for: ${bot.description}`
               : ai.output
@@ -598,7 +601,10 @@ ${preview}`,
         contextLines ? `\n\nRecent conversation:\n${contextLines}` : ''
       }\n\nUser: ${content}\nBot:`
 
-      const ai = await bridge.ai.generate('chat', prompt)
+      const aiOptions = bot.apiKey
+        ? { apiKey: bot.apiKey, ...(bot.aiProvider ? { provider: bot.aiProvider } : {}) }
+        : undefined
+      const ai = await bridge.ai.generate('chat', prompt, undefined, aiOptions)
 
       const reply = ai.output.startsWith('[Dev mode]')
         ? `[Offline] Start the full Tauri app to enable AI responses from ${bot.name}.`

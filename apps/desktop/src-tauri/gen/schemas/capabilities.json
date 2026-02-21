@@ -1,1 +1,1 @@
-{"default":{"identifier":"default","description":"Default capabilities for AI SuperApp desktop","local":true,"windows":["main"],"permissions":["core:default","core:event:default","store:default"],"platforms":["linux","macOS","windows"]}}
+{"default":{"identifier":"default","description":"Default capabilities for AI SuperApp desktop","local":true,"windows":["main"],"permissions":["core:default","core:event:default","store:default","os:default"],"platforms":["linux","macOS","windows"]}}

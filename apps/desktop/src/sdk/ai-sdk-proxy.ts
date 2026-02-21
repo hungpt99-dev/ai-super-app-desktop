@@ -31,7 +31,9 @@ export class AiSdkProxy implements IAiClient {
       const res = await invoke<IRustGenerateResponse>('ai_generate', {
         capability: request.capability,
         input: request.input,
-        ...(request.context ? { context: request.context } : {}),
+        ...(request.context  ? { context:  request.context  } : {}),
+        ...(request.apiKey   ? { apiKey:   request.apiKey   } : {}),
+        ...(request.provider ? { provider: request.provider } : {}),
       })
       return { output: res.output, model: '', tokensUsed: res.tokens_used }
     }
@@ -89,7 +91,9 @@ export class AiSdkProxy implements IAiClient {
     const invokePromise = invoke('ai_stream', {
       capability: request.capability,
       input: request.input,
-      ...(request.context ? { context: request.context } : {}),
+      ...(request.context  ? { context:  request.context  } : {}),
+      ...(request.apiKey   ? { apiKey:   request.apiKey   } : {}),
+      ...(request.provider ? { provider: request.provider } : {}),
     }).catch((err: unknown) => {
       streamError = err instanceof Error ? err : new Error(String(err))
       done = true

@@ -56,9 +56,17 @@ export interface IBotRunUpdate {
   result?: Record<string, unknown>
 }
 
+/** BYOK options forwarded to the AI gateway per-request. Never stored server-side. */
+export interface IAiRequestOptions {
+  /** Raw BYOK API key to use for this request. Forwarded by the gateway to the provider. */
+  apiKey?: string
+  /** Provider slug, e.g. "openai", "anthropic", "gemini". */
+  provider?: string
+}
+
 export interface IDesktopBridge {
   chat: {
-    send(message: string): Promise<{ output: string }>
+    send(message: string, options?: IAiRequestOptions): Promise<{ output: string }>
     onStream(handler: (chunk: string) => void): () => void
   }
   modules: {
@@ -78,6 +86,7 @@ export interface IDesktopBridge {
       capability: string,
       input: string,
       context?: Record<string, unknown>,
+      options?: IAiRequestOptions,
     ): Promise<{ output: string; tokensUsed: number }>
   }
   notifications: {

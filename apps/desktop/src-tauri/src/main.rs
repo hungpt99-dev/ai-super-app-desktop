@@ -221,17 +221,23 @@ async fn chat_send(
     app: AppHandle,
     state: State<'_, AppState>,
     message: String,
+    api_key: Option<String>,
+    provider: Option<String>,
 ) -> Result<ChatResponse, String> {
     let token = load_token(&app).unwrap_or_default();
+
+    let mut body = serde_json::json!({
+        "capability": "general-chat",
+        "input": message,
+    });
+    if let Some(k) = api_key  { body["api_key"]  = serde_json::Value::String(k); }
+    if let Some(p) = provider { body["provider"] = serde_json::Value::String(p); }
 
     let resp = state
         .http_client
         .post(format!("{}/v1/ai/stream", state.gateway_url))
         .bearer_auth(&token)
-        .json(&serde_json::json!({
-            "capability": "general-chat",
-            "input": message,
-        }))
+        .json(&body)
         .send()
         .await
         .map_err(|e| e.to_string())?;
@@ -270,13 +276,15 @@ async fn ai_generate(
     capability: String,
     input: String,
     context: Option<serde_json::Value>,
+    api_key: Option<String>,
+    provider: Option<String>,
 ) -> Result<AiGenerateResponse, String> {
     let token = load_token(&app).unwrap_or_default();
 
     let mut body = serde_json::json!({ "capability": capability, "input": input });
-    if let Some(ctx) = context {
-        body["context"] = ctx;
-    }
+    if let Some(ctx) = context  { body["context"]  = ctx; }
+    if let Some(k)   = api_key  { body["api_key"]  = serde_json::Value::String(k); }
+    if let Some(p)   = provider { body["provider"] = serde_json::Value::String(p); }
 
     let resp = state
         .http_client
@@ -307,13 +315,15 @@ async fn ai_stream(
     capability: String,
     input: String,
     context: Option<serde_json::Value>,
+    api_key: Option<String>,
+    provider: Option<String>,
 ) -> Result<(), String> {
     let token = load_token(&app).unwrap_or_default();
 
     let mut body = serde_json::json!({ "capability": capability, "input": input });
-    if let Some(ctx) = context {
-        body["context"] = ctx;
-    }
+    if let Some(ctx) = context  { body["context"]  = ctx; }
+    if let Some(k)   = api_key  { body["api_key"]  = serde_json::Value::String(k); }
+    if let Some(p)   = provider { body["provider"] = serde_json::Value::String(p); }
 
     let resp = state
         .http_client

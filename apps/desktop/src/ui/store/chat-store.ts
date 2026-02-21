@@ -1,5 +1,20 @@
 import { create } from 'zustand'
 import { getDesktopBridge } from '../lib/bridge.js'
+import { getDefaultKeyId, listAPIKeys } from '../../sdk/api-key-store.js'
+
+/** Resolve the app-level default BYOK key, if one has been configured. */
+async function resolveDefaultApiOptions(): Promise<{ apiKey?: string; provider?: string }> {
+  try {
+    const defaultId = await getDefaultKeyId()
+    if (!defaultId) return {}
+    const keys = await listAPIKeys()
+    const entry = keys.find((k) => k.id === defaultId && k.isActive)
+    if (!entry) return {}
+    return { apiKey: entry.rawKey, provider: entry.provider }
+  } catch {
+    return {}
+  }
+}
 
 export interface IChatMessage {
   id: string
@@ -62,6 +77,8 @@ export const useChatStore = create<IChatState>((set, get) => ({
     try {
       const bridge = getDesktopBridge()
 
+      const aiOptions = await resolveDefaultApiOptions()
+
       // Register streaming handler BEFORE calling send
       const unsubscribe = bridge.chat.onStream((chunk) => {
         accumulated += chunk
@@ -72,7 +89,7 @@ export const useChatStore = create<IChatState>((set, get) => ({
         }))
       })
 
-      const response = await bridge.chat.send(text)
+      const response = await bridge.chat.send(text, aiOptions)
       unsubscribe()
 
       // Use streamed content if available, fall back to response payload
