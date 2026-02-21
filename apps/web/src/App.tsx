@@ -18,9 +18,13 @@ import { SubscriptionPage } from './pages/SubscriptionPage.js'
 import { MachineDetailPage } from './pages/MachineDetailPage.js'
 import { WebToastContainer } from './components/Toast.js'
 import { WebNotificationCenter } from './components/NotificationCenter.js'
+import { DemoBanner } from './components/DemoBanner.js'
 import { useNotificationStore } from './store/notification-store.js'
 import { isAuthenticated, clearSession } from './lib/api-client.js'
 import { useAuthStore } from './store/auth-store.js'
+
+// Resolved at build time by Vite — no runtime cost.
+const IS_DEMO = import.meta.env['VITE_DEMO_MODE'] === 'true'
 
 function RequireAuth({ children }: { children: React.ReactNode }): React.JSX.Element {
   if (!isAuthenticated()) {
@@ -54,7 +58,9 @@ function Layout(): React.JSX.Element {
   }
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-[var(--color-bg)]">
+    <div className="flex h-full w-full flex-col overflow-hidden bg-[var(--color-bg)]">
+      {IS_DEMO && <DemoBanner />}
+      <div className="flex flex-1 overflow-hidden">
       {/* Sidebar */}
       <nav
         className="flex w-[var(--sidebar-width)] shrink-0 flex-col border-r border-[var(--color-border)]
@@ -159,6 +165,7 @@ function Layout(): React.JSX.Element {
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </main>
+      </div>
 
       {/* Notification center panel */}
       <WebNotificationCenter
