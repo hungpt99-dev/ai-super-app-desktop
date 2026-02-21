@@ -715,12 +715,7 @@ function SettingsTab({ bot, template, colorClass, onDelete, isRunning, onStop }:
     if (trimmed) {
       await useBotStore.getState().updateBot(bot.id, { apiKey: trimmed })
     } else {
-      // Clear the key by patching with an empty object — the store's spread will
-      // preserve the existing apiKey unless we delete it explicitly.
-      const bots = useBotStore.getState().bots.map((b) =>
-        b.id === bot.id ? (() => { const { apiKey: _k, ...rest } = b; return rest as typeof b })() : b,
-      )
-      useBotStore.setState({ bots })
+      useBotStore.getState().clearBotApiKey(bot.id)
     }
     setSavingKey(false)
     setSavedKey(true)
@@ -732,10 +727,7 @@ function SettingsTab({ bot, template, colorClass, onDelete, isRunning, onStop }:
     if (aiProvider) {
       await useBotStore.getState().updateBot(bot.id, { aiProvider })
     } else {
-      const bots = useBotStore.getState().bots.map((b) =>
-        b.id === bot.id ? (() => { const { aiProvider: _p, ...rest } = b; return rest as typeof b })() : b,
-      )
-      useBotStore.setState({ bots })
+      useBotStore.getState().clearBotAiProvider(bot.id)
     }
     setSavingProv(false)
     setSavedProv(true)
@@ -819,10 +811,7 @@ function SettingsTab({ bot, template, colorClass, onDelete, isRunning, onStop }:
                 type="button"
                 onClick={() => {
                   setApiKey('')
-                  const bots = useBotStore.getState().bots.map((b) =>
-                    b.id === bot.id ? (() => { const { apiKey: _k, ...rest } = b; return rest as typeof b })() : b,
-                  )
-                  useBotStore.setState({ bots })
+                  useBotStore.getState().clearBotApiKey(bot.id)
                 }}
                 className="text-xs text-[var(--color-danger)] hover:underline"
               >

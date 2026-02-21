@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { getDesktopBridge } from '../lib/bridge.js'
 import { useAppStore, type Theme } from '../store/app-store.js'
+import { useBotStore } from '../store/bot-store.js'
 import { usePermissionStore, PERMISSION_META, HIGH_RISK_PERMISSIONS } from '../store/permission-store.js'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -193,17 +194,26 @@ function AppearanceTab(): React.JSX.Element {
 
   const handleFontSize = (s: 'sm' | 'md' | 'lg'): void => {
     setFontSize(s)
-    try { localStorage.setItem('ai-superapp-font-size', s) } catch { /* ignore */ }
+    try {
+      localStorage.setItem('ai-superapp-font-size', s)
+      document.documentElement.setAttribute('data-font-size', s)
+    } catch { /* ignore */ }
   }
 
   const handleReducedMotion = (v: boolean): void => {
     setReducedMotion(v)
-    try { localStorage.setItem('ai-superapp-reduced-motion', String(v)) } catch { /* ignore */ }
+    try {
+      localStorage.setItem('ai-superapp-reduced-motion', String(v))
+      document.documentElement.setAttribute('data-reduced-motion', String(v))
+    } catch { /* ignore */ }
   }
 
   const handleCompact = (v: boolean): void => {
     setCompactMode(v)
-    try { localStorage.setItem('ai-superapp-compact', String(v)) } catch { /* ignore */ }
+    try {
+      localStorage.setItem('ai-superapp-compact', String(v))
+      document.documentElement.setAttribute('data-compact', String(v))
+    } catch { /* ignore */ }
   }
 
   return (
@@ -217,7 +227,7 @@ function AppearanceTab(): React.JSX.Element {
               key={id}
               onClick={() => { handleThemeChange(id) }}
               className={[
-                'flex flex-col items-center gap-2 rounded-xl border-2 p-4 text-center transition-all',
+                'relative flex flex-col items-center gap-2 rounded-xl border-2 p-4 text-center transition-all',
                 appStore.theme === id
                   ? 'border-[var(--color-accent)] bg-[var(--color-accent-dim)]'
                   : 'border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-accent)]/50',
@@ -353,6 +363,13 @@ function PrivacyTab(): React.JSX.Element {
   const [crashReports, setCrashReports] = useState(false)
   const [localHistory, setLocalHistory] = useState(true)
   const [autoLock, setAutoLock] = useState(false)
+  const [historyCleared, setHistoryCleared] = useState(false)
+
+  const handleClearHistory = (): void => {
+    useBotStore.getState().clearAllChats()
+    setHistoryCleared(true)
+    setTimeout(() => { setHistoryCleared(false) }, 2_000)
+  }
 
   return (
     <div className="space-y-5">
@@ -395,8 +412,10 @@ function PrivacyTab(): React.JSX.Element {
             label="Clear all conversation history"
             description="Permanently delete all stored messages from this device"
             control={
-              <button className="rounded-lg border border-red-800/60 px-3 py-1.5 text-[11px] font-medium text-red-400 transition-colors hover:bg-red-950/40">
-                Clear
+              <button
+                onClick={handleClearHistory}
+                className="rounded-lg border border-red-800/60 px-3 py-1.5 text-[11px] font-medium text-red-400 transition-colors hover:bg-red-950/40">
+                {historyCleared ? '✓ Cleared' : 'Clear'}
               </button>
             }
             danger

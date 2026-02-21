@@ -106,3 +106,24 @@ body {
 .cursor-blink {
   animation: cursor-blink 0.7s step-end infinite;
 }
+
+/* ── Appearance settings ────────────────────────────────────────────────────── */
+
+/* Font size overrides */
+[data-font-size="sm"] body { font-size: 13px; }
+[data-font-size="lg"] body { font-size: 16px; }
+
+/* Compact mode — tighten row padding across the app */
+[data-compact="true"] .py-3\.5 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+[data-compact="true"] .py-4    { padding-top: 0.625rem; padding-bottom: 0.625rem; }
+[data-compact="true"] .gap-4   { gap: 0.625rem; }
+
+/* Reduced motion */
+[data-reduced-motion="true"] *,
+[data-reduced-motion="true"] *::before,
+[data-reduced-motion="true"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}

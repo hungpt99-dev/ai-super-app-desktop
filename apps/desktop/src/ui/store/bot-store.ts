@@ -218,6 +218,12 @@ interface IBotStore {
   dismissRun(botId: string, msgId: string): void
   /** Clear the conversation history for a bot. */
   clearChat(botId: string): void
+  /** Clear ALL bot conversation histories — used by the Privacy settings. */
+  clearAllChats(): void
+  /** Remove the per-bot API key override and persist the change. */
+  clearBotApiKey(id: string): void
+  /** Remove the per-bot AI provider override and persist the change. */
+  clearBotAiProvider(id: string): void
   /** Load run history for a bot (local + server when synced). */
   loadRuns(botId: string): Promise<void>
   /** Update editable fields of a bot (name, description, apiKey). Local-only for now. */
@@ -638,6 +644,31 @@ ${preview}`,
     const chat = { ...get().chatHistory, [botId]: [] as IChatMessage[] }
     writeChat(chat)
     set({ chatHistory: chat })
+  },
+
+  clearAllChats: () => {
+    writeChat({})
+    set({ chatHistory: {} })
+  },
+
+  clearBotApiKey: (id) => {
+    const bots = get().bots.map((b) => {
+      if (b.id !== id) return b
+      const { apiKey: _k, ...rest } = b
+      return rest as IDesktopBot
+    })
+    writeBots(bots)
+    set({ bots })
+  },
+
+  clearBotAiProvider: (id) => {
+    const bots = get().bots.map((b) => {
+      if (b.id !== id) return b
+      const { aiProvider: _p, ...rest } = b
+      return rest as IDesktopBot
+    })
+    writeBots(bots)
+    set({ bots })
   },
 
   loadRuns: async (botId) => {
