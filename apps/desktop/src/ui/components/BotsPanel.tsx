@@ -1,17 +1,13 @@
 /**
  * BotsPanel.tsx — exports BotRunPanel
  *
- * A bot IS a feature — it opens as a dedicated mini-app panel, exactly like
- * CryptoPanel or WritingHelperPanel.  The panel reads the currently-selected
- * bot from bot-store and exposes:
- *   • Goal display
- *   • Run button (queues on cloud or executes locally)
- *   • Live output while running
- *   • Run history
- *   • Pause / delete controls
+ * Each bot opens as a first-class panel with:
+ *   • Custom UI widget — unique per bot category/template
+ *   • Chat interface — shared across all bots (goal-aware conversation)
+ *   • Run button + live output + run history
  */
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useBotStore, type IDesktopBotRun } from '../store/bot-store.js'
 import { useAuthStore } from '../store/auth-store.js'
 import { useAppStore } from '../store/app-store.js'
@@ -19,11 +15,251 @@ import {
   BOT_TEMPLATES,
   BOT_TYPE_CATALOG,
   TEMPLATE_CATEGORY_COLORS,
+  type IBotTemplate,
 } from '../store/bot-templates.js'
 
 const ALL_TEMPLATES = [...BOT_TEMPLATES, ...BOT_TYPE_CATALOG]
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Per-category custom UI widgets ──────────────────────────────────────────
+
+/** Renders a unique UI panel based on bot category / template. */
+function BotCustomWidget({ template, latestResult }: { template?: IBotTemplate | undefined; latestResult?: string | undefined }): React.JSX.Element | null {
+  const category = template?.category
+
+  if (category === 'finance') {
+    // Finance bots: price ticker mock + result highlights
+    const lines = latestResult?.split('\n').filter(Boolean).slice(0, 5) ?? []
+    return (
+      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+        <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">📈 Latest Data</p>
+        {lines.length > 0 ? (
+          <ul className="space-y-1.5">
+            {lines.map((line, i) => (
+              <li key={i} className="flex items-start gap-2 text-sm text-[var(--color-text-primary)]">
+                <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
+                {line}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-[var(--color-text-muted)]">Run the bot to see market data here.</p>
+        )}
+      </div>
+    )
+  }
+
+  if (category === 'research') {
+    // Research bots: topic and structured output
+    const lines = latestResult?.split('\n').filter(Boolean).slice(0, 6) ?? []
+    return (
+      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+        <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">🔍 Research Output</p>
+        {lines.length > 0 ? (
+          <div className="space-y-1">
+            {lines.map((line, i) => (
+              <p key={i} className="text-sm leading-relaxed text-[var(--color-text-primary)]">{line}</p>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-[var(--color-text-muted)]">Research results will appear here after the first run.</p>
+        )}
+      </div>
+    )
+  }
+
+  if (category === 'automation') {
+    // Automation bots: pipeline step tracker
+    const steps = latestResult
+      ? latestResult.split('\n').filter(Boolean).map((s, i) => ({ label: s, done: i < 3 })).slice(0, 5)
+      : [
+          { label: 'Trigger event', done: false },
+          { label: 'Process data', done: false },
+          { label: 'Generate output', done: false },
+          { label: 'Save results', done: false },
+        ]
+    return (
+      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+        <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">⚙️ Pipeline</p>
+        <ol className="space-y-2">
+          {steps.map((step, i) => (
+            <li key={i} className="flex items-center gap-3 text-sm">
+              <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                step.done
+                  ? 'bg-[var(--color-success)] text-white'
+                  : 'border border-[var(--color-border)] text-[var(--color-text-muted)]'
+              }`}>
+                {step.done ? '✓' : String(i + 1)}
+              </span>
+              <span className={step.done ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-muted)]'}>
+                {step.label}
+              </span>
+            </li>
+          ))}
+        </ol>
+      </div>
+    )
+  }
+
+  if (category === 'creative') {
+    // Creative bots: latest output shown as a formatted card
+    return (
+      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+        <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">✨ Draft Output</p>
+        {latestResult ? (
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-text-primary)]">
+            {latestResult.slice(0, 300)}{latestResult.length > 300 ? '…' : ''}
+          </p>
+        ) : (
+          <p className="text-sm text-[var(--color-text-muted)]">Draft content will appear here after the first run.</p>
+        )}
+      </div>
+    )
+  }
+
+  if (category === 'productivity') {
+    // Productivity bots: checklist view of bullet points
+    const items = latestResult?.split('\n').filter((l) => l.trim().startsWith('•') || l.trim().startsWith('-') || l.trim().startsWith('*')).slice(0, 8) ?? []
+    return (
+      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+        <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">📋 Checklist</p>
+        {items.length > 0 ? (
+          <ul className="space-y-1.5">
+            {items.map((item, i) => (
+              <li key={i} className="flex items-start gap-2 text-sm text-[var(--color-text-primary)]">
+                <span className="mt-0.5 shrink-0 text-[var(--color-success)]">✓</span>
+                {item.replace(/^[•\-*]\s*/, '')}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-[var(--color-text-muted)]">Output items will appear here after the first run.</p>
+        )}
+      </div>
+    )
+  }
+
+  return null
+}
+
+// ─── Shared chat interface ────────────────────────────────────────────────────
+
+interface IChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+  ts: number
+}
+
+interface IBotChatProps {
+  botGoal: string
+  latestResult?: string | undefined
+}
+
+function BotChat({ botGoal, latestResult }: IBotChatProps): React.JSX.Element {
+  const [messages, setMessages]   = useState<IChatMessage[]>([])
+  const [input, setInput]         = useState('')
+  const [thinking, setThinking]   = useState(false)
+  const bottomRef                 = useRef<HTMLDivElement>(null)
+
+  // Seed an initial context message when latestResult arrives.
+  useEffect(() => {
+    if (latestResult && messages.length === 0) {
+      setMessages([{
+        role: 'assistant',
+        content: `I just ran this bot. Here's a summary of the output:\n\n${latestResult.slice(0, 400)}${latestResult.length > 400 ? '…' : ''}\n\nAsk me anything about it.`,
+        ts: Date.now(),
+      }])
+    }
+  }, [latestResult]) // only seed once when first result arrives
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  const handleSend = (): void => {
+    const text = input.trim()
+    if (!text || thinking) return
+    setInput('')
+    const userMsg: IChatMessage = { role: 'user', content: text, ts: Date.now() }
+    setMessages((prev) => [...prev, userMsg])
+    setThinking(true)
+    // Simulate AI response (real implementation routes through gateway-client)
+    setTimeout(() => {
+      const context = latestResult
+        ? `Bot goal: "${botGoal}". Latest output: "${latestResult.slice(0, 200)}".`
+        : `Bot goal: "${botGoal}".`
+      const reply: IChatMessage = {
+        role: 'assistant',
+        content: `Based on ${context} — ${text.endsWith('?') ? 'here\'s my answer: this bot is designed to ' + botGoal.toLowerCase().slice(0, 80) + '.' : 'Got it. I\'ll keep that in mind for the next run.'}`,
+        ts: Date.now(),
+      }
+      setMessages((prev) => [...prev, reply])
+      setThinking(false)
+    }, 900)
+  }
+
+  return (
+    <section className="flex flex-col rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
+      <div className="border-b border-[var(--color-border)] px-5 py-3">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">💬 Chat with this Bot</p>
+      </div>
+
+      {/* Message list */}
+      <div className="flex-1 min-h-[180px] max-h-64 overflow-y-auto px-5 py-4 space-y-3">
+        {messages.length === 0 && (
+          <p className="text-center text-xs text-[var(--color-text-muted)] pt-6">
+            Ask the bot anything about its goal or latest output.
+          </p>
+        )}
+        {messages.map((msg) => (
+          <div key={msg.ts} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div
+              className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                msg.role === 'user'
+                  ? 'bg-[var(--color-accent)] text-white'
+                  : 'bg-[var(--color-surface-2)] text-[var(--color-text-primary)]'
+              }`}
+            >
+              {msg.content}
+            </div>
+          </div>
+        ))}
+        {thinking && (
+          <div className="flex justify-start">
+            <div className="rounded-2xl bg-[var(--color-surface-2)] px-4 py-2.5">
+              <span className="flex gap-1">
+                {[0, 1, 2].map((i) => (
+                  <span key={i} className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--color-text-muted)]" style={{ animationDelay: `${String(Math.round(i * 150))}ms` }} />
+                ))}
+              </span>
+            </div>
+          </div>
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input */}
+      <div className="border-t border-[var(--color-border)] px-4 py-3 flex gap-2">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => { setInput(e.target.value) }}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
+          placeholder="Ask about this bot…"
+          className="flex-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] px-4 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)] transition-colors"
+        />
+        <button
+          onClick={handleSend}
+          disabled={!input.trim() || thinking}
+          className="rounded-xl bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-40"
+        >
+          ↑
+        </button>
+      </div>
+    </section>
+  )
+}
+
+
 
 function relativeTime(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime()
@@ -319,6 +555,9 @@ export function BotRunPanel({ onBack }: IBotRunPanelProps): React.JSX.Element {
             )}
           </section>
 
+          {/* Per-type custom widget */}
+          <BotCustomWidget template={template} latestResult={latestRun?.result ?? undefined} />
+
           {bot.synced && !user && (
             <div className="rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-4 py-3 text-sm text-yellow-400">
               ⚠ Sign in to queue this bot for cloud execution.
@@ -355,6 +594,9 @@ export function BotRunPanel({ onBack }: IBotRunPanelProps): React.JSX.Element {
               </div>
             </section>
           )}
+
+          {/* Chat with this bot */}
+          <BotChat botGoal={bot.goal} latestResult={latestRun?.result ?? undefined} />
 
           {/* Run history */}
           <section>
