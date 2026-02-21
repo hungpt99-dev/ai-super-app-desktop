@@ -23,10 +23,54 @@ import { getDesktopBridge } from '../lib/bridge.js'
 
 const BOTS_KEY = 'ai-superapp-bots'
 const RUNS_KEY = 'ai-superapp-bot-runs'
+const SEEDED_KEY = 'ai-superapp:bots-seeded-v1'
+
+/** Pre-loaded bots shown on first launch so the Bots tab is never empty. */
+const DEFAULT_BOTS: IDesktopBot[] = [
+  {
+    id: 'seed-morning-digest',
+    name: 'Morning Digest',
+    description: "Summarises today's top news headlines into a quick read.",
+    goal: "Search the web for today's top 5 headlines, summarise each into 1-2 sentences, and output a clean bullet-point digest.",
+    status: 'active',
+    created_at: '2026-01-01T00:00:00.000Z',
+    synced: false,
+    templateId: 'daily-digest',
+  },
+  {
+    id: 'seed-btc-watch',
+    name: 'BTC Price Watch',
+    description: 'Monitors BTC/USD price and reports 5 %+ movements.',
+    goal: 'Check the current BTC/USD price, compare it to 24 hours ago, and generate a brief report if price moved more than 5 % in either direction.',
+    status: 'active',
+    created_at: '2026-01-01T00:00:00.000Z',
+    synced: false,
+    templateId: 'price-alert',
+  },
+  {
+    id: 'seed-code-reviewer',
+    name: 'Code Reviewer',
+    description: 'Reviews the latest git commits for bugs and improvements.',
+    goal: 'Review the latest git commit diff in the current repository, identify potential bugs, and suggest concrete code improvements.',
+    status: 'active',
+    created_at: '2026-01-01T00:00:00.000Z',
+    synced: false,
+    templateId: 'code-reviewer',
+  },
+]
 
 function readBots(): IDesktopBot[] {
-  try { return JSON.parse(localStorage.getItem(BOTS_KEY) ?? '[]') as IDesktopBot[] }
-  catch { return [] }
+  try {
+    const raw = localStorage.getItem(BOTS_KEY)
+    if (raw !== null) return JSON.parse(raw) as IDesktopBot[]
+    // First launch: seed defaults so the Bots tab is never empty.
+    if (!localStorage.getItem(SEEDED_KEY)) {
+      localStorage.setItem(SEEDED_KEY, '1')
+      writeBots(DEFAULT_BOTS)
+      return DEFAULT_BOTS
+    }
+    return []
+  } catch { return [] }
 }
 
 function writeBots(bots: IDesktopBot[]): void {
@@ -103,6 +147,8 @@ interface IBotStore {
   runBot(id: string): Promise<void>
   /** Load run history for a bot (local + server when synced). */
   loadRuns(botId: string): Promise<void>
+  /** Update editable fields of a bot (name, description, goal). Local-only for now. */
+  updateBot(id: string, patch: Partial<Pick<IDesktopBot, 'name' | 'description' | 'goal'>>): Promise<void>
   selectBot(id: string | null): void
   clearError(): void
 }
@@ -363,6 +409,13 @@ export const useBotStore = create<IBotStore>((set, get) => ({
       // Network failure — show cached local runs.
       set({ runs: { ...get().runs, [botId]: localRuns } })
     }
+  },
+
+  updateBot: (id, patch) => {
+    const bots = get().bots.map((b) => (b.id === id ? { ...b, ...patch } : b))
+    writeBots(bots)
+    set({ bots })
+    return Promise.resolve()
   },
 
   selectBot: (id) => {

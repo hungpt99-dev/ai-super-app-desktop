@@ -19,9 +19,11 @@ import { useBotStore, type IDesktopBot } from '../store/bot-store.js'
 import { useAuthStore } from '../store/auth-store.js'
 import {
   BOT_TEMPLATES,
+  BOT_TYPE_CATALOG,
   TEMPLATE_CATEGORY_COLORS,
   type IBotTemplate,
 } from '../store/bot-templates.js'
+import { useBotTypeStore } from '../store/bot-type-store.js'
 
 // ─── Built-in tool entries (non-bot features) ─────────────────────────────────
 
@@ -42,9 +44,6 @@ const BUILT_IN_TOOLS = [
   },
 ]
 
-/** Stable set of known template IDs — used to classify custom bots. */
-const TEMPLATE_ID_SET = new Set(BOT_TEMPLATES.map((t) => t.id))
-
 const CUSTOM_TYPE_ID = '__custom__'
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -60,10 +59,12 @@ type CreateStep = 'pick-type' | 'configure'
 interface ICreateBotModalProps {
   /** Pre-select this template and jump straight to step 2. */
   initialTemplateId?: string
+  /** All available templates (built-in + installed from store). */
+  allTemplates: IBotTemplate[]
   onClose: () => void
 }
 
-function CreateBotModal({ initialTemplateId, onClose }: ICreateBotModalProps): React.JSX.Element {
+function CreateBotModal({ initialTemplateId, allTemplates, onClose }: ICreateBotModalProps): React.JSX.Element {
   const startAtConfigure = initialTemplateId !== undefined
   const [step, setStep]        = useState<CreateStep>(startAtConfigure ? 'configure' : 'pick-type')
   const [typeId, setTypeId]    = useState<string>(initialTemplateId ?? '')
@@ -81,7 +82,7 @@ function CreateBotModal({ initialTemplateId, onClose }: ICreateBotModalProps): R
       setName(''); setDesc(''); setGoal('')
       return
     }
-    const t = BOT_TEMPLATES.find((x) => x.id === id)
+    const t = allTemplates.find((x) => x.id === id)
     if (!t) return
     const count = bots.filter((b) => b.templateId === id).length
     setName(count === 0 ? t.name : `${t.name} #${String(count + 1)}`)
@@ -89,11 +90,10 @@ function CreateBotModal({ initialTemplateId, onClose }: ICreateBotModalProps): R
     setGoal(t.defaultGoal)
   }
 
-  // Pre-fill when opened with an initial template.
+  // Pre-fill when opened with an initial template (run once on mount).
   useEffect(() => {
     if (initialTemplateId !== undefined) applyType(initialTemplateId)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, []) // run once on mount — applyType is stable
 
   const handlePickType = (id: string): void => {
     setTypeId(id)
@@ -121,7 +121,7 @@ function CreateBotModal({ initialTemplateId, onClose }: ICreateBotModalProps): R
     }
   }
 
-  const selectedTemplate = BOT_TEMPLATES.find((t) => t.id === typeId)
+  const selectedTemplate = allTemplates.find((t) => t.id === typeId)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -172,7 +172,7 @@ function CreateBotModal({ initialTemplateId, onClose }: ICreateBotModalProps): R
               Select a type. You can create as many bots of the same type as you need — each with its own goal.
             </p>
             <div className="grid grid-cols-2 gap-3">
-              {BOT_TEMPLATES.map((t) => {
+              {allTemplates.map((t) => {
                 const count      = bots.filter((b) => b.templateId === t.id).length
                 const colorClass = TEMPLATE_CATEGORY_COLORS[t.category]
                 return (
@@ -515,10 +515,19 @@ function ToolCard({ id, icon, label, description, badge, isActive, onOpen }: ITo
  * One bot type can power any number of bots with different names and goals.
  */
 export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Element {
-  const { modules }  = useModules()
-  const bots         = useBotStore((s) => s.bots)
-  const runningBotId = useBotStore((s) => s.runningBotId)
-  const activeIds    = new Set(modules.map((m) => m.id))
+  const { modules }       = useModules()
+  const bots              = useBotStore((s) => s.bots)
+  const runningBotId      = useBotStore((s) => s.runningBotId)
+  const installedTypeIds  = useBotTypeStore((s) => s.installedTypeIds)
+  const activeIds         = new Set(modules.map((m) => m.id))
+
+  // All bot types = built-in + installed downloadable types
+  const allTemplates = useMemo(() => [
+    ...BOT_TEMPLATES,
+    ...BOT_TYPE_CATALOG.filter((t) => installedTypeIds.includes(t.id)),
+  ], [installedTypeIds])
+
+  const allTemplateIdSet = useMemo(() => new Set(allTemplates.map((t) => t.id)), [allTemplates])
 
   const [search, setSearch]            = useState('')
   const [showCreate, setShowCreate]    = useState(false)
@@ -534,27 +543,28 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
   // Group bots by templateId.
   const botsByTemplate = useMemo<Record<string, IDesktopBot[]>>(() => {
     const map: Record<string, IDesktopBot[]> = {}
-    for (const t of BOT_TEMPLATES) map[t.id] = []
+    for (const t of allTemplates) map[t.id] = []
     for (const bot of bots) {
       if (bot.templateId !== undefined && bot.templateId in map) {
-        map[bot.templateId]!.push(bot)
+        const bucket = map[bot.templateId]
+        if (bucket !== undefined) bucket.push(bot)
       }
     }
     return map
-  }, [bots])
+  }, [bots, allTemplates])
 
   // Bots not linked to any known template.
   const customBots = useMemo(
-    () => bots.filter((b) => b.templateId === undefined || !TEMPLATE_ID_SET.has(b.templateId)),
-    [bots],
+    () => bots.filter((b) => b.templateId === undefined || !allTemplateIdSet.has(b.templateId)),
+    [bots, allTemplateIdSet],
   )
 
   // Search filtering.
   const q = search.toLowerCase()
 
   const visibleTemplates = search.length === 0
-    ? BOT_TEMPLATES
-    : BOT_TEMPLATES.filter((t) =>
+    ? allTemplates
+    : allTemplates.filter((t) =>
         t.name.toLowerCase().includes(q) ||
         t.description.toLowerCase().includes(q) ||
         (botsByTemplate[t.id] ?? []).some(
@@ -620,9 +630,18 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
           {/* Bot Types */}
           {visibleTemplates.length > 0 && (
             <section>
-              <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
-                Bot Types
-              </p>
+              <div className="mb-4 flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+                  Bot Types
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { onOpenModule('store') }}
+                  className="text-[10px] text-[var(--color-accent)] hover:underline"
+                >
+                  Browse more →
+                </button>
+              </div>
               <div className="space-y-3">
                 {visibleTemplates.map((template) => (
                   <BotTypeSection
@@ -700,6 +719,7 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
       {/* Create Bot wizard */}
       {showCreate && (
         <CreateBotModal
+          allTemplates={allTemplates}
           {...(createTemplate !== undefined ? { initialTemplateId: createTemplate } : {})}
           onClose={() => { setShowCreate(false); setCreateTpl(undefined) }}
         />

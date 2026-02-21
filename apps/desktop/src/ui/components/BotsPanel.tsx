@@ -15,6 +15,13 @@ import React, { useEffect, useState } from 'react'
 import { useBotStore, type IDesktopBotRun } from '../store/bot-store.js'
 import { useAuthStore } from '../store/auth-store.js'
 import { useAppStore } from '../store/app-store.js'
+import {
+  BOT_TEMPLATES,
+  BOT_TYPE_CATALOG,
+  TEMPLATE_CATEGORY_COLORS,
+} from '../store/bot-templates.js'
+
+const ALL_TEMPLATES = [...BOT_TEMPLATES, ...BOT_TYPE_CATALOG]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -118,6 +125,24 @@ export function BotRunPanel({ onBack }: IBotRunPanelProps): React.JSX.Element {
   const hasActive = botRuns.some((r) => ACTIVE_STATUSES.has(r.status))
   const latestRun = botRuns[0]
 
+  const template    = bot?.templateId ? ALL_TEMPLATES.find((t) => t.id === bot.templateId) : undefined
+  const colorClass  = template ? TEMPLATE_CATEGORY_COLORS[template.category] : 'bg-[var(--color-surface-2)] text-[var(--color-text-muted)]'
+
+  const [editingGoal, setEditingGoal] = useState(false)
+  const [goalDraft, setGoalDraft]     = useState('')
+
+  const handleEditGoal = (): void => {
+    if (!bot) return
+    setGoalDraft(bot.goal)
+    setEditingGoal(true)
+  }
+
+  const handleSaveGoal = async (): Promise<void> => {
+    if (!bot || !goalDraft.trim()) return
+    await useBotStore.getState().updateBot(bot.id, { goal: goalDraft.trim() })
+    setEditingGoal(false)
+  }
+
   // Auto-poll while a run is active.
   useEffect(() => {
     if (!selectedBotId || !hasActive) return
@@ -163,7 +188,7 @@ export function BotRunPanel({ onBack }: IBotRunPanelProps): React.JSX.Element {
           </button>
 
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--color-surface-2)] text-xl">
-            🤖
+            {template?.icon ?? '🤖'}
           </div>
 
           <div className="min-w-0 flex-1">
@@ -178,6 +203,11 @@ export function BotRunPanel({ onBack }: IBotRunPanelProps): React.JSX.Element {
               >
                 {bot.status}
               </span>
+              {template && (
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${colorClass}`}>
+                  {template.name}
+                </span>
+              )}
               {bot.synced ? (
                 <span className="rounded-full bg-blue-400/15 px-2 py-0.5 text-[10px] font-semibold text-blue-400">☁ Cloud</span>
               ) : (
@@ -229,12 +259,64 @@ export function BotRunPanel({ onBack }: IBotRunPanelProps): React.JSX.Element {
             </div>
           )}
 
-          {/* Goal */}
+          {/* Bot info row */}
+          <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[
+              { label: 'Type',    value: template?.name ?? 'Custom' },
+              { label: 'Runs',    value: String(botRuns.length) },
+              { label: 'Status',  value: bot.status },
+              { label: 'Created', value: new Date(bot.created_at).toLocaleDateString() },
+            ].map(({ label, value }) => (
+              <div key={label} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">{label}</p>
+                <p className="mt-1 truncate text-sm font-medium text-[var(--color-text-primary)] capitalize">{value}</p>
+              </div>
+            ))}
+          </section>
+
+          {/* Goal — inline editable */}
           <section>
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Goal</p>
-            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
-              <p className="text-sm leading-relaxed text-[var(--color-text-primary)]">{bot.goal}</p>
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Goal</p>
+              {!editingGoal && (
+                <button
+                  onClick={handleEditGoal}
+                  className="text-[10px] text-[var(--color-accent)] hover:underline"
+                >
+                  ✏ Edit
+                </button>
+              )}
             </div>
+            {editingGoal ? (
+              <div className="space-y-2">
+                <textarea
+                  autoFocus
+                  value={goalDraft}
+                  onChange={(e) => { setGoalDraft(e.target.value) }}
+                  rows={5}
+                  className="w-full resize-y rounded-xl border border-[var(--color-accent)] bg-[var(--color-surface)] px-5 py-4 text-sm leading-relaxed text-[var(--color-text-primary)] outline-none"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { void handleSaveGoal() }}
+                    disabled={!goalDraft.trim()}
+                    className="rounded-lg bg-[var(--color-accent)] px-4 py-1.5 text-xs font-medium text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={() => { setEditingGoal(false) }}
+                    className="rounded-lg border border-[var(--color-border)] px-4 py-1.5 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
+                <p className="text-sm leading-relaxed text-[var(--color-text-primary)]">{bot.goal}</p>
+              </div>
+            )}
           </section>
 
           {bot.synced && !user && (

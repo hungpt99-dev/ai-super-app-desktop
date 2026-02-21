@@ -1,5 +1,10 @@
 import React, { useState } from 'react'
 import { useModuleStore } from '../store/module-store.js'
+import { useBotTypeStore } from '../store/bot-type-store.js'
+import {
+  BOT_TYPE_CATALOG,
+  TEMPLATE_CATEGORY_COLORS,
+} from '../store/bot-templates.js'
 
 // ─── Catalog ──────────────────────────────────────────────────────────────────
 
@@ -88,11 +93,17 @@ const ALL_CATEGORIES = ['All', ...Array.from(new Set(CATALOG.map((a) => a.catego
 export function ModuleStore(): React.JSX.Element {
   const modStore = useModuleStore()
   const { modules, isLoading } = modStore
+  const botTypeStore = useBotTypeStore()
+  const { installedTypeIds } = botTypeStore
 
-  const [search, setSearch]       = useState('')
-  const [category, setCategory]   = useState('All')
+  const [activeTab, setActiveTab]   = useState<'mini-apps' | 'bot-types'>('mini-apps')
+  const [search, setSearch]         = useState('')
+  const [category, setCategory]     = useState('All')
+  const [botCategory, setBotCat]    = useState('All')
 
   const installedIds = new Set(modules.map((m) => m.id))
+
+  const BOT_TYPE_CATEGORIES = ['All', ...Array.from(new Set(BOT_TYPE_CATALOG.map((t) => t.category)))]
 
   const q = search.toLowerCase()
   const visibleApps = CATALOG.filter((app) => {
@@ -105,6 +116,16 @@ export function ModuleStore(): React.JSX.Element {
     return matchesSearch && matchesCategory
   })
 
+  const visibleBotTypes = BOT_TYPE_CATALOG.filter((t) => {
+    const matchesSearch =
+      q.length === 0 ||
+      t.name.toLowerCase().includes(q) ||
+      t.description.toLowerCase().includes(q) ||
+      t.category.toLowerCase().includes(q)
+    const matchesCategory = botCategory === 'All' || t.category === botCategory
+    return matchesSearch && matchesCategory
+  })
+
   return (
     <div className="flex h-full flex-col bg-[var(--color-bg)]">
 
@@ -112,17 +133,35 @@ export function ModuleStore(): React.JSX.Element {
       <div className="shrink-0 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-8 py-5">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">Mini-App Store</h1>
+            <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">Store</h1>
             <p className="mt-0.5 text-sm text-[var(--color-text-secondary)]">
-              Browse and install AI-powered mini-apps.
+              Browse and install AI-powered mini-apps and bot types.
             </p>
           </div>
           <div className="flex items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-1.5">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
             <span className="text-xs text-[var(--color-text-secondary)]">
-              {isLoading ? '…' : String(modules.length)} installed
+              {isLoading ? '…' : String(modules.length)} mini-apps · {String(installedTypeIds.length)} bot types
             </span>
           </div>
+        </div>
+
+        {/* Tab switcher */}
+        <div className="mt-4 flex gap-1">
+          {(['mini-apps', 'bot-types'] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => { setActiveTab(tab); setSearch('') }}
+              className={`rounded-lg px-4 py-1.5 text-xs font-medium transition-colors ${
+                activeTab === tab
+                  ? 'bg-[var(--color-accent)] text-white'
+                  : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+              }`}
+            >
+              {tab === 'mini-apps' ? '📦 Mini-Apps' : '🤖 Bot Types'}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -142,145 +181,241 @@ export function ModuleStore(): React.JSX.Element {
               </svg>
               <input
                 type="text"
-                placeholder="Search mini-apps…"
+                placeholder={activeTab === 'mini-apps' ? 'Search mini-apps…' : 'Search bot types…'}
                 value={search}
                 onChange={(e) => { setSearch(e.target.value) }}
                 className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2.5 pl-10 pr-4 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-secondary)] outline-none focus:border-[var(--color-accent)] transition-colors"
               />
             </div>
-            <div className="flex gap-1.5 overflow-x-auto pb-0.5">
-              {ALL_CATEGORIES.map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => { setCategory(cat) }}
-                  className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                    category === cat
-                      ? 'bg-[var(--color-accent)] text-white'
-                      : 'border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:border-[var(--color-accent)]/50 hover:text-[var(--color-text-primary)]'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
+            {activeTab === 'mini-apps' ? (
+              <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+                {ALL_CATEGORIES.map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => { setCategory(cat) }}
+                    className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                      category === cat
+                        ? 'bg-[var(--color-accent)] text-white'
+                        : 'border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:border-[var(--color-accent)]/50 hover:text-[var(--color-text-primary)]'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+                {BOT_TYPE_CATEGORIES.map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => { setBotCat(cat) }}
+                    className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors capitalize ${
+                      botCategory === cat
+                        ? 'bg-[var(--color-accent)] text-white'
+                        : 'border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:border-[var(--color-accent)]/50 hover:text-[var(--color-text-primary)]'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Catalog grid */}
-          {visibleApps.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-              <p className="text-2xl">🔍</p>
-              <p className="mt-3 text-sm text-[var(--color-text-secondary)]">No apps match &quot;{search}&quot;.</p>
-              <button
-                onClick={() => { setSearch(''); setCategory('All') }}
-                className="mt-3 text-xs text-[var(--color-accent)] hover:underline"
-              >
-                Clear filters
-              </button>
-            </div>
-          ) : (
-            <section>
-              <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
-                {category === 'All' ? 'All Apps' : category} ({visibleApps.length})
-              </p>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {visibleApps.map((app) => {
-                  const installed = installedIds.has(app.id)
-                  return (
-                    <div
-                      key={app.id}
-                      className={`flex flex-col rounded-2xl border bg-[var(--color-surface)] p-5 transition-all ${
-                        installed
-                          ? 'border-[var(--color-accent)] shadow-[0_0_0_1px_var(--color-accent-dim)]'
-                          : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/50'
-                      }`}
-                    >
-                      <div className="mb-3 flex items-start justify-between">
-                        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--color-surface-2)] text-2xl">
-                          {app.icon}
-                        </div>
-                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${app.categoryColor}`}>
-                          {app.category}
-                        </span>
-                      </div>
-                      <p className="mb-1 text-sm font-semibold text-[var(--color-text-primary)]">{app.name}</p>
-                      <p className="mb-1 flex-1 text-[11px] leading-relaxed text-[var(--color-text-secondary)]">
-                        {app.description}
-                      </p>
-                      <p className="mb-4 text-[10px] text-[var(--color-text-muted)]">
-                        v{app.version} · {app.author}
-                      </p>
-                      {installed ? (
-                        <div className="flex items-center justify-between">
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-950/50 px-2.5 py-1 text-[10px] font-medium text-emerald-400">
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                            Installed
-                          </span>
-                          <button
-                            onClick={() => { void modStore.uninstall(app.id) }}
-                            className="rounded-lg border border-red-800/40 px-3 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-950/40"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          disabled
-                          title="Coming soon"
-                          className="w-full cursor-not-allowed rounded-lg border border-dashed border-[var(--color-border)] py-2 text-xs text-[var(--color-text-muted)]"
+          {/* ── Mini-Apps tab ─────────────────────────────────────────────── */}
+          {activeTab === 'mini-apps' && (
+            <>
+              {visibleApps.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 text-center">
+                  <p className="text-2xl">🔍</p>
+                  <p className="mt-3 text-sm text-[var(--color-text-secondary)]">No apps match &quot;{search}&quot;.</p>
+                  <button
+                    onClick={() => { setSearch(''); setCategory('All') }}
+                    className="mt-3 text-xs text-[var(--color-accent)] hover:underline"
+                  >
+                    Clear filters
+                  </button>
+                </div>
+              ) : (
+                <section>
+                  <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+                    {category === 'All' ? 'All Apps' : category} ({visibleApps.length})
+                  </p>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {visibleApps.map((app) => {
+                      const installed = installedIds.has(app.id)
+                      return (
+                        <div
+                          key={app.id}
+                          className={`flex flex-col rounded-2xl border bg-[var(--color-surface)] p-5 transition-all ${
+                            installed
+                              ? 'border-[var(--color-accent)] shadow-[0_0_0_1px_var(--color-accent-dim)]'
+                              : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/50'
+                          }`}
                         >
-                          Coming soon
-                        </button>
-                      )}
+                          <div className="mb-3 flex items-start justify-between">
+                            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--color-surface-2)] text-2xl">
+                              {app.icon}
+                            </div>
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${app.categoryColor}`}>
+                              {app.category}
+                            </span>
+                          </div>
+                          <p className="mb-1 text-sm font-semibold text-[var(--color-text-primary)]">{app.name}</p>
+                          <p className="mb-1 flex-1 text-[11px] leading-relaxed text-[var(--color-text-secondary)]">
+                            {app.description}
+                          </p>
+                          <p className="mb-4 text-[10px] text-[var(--color-text-muted)]">
+                            v{app.version} · {app.author}
+                          </p>
+                          {installed ? (
+                            <div className="flex items-center justify-between">
+                              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-950/50 px-2.5 py-1 text-[10px] font-medium text-emerald-400">
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                                Installed
+                              </span>
+                              <button
+                                onClick={() => { void modStore.uninstall(app.id) }}
+                                className="rounded-lg border border-red-800/40 px-3 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-950/40"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              disabled
+                              title="Coming soon"
+                              className="w-full cursor-not-allowed rounded-lg border border-dashed border-[var(--color-border)] py-2 text-xs text-[var(--color-text-muted)]"
+                            >
+                              Coming soon
+                            </button>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </section>
+              )}
+
+              {/* Installed modules not in catalog */}
+              {(() => {
+                const uncataloged = modules.filter((m) => !CATALOG.some((c) => c.id === m.id))
+                if (uncataloged.length === 0) return null
+                return (
+                  <section>
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+                      Other Installed ({uncataloged.length})
+                    </p>
+                    <div className="space-y-2">
+                      {uncataloged.map((mod) => (
+                        <div
+                          key={mod.id}
+                          className="flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4 transition-colors hover:border-[var(--color-border)]/80"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--color-surface-2)] text-lg">
+                              📦
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-[var(--color-text-primary)]">{mod.name}</p>
+                              <p className="text-[11px] text-[var(--color-text-secondary)]">v{mod.version}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-950/50 px-2.5 py-1 text-[10px] font-medium text-emerald-400">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                              Active
+                            </span>
+                            <button
+                              onClick={() => { void modStore.uninstall(mod.id) }}
+                              className="rounded-lg border border-red-800/40 px-3 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-950/40"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  )
-                })}
-              </div>
-            </section>
+                  </section>
+                )
+              })()}
+            </>
           )}
 
-          {/* Installed modules not in catalog */}
-          {(() => {
-            const uncataloged = modules.filter((m) => !CATALOG.some((c) => c.id === m.id))
-            if (uncataloged.length === 0) return null
-            return (
-              <section>
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
-                  Other Installed ({uncataloged.length})
-                </p>
-                <div className="space-y-2">
-                  {uncataloged.map((mod) => (
-                    <div
-                      key={mod.id}
-                      className="flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4 transition-colors hover:border-[var(--color-border)]/80"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--color-surface-2)] text-lg">
-                          📦
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-[var(--color-text-primary)]">{mod.name}</p>
-                          <p className="text-[11px] text-[var(--color-text-secondary)]">v{mod.version}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-950/50 px-2.5 py-1 text-[10px] font-medium text-emerald-400">
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                          Active
-                        </span>
-                        <button
-                          onClick={() => { void modStore.uninstall(mod.id) }}
-                          className="rounded-lg border border-red-800/40 px-3 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-950/40"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+          {/* ── Bot Types tab ─────────────────────────────────────────────── */}
+          {activeTab === 'bot-types' && (
+            <>
+              <p className="text-xs text-[var(--color-text-secondary)]">
+                Install bot types to make them available in the Bots tab. Each type can power any number of bots with different goals.
+              </p>
+
+              {visibleBotTypes.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 text-center">
+                  <p className="text-2xl">🔍</p>
+                  <p className="mt-3 text-sm text-[var(--color-text-secondary)]">No bot types match &quot;{search}&quot;.</p>
+                  <button
+                    onClick={() => { setSearch(''); setBotCat('All') }}
+                    className="mt-3 text-xs text-[var(--color-accent)] hover:underline"
+                  >
+                    Clear filters
+                  </button>
                 </div>
-              </section>
-            )
-          })()}
+              ) : (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {visibleBotTypes.map((botType) => {
+                    const isInstalled = installedTypeIds.includes(botType.id)
+                    const colorClass  = TEMPLATE_CATEGORY_COLORS[botType.category]
+                    return (
+                      <div
+                        key={botType.id}
+                        className={`flex flex-col rounded-2xl border bg-[var(--color-surface)] p-5 transition-all ${
+                          isInstalled
+                            ? 'border-[var(--color-accent)] shadow-[0_0_0_1px_var(--color-accent-dim)]'
+                            : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/50'
+                        }`}
+                      >
+                        <div className="mb-3 flex items-start justify-between">
+                          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--color-surface-2)] text-2xl">
+                            {botType.icon}
+                          </div>
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${colorClass}`}>
+                            {botType.category}
+                          </span>
+                        </div>
+                        <p className="mb-1 text-sm font-semibold text-[var(--color-text-primary)]">{botType.name}</p>
+                        <p className="mb-4 flex-1 text-[11px] leading-relaxed text-[var(--color-text-secondary)]">
+                          {botType.description}
+                        </p>
+                        {isInstalled ? (
+                          <div className="flex items-center justify-between">
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-950/50 px-2.5 py-1 text-[10px] font-medium text-emerald-400">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                              Installed
+                            </span>
+                            <button
+                              onClick={() => { botTypeStore.uninstallType(botType.id) }}
+                              className="rounded-lg border border-red-800/40 px-3 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-950/40"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => { botTypeStore.installType(botType.id) }}
+                            className="w-full rounded-lg bg-[var(--color-accent-dim)] py-2 text-xs font-medium text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)] hover:text-white"
+                          >
+                            + Install
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </>
+          )}
 
         </div>
       </div>

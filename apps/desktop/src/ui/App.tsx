@@ -118,6 +118,11 @@ export function App(): React.JSX.Element {
       setView(view)
       return
     }
+    // Navigate to store tab (from Browse more → link)
+    if (moduleId === 'store') {
+      setView('store')
+      return
+    }
     // User-created bot — select it and open the run panel.
     const { bots } = useBotStore.getState()
     if (bots.some((b) => b.id === moduleId)) {

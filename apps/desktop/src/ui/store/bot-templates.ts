@@ -83,3 +83,83 @@ export const TEMPLATE_CATEGORY_COLORS: Record<IBotTemplate['category'], string> 
   creative:     'bg-pink-500/10 text-pink-400',
   finance:      'bg-emerald-500/10 text-emerald-400',
 }
+
+/**
+ * Downloadable bot types available in the Store.
+ * These are not shown by default — the user must install them from the Store tab.
+ * Installed types appear alongside BOT_TEMPLATES in the Bots tab.
+ */
+export const BOT_TYPE_CATALOG: IBotTemplate[] = [
+  {
+    id: 'seo-analyzer',
+    name: 'SEO Analyzer',
+    description: 'Audit any URL for SEO issues and generate improvement recommendations.',
+    defaultGoal:
+      'Crawl the given URL, analyse its SEO metadata, headings, and content structure, then produce a scored SEO audit with actionable recommendations.',
+    icon: '🔎',
+    category: 'productivity',
+  },
+  {
+    id: 'email-drip',
+    name: 'Email Drip Campaign',
+    description: 'Draft multi-step email sequences for marketing or onboarding.',
+    defaultGoal:
+      'Write a 5-email drip sequence for a SaaS product onboarding campaign. Each email needs a subject line, body, and a clear CTA.',
+    icon: '📨',
+    category: 'automation',
+  },
+  {
+    id: 'stock-screener',
+    name: 'Stock Screener',
+    description: 'Scan stocks by financial criteria and produce a ranked watchlist.',
+    defaultGoal:
+      'Screen S&P 500 stocks with P/E < 20, revenue growth > 10 %, and positive free cash flow. Rank the top 10 by earnings quality.',
+    icon: '📉',
+    category: 'finance',
+  },
+  {
+    id: 'competitor-tracker',
+    name: 'Competitor Tracker',
+    description: 'Monitor competitor websites and surface notable changes.',
+    defaultGoal:
+      'Visit the competitor websites listed in the config, summarise any new blog posts, pricing changes, or product announcements from the past 7 days.',
+    icon: '👁️',
+    category: 'research',
+  },
+  {
+    id: 'social-listener',
+    name: 'Social Listener',
+    description: 'Track brand mentions and sentiment across social platforms.',
+    defaultGoal:
+      'Search Twitter/X and Reddit for mentions of the brand name in the last 24 hours. Summarise sentiment, key topics, and notable threads.',
+    icon: '📡',
+    category: 'research',
+  },
+  {
+    id: 'release-notes-writer',
+    name: 'Release Notes Writer',
+    description: 'Auto-generate polished release notes from git commits.',
+    defaultGoal:
+      'Parse the git log since the last tag, group commits by type (feat, fix, chore), and produce user-friendly release notes in markdown.',
+    icon: '📋',
+    category: 'automation',
+  },
+  {
+    id: 'ad-copywriter',
+    name: 'Ad Copywriter',
+    description: 'Generate high-converting ad copy for multiple channels.',
+    defaultGoal:
+      'Write 5 Google Ads headlines, 3 Facebook ad variations, and 2 LinkedIn ad copies for the given product description. Focus on benefits and CTAs.',
+    icon: '📢',
+    category: 'creative',
+  },
+  {
+    id: 'bug-triage',
+    name: 'Bug Triage',
+    description: 'Analyse incoming bug reports and assign severity + owner.',
+    defaultGoal:
+      'Review open GitHub issues without labels, classify each by severity (critical/high/medium/low), suggest an owner based on changed files, and output a triage report.',
+    icon: '🐛',
+    category: 'automation',
+  },
+]
