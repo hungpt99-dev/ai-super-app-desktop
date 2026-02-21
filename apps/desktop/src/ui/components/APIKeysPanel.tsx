@@ -15,6 +15,7 @@ import {
   setDefaultKeyId,
   type ILocalAPIKey,
 } from '../../sdk/api-key-store.js'
+import { useAppStore } from '../store/app-store.js'
 
 const PROVIDERS = [
   { value: 'openai',    label: 'OpenAI',        icon: '🤖', placeholder: 'sk-…' },
@@ -50,7 +51,9 @@ function AddKeyForm({ onSaved, onCancel }: IAddFormProps): React.JSX.Element {
       const saved = await saveAPIKey(provider, rawKey.trim(), label.trim())
       onSaved(saved)
     } catch (err) {
-      setError((err as Error).message)
+      const msg = err instanceof Error ? err.message : String(err)
+      setError(msg)
+      useAppStore.getState().pushNotification({ level: 'error', title: 'Failed to save API key', body: msg })
     } finally {
       setBusy(false)
     }
@@ -296,8 +299,13 @@ export function APIKeysPanel({ onBack }: IAPIKeysPanelProps): React.JSX.Element 
   }
 
   const handleToggle = async (id: string, active: boolean): Promise<void> => {
-    const updated = await setAPIKeyActive(id, active)
-    if (updated) setKeys((prev) => prev.map((k) => (k.id === id ? updated : k)))
+    try {
+      const updated = await setAPIKeyActive(id, active)
+      if (updated) setKeys((prev) => prev.map((k) => (k.id === id ? updated : k)))
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      useAppStore.getState().pushNotification({ level: 'error', title: 'Failed to update API key', body: msg })
+    }
   }
 
   const handleSetDefault = async (id: string): Promise<void> => {
@@ -306,13 +314,18 @@ export function APIKeysPanel({ onBack }: IAPIKeysPanelProps): React.JSX.Element 
   }
 
   const handleDelete = async (id: string): Promise<void> => {
-    await deleteAPIKey(id)
-    // If the deleted key was the default, clear it.
-    if (defaultKeyId === id) {
-      await setDefaultKeyId(null)
-      setDefaultKeyIdState(null)
+    try {
+      await deleteAPIKey(id)
+      // If the deleted key was the default, clear it.
+      if (defaultKeyId === id) {
+        await setDefaultKeyId(null)
+        setDefaultKeyIdState(null)
+      }
+      setKeys((prev) => prev.filter((k) => k.id !== id))
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      useAppStore.getState().pushNotification({ level: 'error', title: 'Failed to remove API key', body: msg })
     }
-    setKeys((prev) => prev.filter((k) => k.id !== id))
   }
 
   return (

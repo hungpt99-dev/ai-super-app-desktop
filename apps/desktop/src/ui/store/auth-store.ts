@@ -8,6 +8,12 @@ import {
 } from '../../sdk/auth-api.js'
 import { tokenStore } from '../../sdk/token-store.js'
 import { logger } from '@ai-super-app/shared'
+import { useAppStore } from './app-store.js'
+
+function notifyError(title: string, err: unknown): void {
+  const msg = err instanceof Error ? err.message : String(err)
+  useAppStore.getState().pushNotification({ level: 'error', title, body: msg })
+}
 
 // NOTE: device registration is handled by startAgentLoop() (called on auth events)
 // to avoid duplicating platform detection and request logic.
@@ -119,6 +125,7 @@ export const useAuthStore = create<IAuthState>((set, get) => ({
       // Device registration is handled by startAgentLoop() triggered by the auth state change.
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Login failed. Check your credentials.'
+      notifyError('Sign-in failed', err)
       set({ isLoading: false, error: message })
     }
   },
@@ -145,6 +152,7 @@ export const useAuthStore = create<IAuthState>((set, get) => ({
       // Device registration is handled by startAgentLoop() triggered by the auth state change.
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Registration failed. Try again.'
+      notifyError('Registration failed', err)
       set({ isLoading: false, error: message })
     }
   },
@@ -184,6 +192,7 @@ export const useAuthStore = create<IAuthState>((set, get) => ({
         )
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to open OAuth window.'
+        notifyError('OAuth sign-in failed', err)
         set({ isLoading: false, error: message })
       }
     })()
@@ -212,6 +221,7 @@ export const useAuthStore = create<IAuthState>((set, get) => ({
       tokenStore.clearToken()
       clearRefreshToken()
       const message = err instanceof Error ? err.message : 'OAuth authentication failed.'
+      notifyError('OAuth authentication failed', err)
       set({ isAuthenticated: false, isLoading: false, error: message })
     }
   },

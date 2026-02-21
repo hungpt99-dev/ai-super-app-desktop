@@ -19,6 +19,15 @@ import { tokenStore } from '../../sdk/token-store.js'
 import { botApi, type ICreateBotInput } from '../../sdk/bot-api.js'
 import { getDesktopBridge } from '../lib/bridge.js'
 
+/** Push an error toast via the global app-store. Lazy import avoids circular dep. */
+function notifyError(title: string, err: unknown): void {
+  const msg = err instanceof Error ? err.message : String(err)
+  // Lazy-require to avoid a circular dependency (bot-store ← app-store)
+  void import('./app-store.js').then(({ useAppStore }) => {
+    useAppStore.getState().pushNotification({ level: 'error', title, body: msg })
+  })
+}
+
 // ─── Local persistence ─────────────────────────────────────────────────────────
 
 const BOTS_KEY = 'ai-superapp-bots'
@@ -327,7 +336,9 @@ export const useBotStore = create<IBotStore>((set, get) => ({
       set({ bots: merged, loading: false })
     } catch (err) {
       // Network failure — fall back to cached local bots.
-      set({ bots: readBots(), loading: false, error: (err as Error).message })
+      const msg = err instanceof Error ? err.message : String(err)
+      notifyError('Failed to load bots', err)
+      set({ bots: readBots(), loading: false, error: msg })
     }
   },
 
@@ -359,7 +370,9 @@ export const useBotStore = create<IBotStore>((set, get) => ({
         set({ bots, loading: false })
       }
     } catch (err) {
-      set({ loading: false, error: (err as Error).message })
+      const msg = err instanceof Error ? err.message : String(err)
+      notifyError('Failed to create bot', err)
+      set({ loading: false, error: msg })
       throw err
     }
   },
@@ -371,7 +384,9 @@ export const useBotStore = create<IBotStore>((set, get) => ({
       try {
         await botApi.delete(id)
       } catch (err) {
-        set({ error: (err as Error).message })
+        const msg = err instanceof Error ? err.message : String(err)
+        notifyError('Failed to delete bot', err)
+        set({ error: msg })
         return
       }
     }
@@ -398,7 +413,9 @@ export const useBotStore = create<IBotStore>((set, get) => ({
           status: next,
         })
       } catch (err) {
-        set({ error: (err as Error).message })
+        const msg = err instanceof Error ? err.message : String(err)
+        notifyError('Failed to update bot status', err)
+        set({ error: msg })
         return
       }
     }
@@ -424,7 +441,9 @@ export const useBotStore = create<IBotStore>((set, get) => ({
         await botApi.start(id)
         await get().loadRuns(id)
       } catch (err) {
-        set({ error: (err as Error).message })
+        const msg = err instanceof Error ? err.message : String(err)
+        notifyError('Failed to queue bot run', err)
+        set({ error: msg })
       } finally {
         removeLock()
       }
@@ -501,6 +520,7 @@ export const useBotStore = create<IBotStore>((set, get) => ({
     } catch (err) {
       result = String(err)
       finalStatus = 'failed'
+      notifyError(`Bot run failed — ${bot.name}`, err)
     }
 
     patchRuns({
@@ -611,8 +631,10 @@ ${preview}`,
         : ai.output
 
       pushMsg({ id: generateId(), role: 'assistant', content: reply, ts: Date.now() })
-    } catch {
-      pushMsg({ id: generateId(), role: 'assistant', content: 'Sorry, I encountered an error. Please try again.', ts: Date.now() })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      notifyError(`${bot.name} encountered an error`, err)
+      pushMsg({ id: generateId(), role: 'assistant', content: `Error: ${msg}`, ts: Date.now() })
     } finally {
       set({ thinkingBotIds: get().thinkingBotIds.filter((x) => x !== botId) })
     }

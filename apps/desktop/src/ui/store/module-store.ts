@@ -1,5 +1,11 @@
 import { create } from 'zustand'
 import { getDesktopBridge } from '../lib/bridge.js'
+import { useAppStore } from './app-store.js'
+
+function notifyError(title: string, err: unknown): void {
+  const msg = err instanceof Error ? err.message : String(err)
+  useAppStore.getState().pushNotification({ level: 'error', title, body: msg })
+}
 
 export interface IModuleInfo {
   id: string
@@ -31,10 +37,9 @@ export const useModuleStore = create<IModuleState>((set, get) => ({
       const list = await bridge.modules.list()
       set({ modules: list, isLoading: false })
     } catch (err) {
-      set({
-        isLoading: false,
-        error: err instanceof Error ? err.message : 'Failed to load modules',
-      })
+      const msg = err instanceof Error ? err.message : 'Failed to load modules'
+      notifyError('Failed to load modules', err)
+      set({ isLoading: false, error: msg })
     }
   },
 
@@ -44,7 +49,9 @@ export const useModuleStore = create<IModuleState>((set, get) => ({
       await bridge.modules.uninstall(moduleId)
       await get().refresh()
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Failed to uninstall module' })
+      const msg = err instanceof Error ? err.message : 'Failed to uninstall module'
+      notifyError('Failed to uninstall module', err)
+      set({ error: msg })
     }
   },
 }))

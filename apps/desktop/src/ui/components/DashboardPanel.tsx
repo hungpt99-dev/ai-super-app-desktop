@@ -281,7 +281,12 @@ function CreateFromTemplateModal({
       if (newBot) onCreated(newBot.id)
       else onClose()
     } catch (err) {
-      setError((err as Error).message)
+      const msg = err instanceof Error ? err.message : String(err)
+      setError(msg)
+      // Also push a persistent error toast so it's visible outside the modal.
+      void import('../store/app-store.js').then(({ useAppStore }) => {
+        useAppStore.getState().pushNotification({ level: 'error', title: 'Failed to create bot', body: msg })
+      })
     } finally {
       setBusy(false)
     }
@@ -375,7 +380,8 @@ export function DashboardPanel({ onNavigate }: IDashboardPanelProps): React.JSX.
   // Load API keys + default key on mount.
   useEffect(() => {
     void (async () => {
-      const [keys, def] = await Promise.all([listAPIKeys(), getDefaultKeyId()])
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
+      const [keys, def]: [ILocalAPIKey[], string | null] = await Promise.all([listAPIKeys(), getDefaultKeyId()])
       setApiKeys(keys)
       setDefaultKeyId(def)
     })()
@@ -395,6 +401,7 @@ export function DashboardPanel({ onNavigate }: IDashboardPanelProps): React.JSX.
 
   const handleSetDefault = useCallback((keyId: string | null) => {
     setDefaultKeyId(keyId)
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
     void persistDefaultKeyId(keyId)
   }, [])
 

@@ -1,11 +1,18 @@
 import { create } from 'zustand'
 import { getDesktopBridge } from '../lib/bridge.js'
 import { getDefaultKeyId, listAPIKeys } from '../../sdk/api-key-store.js'
+import { useAppStore } from './app-store.js'
+
+function notifyError(title: string, err: unknown): void {
+  const msg = err instanceof Error ? err.message : String(err)
+  useAppStore.getState().pushNotification({ level: 'error', title, body: msg })
+}
 
 /** Resolve the app-level default BYOK key, if one has been configured. */
 async function resolveDefaultApiOptions(): Promise<{ apiKey?: string; provider?: string }> {
   try {
-    const defaultId = await getDefaultKeyId()
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
+    const defaultId: string | null = await getDefaultKeyId()
     if (!defaultId) return {}
     const keys = await listAPIKeys()
     const entry = keys.find((k) => k.id === defaultId && k.isActive)
@@ -102,11 +109,13 @@ export const useChatStore = create<IChatState>((set, get) => ({
         isLoading: false,
       }))
     } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Something went wrong. Please try again.'
+      notifyError('Chat request failed', err)
       // Remove the empty placeholder and surface the error
       set((s) => ({
         messages: s.messages.filter((m) => m.id !== assistantId),
         isLoading: false,
-        error: err instanceof Error ? err.message : 'Something went wrong. Please try again.',
+        error: msg,
       }))
     }
   },
