@@ -13,6 +13,7 @@ import {
   saveAPIKey,
   setAPIKeyActive,
   setDefaultKeyId,
+  updateAPIKey,
   type ILocalAPIKey,
 } from '../../sdk/api-key-store.js'
 import { useAppStore } from '../store/app-store.js'
@@ -26,6 +27,42 @@ const PROVIDERS = [
   { value: 'groq',      label: 'Groq',           icon: '⚡', placeholder: 'gsk_…' },
 ]
 
+const PROVIDER_MODELS: Record<string, { value: string; label: string }[]> = {
+  openai: [
+    { value: 'gpt-4o',      label: 'GPT-4o' },
+    { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+    { value: 'o3-mini',     label: 'o3 Mini' },
+    { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
+  ],
+  anthropic: [
+    { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' },
+    { value: 'claude-3-5-haiku-20241022',  label: 'Claude 3.5 Haiku' },
+    { value: 'claude-3-opus-20240229',     label: 'Claude 3 Opus' },
+    { value: 'claude-3-haiku-20240307',    label: 'Claude 3 Haiku' },
+  ],
+  google: [
+    { value: 'gemini-2.0-flash',      label: 'Gemini 2.0 Flash' },
+    { value: 'gemini-2.0-flash-lite', label: 'Gemini 2.0 Flash Lite' },
+    { value: 'gemini-1.5-pro',        label: 'Gemini 1.5 Pro' },
+    { value: 'gemini-1.5-flash',      label: 'Gemini 1.5 Flash' },
+  ],
+  mistral: [
+    { value: 'mistral-small-latest',  label: 'Mistral Small' },
+    { value: 'mistral-medium-latest', label: 'Mistral Medium' },
+    { value: 'mistral-large-latest',  label: 'Mistral Large' },
+  ],
+  groq: [
+    { value: 'llama3-8b-8192',     label: 'LLaMA 3 8B' },
+    { value: 'llama3-70b-8192',    label: 'LLaMA 3 70B' },
+    { value: 'mixtral-8x7b-32768', label: 'Mixtral 8x7B' },
+    { value: 'gemma2-9b-it',       label: 'Gemma 2 9B' },
+  ],
+  cohere: [
+    { value: 'command-r-plus', label: 'Command R+' },
+    { value: 'command-r',      label: 'Command R' },
+  ],
+}
+
 // ── Add Key Form ──────────────────────────────────────────────────────────────
 
 interface IAddFormProps {
@@ -37,6 +74,7 @@ function AddKeyForm({ onSaved, onCancel }: IAddFormProps): React.JSX.Element {
   const [provider, setProvider] = useState('')
   const [label, setLabel] = useState('')
   const [rawKey, setRawKey] = useState('')
+  const [model, setModel] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -48,7 +86,7 @@ function AddKeyForm({ onSaved, onCancel }: IAddFormProps): React.JSX.Element {
     setBusy(true)
     setError(null)
     try {
-      const saved = await saveAPIKey(provider, rawKey.trim(), label.trim())
+      const saved = await saveAPIKey(provider, rawKey.trim(), label.trim(), model || undefined)
       onSaved(saved)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -73,7 +111,7 @@ function AddKeyForm({ onSaved, onCancel }: IAddFormProps): React.JSX.Element {
         <select
           required
           value={provider}
-          onChange={(e) => { setProvider(e.target.value) }}
+          onChange={(e) => { setProvider(e.target.value); setModel('') }}
           className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)]
                      px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none
                      focus:border-[var(--color-accent)]"
@@ -86,6 +124,26 @@ function AddKeyForm({ onSaved, onCancel }: IAddFormProps): React.JSX.Element {
           ))}
         </select>
       </div>
+
+      {provider && (PROVIDER_MODELS[provider]?.length ?? 0) > 0 && (
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-[var(--color-text-secondary)]">
+            Model <span className="text-[var(--color-text-muted)]">(optional)</span>
+          </label>
+          <select
+            value={model}
+            onChange={(e) => { setModel(e.target.value) }}
+            className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)]
+                       px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none
+                       focus:border-[var(--color-accent)]"
+          >
+            <option value="">Provider default</option>
+            {(PROVIDER_MODELS[provider] ?? []).map((m) => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="flex flex-col gap-1">
         <label className="text-xs text-[var(--color-text-secondary)]">
@@ -155,10 +213,11 @@ interface IKeyRowProps {
   isDefault: boolean
   onToggle: (id: string, active: boolean) => Promise<void>
   onSetDefault: (id: string) => Promise<void>
+  onChangeModel: (id: string, model: string | undefined) => Promise<void>
   onDelete: (id: string) => Promise<void>
 }
 
-function KeyRow({ apiKey, isDefault, onToggle, onSetDefault, onDelete }: IKeyRowProps): React.JSX.Element {
+function KeyRow({ apiKey, isDefault, onToggle, onSetDefault, onChangeModel, onDelete }: IKeyRowProps): React.JSX.Element {
   const [busy, setBusy] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const provider = PROVIDERS.find((p) => p.value === apiKey.provider)
@@ -202,6 +261,23 @@ function KeyRow({ apiKey, isDefault, onToggle, onSetDefault, onDelete }: IKeyRow
         <p className="text-xs text-[var(--color-text-secondary)] truncate">
           {apiKey.label ? `${apiKey.label} · ` : ''}{masked}
         </p>
+        {(PROVIDER_MODELS[apiKey.provider]?.length ?? 0) > 0 && (
+          <div className="mt-0.5 flex items-center gap-1">
+            <span className="text-[11px] text-[var(--color-text-muted)]">Model:</span>
+            <select
+              value={apiKey.model ?? ''}
+              onChange={(e) => { void onChangeModel(apiKey.id, e.target.value || undefined) }}
+              className="rounded border border-[var(--color-border)] bg-[var(--color-surface-2)]
+                         px-1.5 py-0 text-[11px] text-[var(--color-text-secondary)]
+                         outline-none focus:border-[var(--color-accent)]"
+            >
+              <option value="">Default</option>
+              {(PROVIDER_MODELS[apiKey.provider] ?? []).map((m) => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       <span
@@ -313,6 +389,16 @@ export function APIKeysPanel({ onBack }: IAPIKeysPanelProps): React.JSX.Element 
     setDefaultKeyIdState(id)
   }
 
+  const handleChangeModel = async (id: string, model: string | undefined): Promise<void> => {
+    try {
+      const updated = await updateAPIKey(id, { model })
+      if (updated) setKeys((prev) => prev.map((k) => (k.id === id ? updated : k)))
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      useAppStore.getState().pushNotification({ level: 'error', title: 'Failed to update model', body: msg })
+    }
+  }
+
   const handleDelete = async (id: string): Promise<void> => {
     try {
       await deleteAPIKey(id)
@@ -392,6 +478,7 @@ export function APIKeysPanel({ onBack }: IAPIKeysPanelProps): React.JSX.Element 
                 isDefault={key.id === defaultKeyId}
                 onToggle={handleToggle}
                 onSetDefault={handleSetDefault}
+                onChangeModel={handleChangeModel}
                 onDelete={handleDelete}
               />
             ))}

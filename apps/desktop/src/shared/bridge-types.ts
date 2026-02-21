@@ -62,6 +62,8 @@ export interface IAiRequestOptions {
   apiKey?: string
   /** Provider slug, e.g. "openai", "anthropic", "gemini". */
   provider?: string
+  /** Model identifier, e.g. "gpt-4o", "claude-3-5-sonnet-20241022". Uses provider default when omitted. */
+  model?: string
 }
 
 export interface IDesktopBridge {

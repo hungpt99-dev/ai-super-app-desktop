@@ -9,7 +9,7 @@ function notifyError(title: string, err: unknown): void {
 }
 
 /** Resolve the app-level default BYOK key, if one has been configured. */
-async function resolveDefaultApiOptions(): Promise<{ apiKey?: string; provider?: string }> {
+async function resolveDefaultApiOptions(): Promise<{ apiKey?: string; provider?: string; model?: string }> {
   try {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
     const defaultId: string | null = await getDefaultKeyId()
@@ -17,7 +17,10 @@ async function resolveDefaultApiOptions(): Promise<{ apiKey?: string; provider?:
     const keys = await listAPIKeys()
     const entry = keys.find((k) => k.id === defaultId && k.isActive)
     if (!entry) return {}
-    return { apiKey: entry.rawKey, provider: entry.provider }
+    const options: { apiKey?: string; provider?: string; model?: string } = { apiKey: entry.rawKey, provider: entry.provider }
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    if (entry.model) options.model = entry.model
+    return options
   } catch {
     return {}
   }

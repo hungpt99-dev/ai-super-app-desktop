@@ -29,6 +29,7 @@ const tauriBridge: IDesktopBridge = {
         message,
         ...(options?.apiKey   ? { apiKey:    options.apiKey   } : {}),
         ...(options?.provider ? { provider: options.provider } : {}),
+        ...(options?.model    ? { model:    options.model    } : {}),
       }),
 
     onStream: (handler) => {
@@ -72,6 +73,7 @@ const tauriBridge: IDesktopBridge = {
           ...(context            ? { context }             : {}),
           ...(options?.apiKey   ? { apiKey:    options.apiKey   } : {}),
           ...(options?.provider ? { provider: options.provider } : {}),
+          ...(options?.model    ? { model:    options.model    } : {}),
         },
       )
       return { output: res.output, tokensUsed: res.tokens_used }
@@ -156,9 +158,9 @@ window.addEventListener('app:notification', (e) => {
 // ── Dev-bridge direct provider constants ──────────────────────────────────────
 
 const DEV_PROVIDER_MODELS: Record<string, string> = {
-  anthropic: 'claude-3-haiku-20240307',
-  google:    'gemini-1.5-flash',
-  gemini:    'gemini-1.5-flash',
+  anthropic: 'claude-3-5-haiku-20241022',
+  google:    'gemini-2.0-flash',
+  gemini:    'gemini-2.0-flash',
   groq:      'llama3-8b-8192',
   mistral:   'mistral-small-latest',
 }
@@ -248,8 +250,9 @@ async function callDevProvider(
   apiKey: string,
   message: string,
   onChunk?: (chunk: string) => void,
+  modelOverride?: string,
 ): Promise<string> {
-  const model = DEV_PROVIDER_MODELS[provider] ?? DEFAULT_OPENAI_MODEL
+  const model = modelOverride ?? DEV_PROVIDER_MODELS[provider] ?? DEFAULT_OPENAI_MODEL
 
   if (provider === 'anthropic') {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -310,6 +313,7 @@ const devBridge: IDesktopBridge = {
           options.apiKey,
           message,
           (chunk) => { _streamHandler?.(chunk) },
+          options.model,
         )
         return { output }
       }
@@ -357,7 +361,7 @@ const devBridge: IDesktopBridge = {
     generate: async (capability: string, input: string, _context?: Record<string, unknown>, options?: IAiRequestOptions): Promise<{ output: string; tokensUsed: number }> => {
       if (options?.apiKey && options.provider) {
         const prompt = `[${capability}] ${input}`
-        const output = await callDevProvider(options.provider, options.apiKey, prompt)
+        const output = await callDevProvider(options.provider, options.apiKey, prompt, undefined, options.model)
         return { output, tokensUsed: 0 }
       }
       return {

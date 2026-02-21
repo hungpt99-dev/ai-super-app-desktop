@@ -28,6 +28,8 @@ export interface ILocalAPIKey {
    * In dev mode it lives in localStorage (acceptable for local development only).
    */
   rawKey: string
+  /** Model identifier to use with this key, e.g. "gpt-4o". Uses provider default when omitted. */
+  model?: string
   isActive: boolean
   createdAt: string
 }
@@ -85,6 +87,7 @@ export async function saveAPIKey(
   provider: string,
   rawKey: string,
   label = '',
+  model?: string,
 ): Promise<ILocalAPIKey> {
   const keys = await readAll()
   const entry: ILocalAPIKey = {
@@ -92,6 +95,7 @@ export async function saveAPIKey(
     provider,
     label,
     rawKey,
+    ...(model ? { model } : {}),
     isActive: true,
     createdAt: new Date().toISOString(),
   }
@@ -114,6 +118,22 @@ export async function setAPIKeyActive(id: string, active: boolean): Promise<ILoc
   const current = keys[idx]
   if (!current) return null
   const updated: ILocalAPIKey = { ...current, isActive: active }
+  keys[idx] = updated
+  await writeAll(keys)
+  return updated
+}
+
+/** Updates the label and/or model of a stored key. */
+export async function updateAPIKey(
+  id: string,
+  updates: Partial<Pick<ILocalAPIKey, 'label' | 'model'>>,
+): Promise<ILocalAPIKey | null> {
+  const keys = await readAll()
+  const idx = keys.findIndex((k) => k.id === id)
+  if (idx < 0) return null
+  const current = keys[idx]
+  if (!current) return null
+  const updated: ILocalAPIKey = { ...current, ...updates }
   keys[idx] = updated
   await writeAll(keys)
   return updated

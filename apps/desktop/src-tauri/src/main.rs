@@ -161,11 +161,11 @@ const ANTHROPIC_VERSION:  &str = "2023-06-01";
 /// Returns the default model identifier for a given provider slug.
 fn default_model(provider: &str) -> &'static str {
     match provider {
-        "anthropic"        => "claude-3-haiku-20240307",
-        "google" | "gemini" => "gemini-1.5-flash",
-        "groq"             => "llama3-8b-8192",
-        "mistral"          => "mistral-small-latest",
-        _                  => "gpt-4o-mini",  // openai + fallback
+        "anthropic"         => "claude-3-5-haiku-20241022",
+        "google" | "gemini" => "gemini-2.0-flash",
+        "groq"              => "llama3-8b-8192",
+        "mistral"           => "mistral-small-latest",
+        _                   => "gpt-4o-mini",  // openai + fallback
     }
 }
 
@@ -219,10 +219,11 @@ async fn call_provider_stream(
     http: &reqwest::Client,
     provider: &str,
     api_key: &str,
+    model_override: Option<&str>,
     message: &str,
     event_name: &str,
 ) -> Result<String, String> {
-    let model = default_model(provider);
+    let model = model_override.unwrap_or_else(|| default_model(provider));
 
     match provider {
         "anthropic" => {
@@ -302,9 +303,10 @@ async fn call_provider_generate(
     http: &reqwest::Client,
     provider: &str,
     api_key: &str,
+    model_override: Option<&str>,
     input: &str,
 ) -> Result<(String, i64), String> {
-    let model = default_model(provider);
+    let model = model_override.unwrap_or_else(|| default_model(provider));
 
     match provider {
         "anthropic" => {
@@ -522,11 +524,12 @@ async fn chat_send(
     message: String,
     api_key: Option<String>,
     provider: Option<String>,
+    model: Option<String>,
 ) -> Result<ChatResponse, String> {
     // BYOK path — call the AI provider directly.
     if let (Some(key), Some(prov)) = (api_key.as_deref(), provider.as_deref()) {
         let output = call_provider_stream(
-            &app, &state.http_client, prov, key, &message, "chat:stream-chunk",
+            &app, &state.http_client, prov, key, model.as_deref(), &message, "chat:stream-chunk",
         ).await?;
         return Ok(ChatResponse { output });
     }
@@ -584,6 +587,7 @@ async fn ai_generate(
     context: Option<serde_json::Value>,
     api_key: Option<String>,
     provider: Option<String>,
+    model: Option<String>,
 ) -> Result<AiGenerateResponse, String> {
     // BYOK path — call the AI provider directly.
     if let (Some(key), Some(prov)) = (api_key.as_deref(), provider.as_deref()) {
@@ -592,7 +596,7 @@ async fn ai_generate(
             None    => input.clone(),
         };
         let (output, tokens_used) =
-            call_provider_generate(&state.http_client, prov, key, &prompt).await?;
+            call_provider_generate(&state.http_client, prov, key, model.as_deref(), &prompt).await?;
         return Ok(AiGenerateResponse { output, tokens_used });
     }
 
@@ -637,6 +641,7 @@ async fn ai_stream(
     context: Option<serde_json::Value>,
     api_key: Option<String>,
     provider: Option<String>,
+    model: Option<String>,
 ) -> Result<(), String> {
     // BYOK path — call the AI provider directly.
     if let (Some(key), Some(prov)) = (api_key.as_deref(), provider.as_deref()) {
@@ -645,7 +650,7 @@ async fn ai_stream(
             None    => input.clone(),
         };
         call_provider_stream(
-            &app, &state.http_client, prov, key, &prompt, "ai:stream-chunk",
+            &app, &state.http_client, prov, key, model.as_deref(), &prompt, "ai:stream-chunk",
         ).await?;
         let _ = app.emit("ai:stream-done", ());
         return Ok(());
