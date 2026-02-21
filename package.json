@@ -1,11 +1,11 @@
 {
-  "name": "ai-super-app",
+  "name": "ai-super-app-desktop",
   "private": true,
   "version": "1.0.0",
-  "description": "AI SuperApp – Desktop application (Electron + React, open-source)",
+  "description": "AI SuperApp \u2013 Desktop client (Tauri + React, open-source)",
   "workspaces": [
     "packages/*",
-    "apps/*",
+    "apps/desktop",
     "modules/*"
   ],
   "scripts": {

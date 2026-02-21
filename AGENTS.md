@@ -1,4 +1,4 @@
-# AGENTS.md – AI SuperApp
+# AGENTS.md \u2013 AI SuperApp Desktop
 
 This file defines coding standards, architecture rules, and behavioral guidelines for AI agents working in this repository.
 
@@ -6,15 +6,16 @@ This file defines coding standards, architecture rules, and behavioral guideline
 
 ## 1. Project Overview
 
-**AI SuperApp Desktop** is the open-source Electron + React client.  
+**AI SuperApp Desktop** is the open-source Tauri + React desktop client.  
 The private backend lives in a separate repository: `ai-super-app-backend` (Go + Chi).  
-Architecture: Desktop Shell → Go API Gateway → AI Orchestrator → Module Ecosystem.
+The private SaaS web dashboard lives in a separate repository: `ai-super-app-web` (React + Vite).  
+Architecture: Desktop Shell \u2192 Go API Gateway \u2192 AI Orchestrator \u2192 Module Ecosystem.
 
 Key docs:
 - Product concept: [`docs/product-concept.md`](docs/product-concept.md)
 - Technical architecture: [`docs/technical-architecture.md`](docs/technical-architecture.md)
 
-> **This repo is desktop-only.** Do not add backend code here.
+> **This repo is desktop-only and open-source.** Do not add backend or web dashboard code here.
 
 ---
 
@@ -22,12 +23,13 @@ Key docs:
 
 | Layer | Technology |
 |-------|-----------|
-| Desktop Shell | Electron |
+| Desktop Shell | Tauri 2 + Rust |
 | UI | React + TypeScript |
 | Styling | TailwindCSS |
-| Local DB | SQLite |
+| Local DB | SQLite (via Tauri plugin) |
 | Language | TypeScript (strict mode) |
 | Backend (separate repo) | Go + Chi (`ai-super-app-backend`) |
+| Web Dashboard (separate repo) | React + Vite (`ai-super-app-web`) |
 | Backend DB (separate repo) | PostgreSQL + Redis |
 
 ---
@@ -118,18 +120,19 @@ Do not introduce module-level network calls outside the `ctx.ai` or `ctx.storage
 ```
 ai-super-app-desktop/        ← this repo (open-source)
  ├── AGENTS.md
+ ├── README.md
  ├── docs/
  ├── apps/
- │    └── desktop/          # Electron + React
- │         ├── electron/    # Main process (main.ts, preload.ts)
+ │    └── desktop/          # Tauri + React
+ │         ├── src-tauri/   # Rust backend (main.rs, computer.rs, memory.rs)
  │         └── src/
  │              ├── core/   # Module manager, permission engine, sandbox
- │              ├── ui/     # React components
+ │              ├── ui/     # React components, stores, hooks
  │              └── sdk/    # AiSdkProxy — HTTP client for Go backend
  ├── packages/
  │    ├── sdk/              # Shared Module SDK types
  │    └── shared/           # Shared utilities & types
- └── modules/               # Built-in mini-app modules
+ └── modules/               # Built-in bot modules
       ├── crypto/
       └── writing-helper/
 
@@ -139,6 +142,14 @@ ai-super-app-backend/        ← separate private repo (Go)
  ├── internal/              # config, auth, orchestrator, billing, ...
  ├── pkg/                   # logger, errors, utils
  └── migrations/
+
+ai-super-app-web/            ← separate private repo (React + Vite)
+ ├── src/
+ │    ├── pages/            # Route-level page components
+ │    ├── components/       # Reusable UI components
+ │    ├── store/            # Zustand stores
+ │    └── lib/              # API client + demo mode
+ └── ...
 ```
 
 ---
