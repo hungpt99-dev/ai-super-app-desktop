@@ -14,8 +14,8 @@ import { useAuthStore } from '../store/auth-store.js'
 import type { AppView } from '../store/app-store.js'
 import {
   listAPIKeys,
-  getDefaultProvider,
-  setDefaultProvider,
+  getDefaultKeyId,
+  setDefaultKeyId as persistDefaultKeyId,
   type ILocalAPIKey,
 } from '../../sdk/api-key-store.js'
 import {
@@ -70,13 +70,13 @@ function StatCard({ icon, label, value, accent = 'text-[var(--color-accent)]' }:
 
 interface IDefaultKeyCardProps {
   keys: ILocalAPIKey[]
-  defaultProvider: string | null
-  onSetDefault: (provider: string | null) => void
+  defaultKeyId: string | null
+  onSetDefault: (keyId: string | null) => void
   onGoToKeys: () => void
 }
 
 function DefaultKeyCard({
-  keys, defaultProvider, onSetDefault, onGoToKeys,
+  keys, defaultKeyId, onSetDefault, onGoToKeys,
 }: IDefaultKeyCardProps): React.JSX.Element {
   const activeKeys = keys.filter((k) => k.isActive)
 
@@ -110,7 +110,7 @@ function DefaultKeyCard({
         </div>
       ) : (
         <select
-          value={defaultProvider ?? ''}
+          value={defaultKeyId ?? ''}
           onChange={(e) => { onSetDefault(e.target.value !== '' ? e.target.value : null) }}
           className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)]
                      px-4 py-2.5 text-sm text-[var(--color-text-primary)] outline-none
@@ -119,9 +119,11 @@ function DefaultKeyCard({
           <option value="">⛔ None — offline mode</option>
           {activeKeys.map((k) => {
             const meta = PROVIDER_LABELS[k.provider]
-            const display = k.label.length > 0 ? k.label : (meta?.label ?? k.provider)
+            const display = k.label.length > 0
+              ? `${k.label} (${meta?.label ?? k.provider})`
+              : (meta?.label ?? k.provider)
             return (
-              <option key={k.id} value={k.provider}>
+              <option key={k.id} value={k.id}>
                 {meta?.icon ?? '🔑'} {display}
               </option>
             )
@@ -129,13 +131,20 @@ function DefaultKeyCard({
         </select>
       )}
 
-      {defaultProvider && (
-        <p className="mt-2 text-[11px] text-[var(--color-success)]">
-          ✓ Bots will use{' '}
-          <strong>{PROVIDER_LABELS[defaultProvider]?.label ?? defaultProvider}</strong>{' '}
-          by default when run locally.
-        </p>
-      )}
+      {defaultKeyId && (() => {
+        const key = activeKeys.find((k) => k.id === defaultKeyId)
+        const meta = key ? PROVIDER_LABELS[key.provider] : undefined
+        const display = key
+          ? (key.label.length > 0
+            ? `${key.label} (${meta?.label ?? key.provider})`
+            : (meta?.label ?? key.provider))
+          : defaultKeyId
+        return (
+          <p className="mt-2 text-[11px] text-[var(--color-success)]">
+            ✓ Bots will use <strong>{display}</strong> by default when run locally.
+          </p>
+        )
+      })()}
     </div>
   )
 }
@@ -379,16 +388,16 @@ export function DashboardPanel({ onNavigate }: IDashboardPanelProps): React.JSX.
   const bots       = useBotStore((s) => s.bots)
   const runs       = useBotStore((s) => s.runs)
 
-  const [apiKeys, setApiKeys]           = useState<ILocalAPIKey[]>([])
-  const [defaultProvider, setDefault]   = useState<string | null>(null)
+  const [apiKeys, setApiKeys]               = useState<ILocalAPIKey[]>([])
+  const [defaultKeyId, setDefaultKeyId]     = useState<string | null>(null)
   const [activeTemplate, setActiveTemplate] = useState<IBotTemplate | null>(null)
 
-  // Load API keys + default provider on mount.
+  // Load API keys + default key on mount.
   useEffect(() => {
     void (async () => {
-      const [keys, def] = await Promise.all([listAPIKeys(), getDefaultProvider()])
+      const [keys, def] = await Promise.all([listAPIKeys(), getDefaultKeyId()])
       setApiKeys(keys)
-      setDefault(def)
+      setDefaultKeyId(def)
     })()
     void useBotStore.getState().loadBots()
   }, [])
@@ -404,9 +413,9 @@ export function DashboardPanel({ onNavigate }: IDashboardPanelProps): React.JSX.
     .sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime())
     .slice(0, 8)
 
-  const handleSetDefault = useCallback((provider: string | null) => {
-    setDefault(provider)
-    void setDefaultProvider(provider)
+  const handleSetDefault = useCallback((keyId: string | null) => {
+    setDefaultKeyId(keyId)
+    void persistDefaultKeyId(keyId)
   }, [])
 
   const handleOpenBot = useCallback((botId: string) => {
@@ -447,7 +456,7 @@ export function DashboardPanel({ onNavigate }: IDashboardPanelProps): React.JSX.
           {/* ── Default run key ────────────────────────────────────────────── */}
           <DefaultKeyCard
             keys={apiKeys}
-            defaultProvider={defaultProvider}
+            defaultKeyId={defaultKeyId}
             onSetDefault={handleSetDefault}
             onGoToKeys={() => { onNavigate('api-keys') }}
           />

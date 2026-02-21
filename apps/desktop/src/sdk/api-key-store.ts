@@ -78,8 +78,8 @@ export async function listAPIKeys(): Promise<ILocalAPIKey[]> {
 }
 
 /**
- * Saves (upserts) a provider key.
- * One key per provider — adding the same provider again replaces the existing entry.
+ * Saves a new provider key.
+ * Multiple keys per provider are allowed — each gets a unique id.
  */
 export async function saveAPIKey(
   provider: string,
@@ -87,21 +87,15 @@ export async function saveAPIKey(
   label = '',
 ): Promise<ILocalAPIKey> {
   const keys = await readAll()
-  const existing = keys.findIndex((k) => k.provider === provider)
-  const existingEntry = existing >= 0 ? keys[existing] : undefined
   const entry: ILocalAPIKey = {
-    id: existingEntry?.id ?? generateId(),
+    id: generateId(),
     provider,
     label,
     rawKey,
     isActive: true,
-    createdAt: existingEntry?.createdAt ?? new Date().toISOString(),
+    createdAt: new Date().toISOString(),
   }
-  if (existing >= 0) {
-    keys[existing] = entry
-  } else {
-    keys.push(entry)
-  }
+  keys.push(entry)
   await writeAll(keys)
   return entry
 }
@@ -135,44 +129,44 @@ export async function getActiveKeyForProvider(provider: string): Promise<string 
   return match?.rawKey ?? null
 }
 
-// ── Default provider for bot runs ─────────────────────────────────────────────
+// ── Default key for bot runs ─────────────────────────────────────────────────
 
-const DEFAULT_PROVIDER_STORE_KEY = 'ai-superapp:default-provider'
+const DEFAULT_KEY_STORE_KEY = 'ai-superapp:default-key'
 
 /**
- * Returns the provider slug (e.g. "openai") chosen as the default for local
- * bot runs, or null when none has been set (offline mode).
+ * Returns the key ID chosen as the default for local bot runs,
+ * or null when none has been set (offline mode).
  */
-export async function getDefaultProvider(): Promise<string | null> {
+export async function getDefaultKeyId(): Promise<string | null> {
   if (IS_TAURI) {
     try {
       const { invoke } = await import('@tauri-apps/api/core')
-      const raw = await invoke<string | null>('store_get', { key: DEFAULT_PROVIDER_STORE_KEY })
+      const raw = await invoke<string | null>('store_get', { key: DEFAULT_KEY_STORE_KEY })
       return raw ?? null
     } catch { /* fall through */ }
   }
-  return localStorage.getItem(DEFAULT_PROVIDER_STORE_KEY)
+  return localStorage.getItem(DEFAULT_KEY_STORE_KEY)
 }
 
 /**
- * Sets (or clears) the default provider for local bot runs.
+ * Sets (or clears) the default key ID for local bot runs.
  * Pass `null` to reset to offline mode.
  */
-export async function setDefaultProvider(provider: string | null): Promise<void> {
+export async function setDefaultKeyId(keyId: string | null): Promise<void> {
   if (IS_TAURI) {
     try {
       const { invoke } = await import('@tauri-apps/api/core')
-      if (provider !== null) {
-        await invoke('store_set', { key: DEFAULT_PROVIDER_STORE_KEY, value: provider })
+      if (keyId !== null) {
+        await invoke('store_set', { key: DEFAULT_KEY_STORE_KEY, value: keyId })
       } else {
-        await invoke('store_del', { key: DEFAULT_PROVIDER_STORE_KEY })
+        await invoke('store_del', { key: DEFAULT_KEY_STORE_KEY })
       }
       return
     } catch { /* fall through */ }
   }
-  if (provider !== null) {
-    localStorage.setItem(DEFAULT_PROVIDER_STORE_KEY, provider)
+  if (keyId !== null) {
+    localStorage.setItem(DEFAULT_KEY_STORE_KEY, keyId)
   } else {
-    localStorage.removeItem(DEFAULT_PROVIDER_STORE_KEY)
+    localStorage.removeItem(DEFAULT_KEY_STORE_KEY)
   }
 }

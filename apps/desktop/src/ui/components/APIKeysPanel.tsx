@@ -26,12 +26,11 @@ const PROVIDERS = [
 // ── Add Key Form ──────────────────────────────────────────────────────────────
 
 interface IAddFormProps {
-  existingProviders: string[]
   onSaved: (key: ILocalAPIKey) => void
   onCancel: () => void
 }
 
-function AddKeyForm({ existingProviders, onSaved, onCancel }: IAddFormProps): React.JSX.Element {
+function AddKeyForm({ onSaved, onCancel }: IAddFormProps): React.JSX.Element {
   const [provider, setProvider] = useState('')
   const [label, setLabel] = useState('')
   const [rawKey, setRawKey] = useState('')
@@ -77,7 +76,7 @@ function AddKeyForm({ existingProviders, onSaved, onCancel }: IAddFormProps): Re
           <option value="">Select provider…</option>
           {PROVIDERS.map((p) => (
             <option key={p.value} value={p.value}>
-              {p.icon} {p.label}{existingProviders.includes(p.value) ? ' (replace)' : ''}
+              {p.icon} {p.label}
             </option>
           ))}
         </select>
@@ -254,15 +253,7 @@ export function APIKeysPanel({ onBack }: IAPIKeysPanelProps): React.JSX.Element 
   useEffect(() => { void load() }, [load])
 
   const handleSaved = (key: ILocalAPIKey): void => {
-    setKeys((prev) => {
-      const idx = prev.findIndex((k) => k.provider === key.provider)
-      if (idx >= 0) {
-        const copy = [...prev]
-        copy[idx] = key
-        return copy
-      }
-      return [...prev, key]
-    })
+    setKeys((prev) => [...prev, key])
     setShowForm(false)
   }
 
@@ -310,7 +301,6 @@ export function APIKeysPanel({ onBack }: IAPIKeysPanelProps): React.JSX.Element 
         {showForm && (
           <div className="mb-4">
             <AddKeyForm
-              existingProviders={keys.map((k) => k.provider)}
               onSaved={handleSaved}
               onCancel={() => { setShowForm(false) }}
             />
