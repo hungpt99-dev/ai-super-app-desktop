@@ -7,6 +7,7 @@ import { SettingsPanel } from './components/SettingsPanel.js'
 import { BotsPanel } from './components/BotsPanel.js'
 import { DashboardPanel } from './components/DashboardPanel.js'
 import { ActivityPanel } from './components/ActivityPanel.js'
+import { LogsPanel } from './components/LogsPanel.js'
 import { APIKeysPanel } from './components/APIKeysPanel.js'
 import { PermissionRequestDialog } from './components/PermissionRequestDialog.js'
 import { NotificationCenter } from './components/NotificationCenter.js'
@@ -142,6 +143,7 @@ export function App(): React.JSX.Element {
         {activeView === 'chat' && <ChatWindow />}
         {activeView === 'bots' && <FeatureGrid onOpenModule={handleOpenModule} />}
         {activeView === 'activity' && <ActivityPanel onNavigate={setView} />}
+        {activeView === 'logs' && <LogsPanel />}
         {activeView === 'settings' && <SettingsPanel onBack={() => { setView('chat') }} />}
         {activeView === 'api-keys' && <APIKeysPanel onBack={() => { setView('chat') }} />}
         {activeView === 'bot-run' && <BotsPanel onBack={() => { setView('bots') }} />}

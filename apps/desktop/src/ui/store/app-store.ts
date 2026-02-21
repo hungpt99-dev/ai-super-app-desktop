@@ -1,7 +1,8 @@
 import { create } from 'zustand'
 import type { IToastNotification } from '../../shared/bridge-types.js'
+import { addLog } from './log-store.js'
 
-export type AppView = 'dashboard' | 'chat' | 'bots' | 'activity' | 'settings' | 'api-keys' | 'bot-run'
+export type AppView = 'dashboard' | 'chat' | 'bots' | 'activity' | 'logs' | 'settings' | 'api-keys' | 'bot-run'
 export type Theme = 'dark' | 'light' | 'system'
 export type { IToastNotification }
 
@@ -87,6 +88,10 @@ export const useAppStore = create<IAppState>((set) => ({
       ...(n.source !== undefined ? { source: n.source } : {}),
       timestamp: Date.now(),
       read: false,
+    }
+    // Mirror warn / error notifications to the Logs panel.
+    if (n.level === 'error' || n.level === 'warning') {
+      addLog({ level: n.level === 'warning' ? 'warn' : 'error', source: 'system', message: n.title, ...(n.body ? { detail: n.body } : {}) })
     }
     set((s) => ({
       notifications: [...s.notifications, toast],

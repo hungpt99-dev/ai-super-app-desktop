@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { getDesktopBridge } from '../lib/bridge.js'
 import { getDefaultKeyId, listAPIKeys } from '../../sdk/api-key-store.js'
 import { useAppStore } from './app-store.js'
+import { addLog } from './log-store.js'
 
 function notifyError(title: string, err: unknown): void {
   const msg = err instanceof Error ? err.message : String(err)
@@ -89,6 +90,13 @@ export const useChatStore = create<IChatState>((set, get) => ({
 
       const aiOptions = await resolveDefaultApiOptions()
 
+      addLog({
+        level: 'info',
+        source: 'chat',
+        message: `Sending message${aiOptions.provider ? ` via ${aiOptions.provider}${aiOptions.model ? `/${aiOptions.model}` : ''}` : ''}`,
+        detail: text.length > 120 ? `${text.slice(0, 120)}…` : text,
+      })
+
       // Register streaming handler BEFORE calling send
       const unsubscribe = bridge.chat.onStream((chunk) => {
         accumulated += chunk
@@ -105,6 +113,13 @@ export const useChatStore = create<IChatState>((set, get) => ({
       // Use streamed content if available, fall back to response payload
       const finalContent = accumulated || response.output
 
+      addLog({
+        level: 'info',
+        source: 'ai',
+        message: `Response received (${String(finalContent.length)} chars)`,
+        detail: finalContent.length > 300 ? `${finalContent.slice(0, 300)}…` : finalContent,
+      })
+
       set((s) => ({
         messages: s.messages.map((m) =>
           m.id === assistantId ? { ...m, content: finalContent, isStreaming: false } : m,
@@ -113,6 +128,7 @@ export const useChatStore = create<IChatState>((set, get) => ({
       }))
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Something went wrong. Please try again.'
+      addLog({ level: 'error', source: 'chat', message: 'Chat request failed', detail: msg })
       notifyError('Chat request failed', err)
       // Remove the empty placeholder and surface the error
       set((s) => ({
