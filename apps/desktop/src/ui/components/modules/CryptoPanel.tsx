@@ -81,7 +81,10 @@ function Spinner(): React.JSX.Element {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface ICryptoPanelProps {
-  onBack: () => void
+  /** Back-navigation handler — required in standalone mode, unused in embedded mode. */
+  onBack?: () => void
+  /** When true, hides the panel header so it can live inside another layout (e.g. BotsPanel). */
+  embedded?: boolean
 }
 
 /**
@@ -90,7 +93,7 @@ interface ICryptoPanelProps {
  * Data source: modules.invokeTool('crypto', 'get_market_data', { symbol })
  * Analysis:    ai.generate('analysis', prompt)
  */
-export function CryptoPanel({ onBack }: ICryptoPanelProps): React.JSX.Element {
+export function CryptoPanel({ onBack, embedded = false }: ICryptoPanelProps): React.JSX.Element {
   const [activeSymbol, setActiveSymbol] = useState<CryptoSymbol>('BTC')
   const [marketData, setMarketData] = useState<IMarketData | null>(null)
   const [analysis, setAnalysis] = useState<IAiAnalysis | null>(null)
@@ -149,8 +152,9 @@ export function CryptoPanel({ onBack }: ICryptoPanelProps): React.JSX.Element {
     n >= 1e9 ? `$${(n / 1e9).toFixed(2)}B` : `$${(n / 1e6).toFixed(0)}M`
 
   return (
-    <div className="flex h-full flex-col bg-[var(--color-bg)]">
-      {/* Header */}
+    <div className={embedded ? 'flex flex-col' : 'flex h-full flex-col bg-[var(--color-bg)]'}>
+      {/* Header — only shown in standalone mode */}
+      {!embedded && (
       <div className="flex shrink-0 items-center gap-3 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-6 py-4">
         <button
           onClick={onBack}
@@ -182,9 +186,46 @@ export function CryptoPanel({ onBack }: ICryptoPanelProps): React.JSX.Element {
           Refresh
         </button>
       </div>
+      )}
 
-      <div className="flex-1 overflow-y-auto px-6 py-5">
-        {/* Symbol tabs */}
+      <div className={embedded ? 'px-1 py-3' : 'flex-1 overflow-y-auto px-6 py-5'}>
+        {/* Embedded toolbar: symbol switcher + refresh in a compact row */}
+        {embedded && (
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <div className="flex gap-2">
+              {SYMBOLS.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => { setActiveSymbol(s) }}
+                  className={[
+                    'rounded-xl px-3 py-1.5 text-xs font-medium transition-colors',
+                    s === activeSymbol
+                      ? 'bg-[var(--color-accent)] text-white'
+                      : 'border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:border-[var(--color-accent)]',
+                  ].join(' ')}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              {lastUpdated && (
+                <span className="text-[10px] text-[var(--color-text-muted)]">
+                  {lastUpdated.toLocaleTimeString()}
+                </span>
+              )}
+              <button
+                onClick={() => { void fetchMarketData(activeSymbol) }}
+                disabled={isLoadingData}
+                className="flex items-center gap-1.5 rounded-lg bg-[var(--color-surface-2)] px-2.5 py-1 text-[10px] font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-border)] disabled:opacity-50"
+              >
+                {isLoadingData ? <Spinner /> : '↻'} Refresh
+              </button>
+            </div>
+          </div>
+        )}
+        {/* Symbol tabs — standalone mode only */}
+        {!embedded && (
         <div className="mb-5 flex gap-2">
           {SYMBOLS.map((s) => (
             <button
@@ -201,6 +242,7 @@ export function CryptoPanel({ onBack }: ICryptoPanelProps): React.JSX.Element {
             </button>
           ))}
         </div>
+        )}
 
         {/* Error state */}
         {error && (

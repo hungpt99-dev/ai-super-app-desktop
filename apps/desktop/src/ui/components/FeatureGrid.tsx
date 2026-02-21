@@ -3,10 +3,8 @@
  *
  * Layout
  * ──────
- * 1. Bot Types  — one expandable card per template; each shows its bot
- *                 instances and an "+ Add another" button.
- * 2. Custom Bots — bots created without a template.
- * 3. Built-in Tools — crypto, writing-helper (non-bot features).
+ * 1. All Bot Types  — one card per template; shows bot count and "+ Add Bot" CTA.
+ * 2. My Bots        — flat list of all bot instances (newest-first).
  *
  * Creating a bot is a 2-step wizard:
  *   Step 1 — Pick a bot type (required; or choose "Custom").
@@ -14,7 +12,6 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { useModules } from '../hooks/use-modules.js'
 import { useBotStore, type IDesktopBot } from '../store/bot-store.js'
 import { useAuthStore } from '../store/auth-store.js'
 import {
@@ -25,24 +22,6 @@ import {
 } from '../store/bot-templates.js'
 import { useBotTypeStore } from '../store/bot-type-store.js'
 
-// ─── Built-in tool entries (non-bot features) ─────────────────────────────────
-
-const BUILT_IN_TOOLS = [
-  {
-    id: 'crypto',
-    icon: '📈',
-    label: 'Crypto Analysis',
-    description: 'Real-time market analysis, price alerts, and AI-powered insights for crypto.',
-    badge: 'Finance',
-  },
-  {
-    id: 'writing-helper',
-    icon: '✍️',
-    label: 'Writing Helper',
-    description: 'Improve, summarize, expand, translate, or fix grammar in any text.',
-    badge: 'Productivity',
-  },
-]
 
 const CUSTOM_TYPE_ID = '__custom__'
 
@@ -421,11 +400,9 @@ function BotTypeCard({
  * One bot type can power any number of bots with different names and goals.
  */
 export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Element {
-  const { modules }       = useModules()
   const bots              = useBotStore((s) => s.bots)
   const runningBotIds     = useBotStore((s) => s.runningBotIds)
   const installedTypeIds  = useBotTypeStore((s) => s.installedTypeIds)
-  const activeIds         = new Set(modules.map((m) => m.id))
 
   // All bot types = built-in + installed downloadable types
   const allTemplates = useMemo(() => [
@@ -484,13 +461,7 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
         )
       })
 
-  const visibleTools = search.length === 0
-    ? BUILT_IN_TOOLS
-    : BUILT_IN_TOOLS.filter(
-        (t) => t.label.toLowerCase().includes(q) || t.description.toLowerCase().includes(q),
-      )
-
-  const isEmpty = visibleTemplates.length === 0 && visibleAllBots.length === 0 && visibleTools.length === 0
+  const isEmpty = visibleTemplates.length === 0 && visibleAllBots.length === 0
 
   return (
     <div className="flex h-full flex-col bg-[var(--color-bg)]">
@@ -528,15 +499,15 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
             </svg>
             <input
               type="text"
-              placeholder="Search bot types, bots, or tools…"
+              placeholder="Search bot types or bots…"
               value={search}
               onChange={(e) => { setSearch(e.target.value) }}
               className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2.5 pl-10 pr-4 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-secondary)] outline-none focus:border-[var(--color-accent)] transition-colors"
             />
           </div>
 
-          {/* All Bot Types — unified card grid: agent types + built-in bots */}
-          {(visibleTemplates.length > 0 || visibleTools.length > 0) && (
+          {/* All Bot Types */}
+          {visibleTemplates.length > 0 && (
             <section>
               <div className="mb-4 flex items-center justify-between">
                 <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
@@ -551,7 +522,6 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
                 </button>
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {/* Agent bot type cards */}
                 {visibleTemplates.map((template) => {
                   const typeBots     = botsByTemplate[template.id] ?? []
                   const runningCount = typeBots.filter((b) => runningBotIds.includes(b.id)).length
@@ -569,19 +539,7 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
                     />
                   )
                 })}
-                {/* Built-in bot cards — same card visual, "Built-in" badge */}
-                {visibleTools.map((tool) => (
-                  <BotTypeCard
-                    key={tool.id}
-                    icon={tool.icon}
-                    label={tool.label}
-                    description={tool.description}
-                    badge={tool.badge}
-                    badgeClass="border border-[var(--color-border)] text-[var(--color-text-secondary)]"
-                    isActive={activeIds.has(tool.id)}
-                    onAction={() => { onOpenModule(tool.id) }}
-                  />
-                ))}
+
               </div>
             </section>
           )}

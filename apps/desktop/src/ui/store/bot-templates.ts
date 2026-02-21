@@ -73,6 +73,24 @@ export const BOT_TEMPLATES: IBotTemplate[] = [
     icon: '📝',
     category: 'productivity',
   },
+  {
+    id: 'crypto-analysis',
+    name: 'Crypto Analysis',
+    description: 'Real-time market data, price alerts, and AI-powered insights for BTC, ETH, SOL and BNB.',
+    defaultGoal:
+      'Monitor BTC, ETH, SOL and BNB market data, detect significant price movements, and generate an AI-powered market outlook.',
+    icon: '🪙',
+    category: 'finance',
+  },
+  {
+    id: 'writing-helper',
+    name: 'Writing Helper',
+    description: 'Improve, summarize, expand, translate, or fix grammar in any text with AI.',
+    defaultGoal:
+      'Process the provided text and return an improved version based on the selected action — improve clarity, summarize, expand, translate, or fix grammar.',
+    icon: '✍️',
+    category: 'creative',
+  },
 ]
 
 /** Tailwind colour classes keyed by category — used on template cards. */

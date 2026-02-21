@@ -91,7 +91,7 @@ const NAV_ITEMS: { id: INavView; label: string; icon: React.ReactNode }[] = [
 
 /** Returns the matching top-level nav id for a given AppView (module sub-views map to 'bots'). */
 function toNavView(view: AppView): INavView {
-  if (view === 'crypto' || view === 'writing-helper' || view === 'bot-run') return 'bots'
+  if (view === 'bot-run') return 'bots'
   return view as INavView
 }
 

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { IToastNotification } from '../../shared/bridge-types.js'
 
-export type AppView = 'dashboard' | 'chat' | 'bots' | 'activity' | 'store' | 'settings' | 'api-keys' | 'crypto' | 'writing-helper' | 'bot-run'
+export type AppView = 'dashboard' | 'chat' | 'bots' | 'activity' | 'store' | 'settings' | 'api-keys' | 'bot-run'
 export type Theme = 'dark' | 'light' | 'system'
 export type { IToastNotification }
 

@@ -23,7 +23,7 @@ import { getDesktopBridge } from '../lib/bridge.js'
 
 const BOTS_KEY = 'ai-superapp-bots'
 const RUNS_KEY = 'ai-superapp-bot-runs'
-const SEEDED_KEY = 'ai-superapp:bots-seeded-v1'
+const SEEDED_KEY = 'ai-superapp:bots-seeded-v2'
 
 /** Pre-loaded bots shown on first launch so the Bots tab is never empty. */
 const DEFAULT_BOTS: IDesktopBot[] = [
@@ -56,6 +56,26 @@ const DEFAULT_BOTS: IDesktopBot[] = [
     created_at: '2026-01-01T00:00:00.000Z',
     synced: false,
     templateId: 'code-reviewer',
+  },
+  {
+    id: 'seed-crypto-analysis',
+    name: 'Crypto Analysis',
+    description: 'Live market data + AI analysis for BTC, ETH, SOL and BNB.',
+    goal: 'Monitor BTC, ETH, SOL and BNB market data, detect significant price movements, and generate an AI-powered market outlook.',
+    status: 'active',
+    created_at: '2026-01-01T00:00:00.000Z',
+    synced: false,
+    templateId: 'crypto-analysis',
+  },
+  {
+    id: 'seed-writing-helper',
+    name: 'Writing Helper',
+    description: 'Improve, summarize, expand, translate, or fix grammar in any text.',
+    goal: 'Process text using AI to improve clarity, summarize, expand, translate, or fix grammar based on the selected action.',
+    status: 'active',
+    created_at: '2026-01-01T00:00:00.000Z',
+    synced: false,
+    templateId: 'writing-helper',
   },
 ]
 

@@ -44,7 +44,10 @@ function Spinner(): React.JSX.Element {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface IWritingHelperPanelProps {
-  onBack: () => void
+  /** Back-navigation handler — required in standalone mode, unused in embedded mode. */
+  onBack?: () => void
+  /** When true, hides the panel header so it can live inside another layout (e.g. BotsPanel). */
+  embedded?: boolean
 }
 
 /**
@@ -52,7 +55,7 @@ interface IWritingHelperPanelProps {
  *
  * Calls modules.invokeTool('writing-helper', 'process_writing', { text, action, tone, targetLanguage })
  */
-export function WritingHelperPanel({ onBack }: IWritingHelperPanelProps): React.JSX.Element {
+export function WritingHelperPanel({ onBack, embedded = false }: IWritingHelperPanelProps): React.JSX.Element {
   const [inputText, setInputText] = useState('')
   const [selectedAction, setSelectedAction] = useState<WritingAction>('improve')
   const [selectedTone, setSelectedTone] = useState<Tone>('professional')
@@ -109,8 +112,9 @@ export function WritingHelperPanel({ onBack }: IWritingHelperPanelProps): React.
   const wordCount = inputText.trim().split(/\s+/).filter(Boolean).length
 
   return (
-    <div className="flex h-full flex-col bg-[var(--color-bg)]">
-      {/* Header */}
+    <div className={embedded ? 'flex flex-col' : 'flex h-full flex-col bg-[var(--color-bg)]'}>
+      {/* Header — only shown in standalone mode */}
+      {!embedded && (
       <div className="flex shrink-0 items-center gap-3 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-6 py-4">
         <button
           onClick={onBack}
@@ -127,8 +131,9 @@ export function WritingHelperPanel({ onBack }: IWritingHelperPanelProps): React.
           <p className="text-xs text-[var(--color-text-muted)]">Improve, summarize, translate and more</p>
         </div>
       </div>
+      )}
 
-      <div className="flex h-0 flex-1 overflow-hidden">
+      <div className={embedded ? 'flex min-h-[400px] overflow-hidden' : 'flex h-0 flex-1 overflow-hidden'}>
         {/* Left column — input + controls */}
         <div className="flex w-1/2 flex-col border-r border-[var(--color-border)] p-5">
           {/* Action selector */}

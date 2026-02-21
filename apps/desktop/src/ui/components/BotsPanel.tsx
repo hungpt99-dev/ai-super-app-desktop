@@ -17,6 +17,8 @@ import {
   TEMPLATE_CATEGORY_COLORS,
   type IBotTemplate,
 } from '../store/bot-templates.js'
+import { CryptoPanel } from './modules/CryptoPanel.js'
+import { WritingHelperPanel } from './modules/WritingHelperPanel.js'
 
 const ALL_TEMPLATES = [...BOT_TEMPLATES, ...BOT_TYPE_CATALOG]
 
@@ -503,6 +505,9 @@ function ProductivityWidget({ template, bot, latestRun }: ICustomTabProps): Reac
 
 function CustomTabContent({ template, bot, latestRun }: { template?: IBotTemplate | undefined; bot: IDesktopBot; latestRun?: IDesktopBotRun | undefined }): React.JSX.Element | null {
   if (!template) return null
+  // Special interactive tool templates — render their full interactive panel embedded.
+  if (template.id === 'crypto-analysis') return <CryptoPanel embedded />
+  if (template.id === 'writing-helper')  return <WritingHelperPanel embedded />
   const props: ICustomTabProps = { template, bot, latestRun }
   switch (template.category) {
     case 'finance':      return <FinanceWidget      {...props} />

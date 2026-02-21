@@ -5,8 +5,6 @@ import { ModuleStore } from './components/ModuleStore.js'
 import { Sidebar } from './components/Sidebar.js'
 import { ToastContainer } from './components/Toast.js'
 import { SettingsPanel } from './components/SettingsPanel.js'
-import { CryptoPanel } from './components/modules/CryptoPanel.js'
-import { WritingHelperPanel } from './components/modules/WritingHelperPanel.js'
 import { BotsPanel } from './components/BotsPanel.js'
 import { DashboardPanel } from './components/DashboardPanel.js'
 import { ActivityPanel } from './components/ActivityPanel.js'
@@ -113,11 +111,6 @@ export function App(): React.JSX.Element {
   }, [pushNotification])
 
   const handleOpenModule = (moduleId: string): void => {
-    if (moduleId === 'crypto' || moduleId === 'writing-helper') {
-      const view: 'crypto' | 'writing-helper' = moduleId
-      setView(view)
-      return
-    }
     // Navigate to store tab (from Browse more → link)
     if (moduleId === 'store') {
       setView('store')
@@ -158,8 +151,6 @@ export function App(): React.JSX.Element {
         {activeView === 'store' && <ModuleStore />}
         {activeView === 'settings' && <SettingsPanel onBack={() => { setView('chat') }} />}
         {activeView === 'api-keys' && <APIKeysPanel onBack={() => { setView('chat') }} />}
-        {activeView === 'crypto' && <CryptoPanel onBack={() => { setView('bots') }} />}
-        {activeView === 'writing-helper' && <WritingHelperPanel onBack={() => { setView('bots') }} />}
         {activeView === 'bot-run' && <BotsPanel onBack={() => { setView('bots') }} />}
       </main>
 
