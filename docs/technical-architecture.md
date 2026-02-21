@@ -207,6 +207,7 @@ Responsibilities:
 - Extract bundle
 - Maintain version registry
 - Enable/disable apps
+- Register each Mini-App's dedicated **Bot Worker** with the Bot registry
 
 Local structure:
 
@@ -221,9 +222,74 @@ Local structure:
 
 ---
 
+## 3.3.1 Bot Worker Model
+
+Every installed Mini-App is backed by a dedicated **Bot Worker** running on the Desktop Agent. The Web UI never executes logic directly — it dispatches a structured JSON task to the bot and polls for the result.
+
+```
+Web UI (Control Tower)
+  │  botsApi.start(botId, inputJSON)
+  │
+  ▼
+Cloud Relay API
+  │  run queued
+  │
+  ▼
+Desktop Agent — Bot Worker (per Mini-App)
+  │  executes task: tools, AI calls, data fetch
+  │  botsApi.updateRun(runId, 'completed', steps, resultJSON)
+  │
+  ▼
+Cloud Relay API
+  │  run.status = 'completed'
+  │
+  ▼
+Web UI (polls botsApi.getRuns)
+  └─ parse run.result → render in Mini-App panel
+```
+
+### Dispatch protocol
+
+1. Web calls `POST /v1/bots/{botId}/runs` with body `{ input: string }` (JSON-stringified task)
+2. Desktop Agent Bot Worker claims the run from the queue
+3. Worker executes the Mini-App task (tool calls, AI inference, external API)
+4. Worker posts result via `PUT /v1/bots/{botId}/runs/{runId}` with `{ status: 'completed', result: string }`
+5. Web polls `GET /v1/bots/{botId}/runs` (every 1.5 s, timeout 15 s)
+6. Web JSON-parses `run.result` and renders it in the Mini-App panel
+
+### Input/output contracts per built-in Mini-App
+
+| Mini-App | Bot input type | Bot output shape |
+|---|---|---|
+| Crypto Tracker | `{ type: 'get_market_data', symbol: string }` | `IMarketData` |
+| Writing Helper | `{ type: 'process_writing', text, action, tone, targetLanguage? }` | `{ result: string; tokensUsed: number }` |
+| Generic | `{ type: 'run', instruction: string }` | `{ output: string }` |
+
+### Fallback behaviour
+
+If the Desktop Agent is offline or the bot run times out, the Web UI degrades gracefully:
+- **Crypto Tracker** → falls back to CoinGecko public API, then static demo prices
+- **Writing Helper** → falls back to local template-based text transformation
+- A `WorkerBadge` in each panel header shows `🤖 Bot Worker` or `💻 Local` to inform the user
+
+---
+
 # 3.4 Execution Engine
 
-Flow:
+The Desktop Agent's Execution Engine hosts and runs Bot Workers — one per installed Mini-App.
+
+### Bot Worker lifecycle
+
+1. Mini-App is installed → a Bot entity is created and registered
+2. Desktop Agent starts → all active Mini-App bots are brought online
+3. Web dispatches a run → Bot Worker picks it up from the Cloud Relay queue
+4. Worker spawns a sandboxed Worker Thread for the task
+5. Worker executes (tool calls, AI inference, external data fetch)
+6. Worker posts result back to Cloud Relay
+7. Web receives result via polling
+8. Worker Thread is terminated after the run
+
+### Legacy EXECUTE_ACTION flow (still supported)
 
 1. Receive EXECUTE_ACTION
 2. Validate device ownership

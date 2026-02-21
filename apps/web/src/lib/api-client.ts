@@ -395,8 +395,12 @@ export const botsApi = {
   delete: (id: string): Promise<void> =>
     request<void>('DELETE', `/v1/bots/${id}`),
 
-  start: (id: string): Promise<{ run_id: string; status: string }> =>
-    request('POST', `/v1/bots/${id}/runs`),
+  /**
+   * Dispatch a bot run, optionally with a JSON-serialised task input.
+   * The Desktop Agent Bot Worker reads `input` to know what to execute.
+   */
+  start: (id: string, input?: string): Promise<{ run_id: string; status: string }> =>
+    request('POST', `/v1/bots/${id}/runs`, input !== undefined ? { input } : undefined),
 
   getRuns: (id: string, limit = 20): Promise<IBotRun[]> =>
     request<IBotRun[]>('GET', `/v1/bots/${id}/runs?limit=${limit}`),

@@ -2,15 +2,25 @@
  * WritingHelperPanelWeb.tsx
  *
  * Full writing-assistant UI for the web Control Tower.
- * Applies text transformations locally — no backend AI call required.
+ *
+ * Worker architecture:
+ *   Primary path  — dispatches a Bot Worker run via botsApi.start(), polls
+ *                   until the Desktop Agent returns { result, tokensUsed }.
+ *   Fallback path — applies local text transformations when bot is offline.
+ *
+ * Bot input:  JSON.stringify({ type: 'process_writing', text, action, tone, targetLanguage? })
+ * Bot output: { result: string; tokensUsed: number }
  */
 
 import React, { useRef, useState } from 'react'
+import { type IBot } from '../../lib/api-client.js'
+import { runBotTask } from './bot-worker.js'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 type WritingAction = 'improve' | 'summarize' | 'expand' | 'translate' | 'fix-grammar'
 type Tone = 'professional' | 'casual' | 'persuasive' | 'academic'
+type WorkerMode = 'bot' | 'local' | null
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -101,18 +111,33 @@ function Spinner(): React.JSX.Element {
     </svg>
   )
 }
-
+function WorkerBadge({ mode }: { mode: WorkerMode }): React.JSX.Element | null {
+  if (mode === null) return null
+  return mode === 'bot' ? (
+    <span className="flex items-center gap-1 rounded-full bg-[var(--color-accent-dim)] px-2 py-0.5 text-[10px] font-medium text-[var(--color-accent)]">
+      🤖 Bot Worker
+    </span>
+  ) : (
+    <span className="flex items-center gap-1 rounded-full bg-[var(--color-surface-2)] px-2 py-0.5 text-[10px] text-[var(--color-text-muted)]">
+      💻 Local
+    </span>
+  )
+}
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface IWritingHelperPanelWebProps {
+  /** The bot worker that powers this mini app on the Desktop Agent. */
+  bot?: IBot
   onBack: () => void
 }
 
 /**
  * WritingHelperPanelWeb — text transformation UI.
- * Actions: improve, summarize, expand, translate, fix-grammar.
+ *
+ * Primary: dispatches work to the bot worker on the Desktop Agent.
+ * Fallback: local template-based text transformations when bot is offline.
  */
-export function WritingHelperPanelWeb({ onBack }: IWritingHelperPanelWebProps): React.JSX.Element {
+export function WritingHelperPanelWeb({ bot, onBack }: IWritingHelperPanelWebProps): React.JSX.Element {
   const [inputText, setInputText] = useState('')
   const [selectedAction, setSelectedAction] = useState<WritingAction>('improve')
   const [selectedTone, setSelectedTone] = useState<Tone>('professional')
@@ -120,6 +145,7 @@ export function WritingHelperPanelWeb({ onBack }: IWritingHelperPanelWebProps): 
   const [result, setResult] = useState<{ text: string; tokens: number } | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [workerMode, setWorkerMode] = useState<WorkerMode>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const handleProcess = async () => {
@@ -131,10 +157,30 @@ export function WritingHelperPanelWeb({ onBack }: IWritingHelperPanelWebProps): 
     setError(null)
     setResult(null)
 
-    // Simulate AI processing delay
-    await new Promise<void>((resolve) => { setTimeout(resolve, 700 + Math.random() * 600) })
-
     try {
+      // Primary path: Bot Worker on Desktop Agent
+      if (bot !== undefined && bot.status === 'active') {
+        try {
+          const input = JSON.stringify({
+            type: 'process_writing',
+            text: inputText.trim(),
+            action: selectedAction,
+            tone: selectedTone,
+            ...(selectedAction === 'translate' ? { targetLanguage } : {}),
+          })
+          const data = await runBotTask<{ result: string; tokensUsed: number }>(bot.id, input)
+          setResult({ text: data.result, tokens: data.tokensUsed })
+          setWorkerMode('bot')
+          return
+        } catch {
+          // Bot unavailable or timed out — fall through to local path
+        }
+      }
+
+      // Fallback path: local template-based transformation
+      setWorkerMode('local')
+      // Simulate processing delay for UX
+      await new Promise<void>((resolve) => { setTimeout(resolve, 700 + Math.random() * 600) })
       const output = processText(inputText.trim(), selectedAction, selectedTone, targetLanguage)
       const tokens = Math.round(inputText.trim().split(/\s+/).filter(Boolean).length * TOKENS_PER_WORD * 2)
       setResult({ text: output, tokens })
@@ -178,6 +224,9 @@ export function WritingHelperPanelWeb({ onBack }: IWritingHelperPanelWebProps): 
         <div>
           <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">Writing Helper</h2>
           <p className="text-xs text-[var(--color-text-muted)]">Improve, summarize, translate and more</p>
+        </div>
+        <div className="ml-auto">
+          <WorkerBadge mode={workerMode} />
         </div>
       </div>
 

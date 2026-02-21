@@ -520,16 +520,17 @@ function InfoTab({ device, runs, bots }: IInfoTabProps): React.JSX.Element {
 
 interface IMiniAppsTabProps {
   apps: IMiniApp[]
+  bots: IBot[]
   selectedApp: IMiniApp | null
   onSelectApp: (app: IMiniApp | null) => void
 }
 
-function MiniAppsTab({ apps, selectedApp, onSelectApp }: IMiniAppsTabProps): React.JSX.Element {
+function MiniAppsTab({ apps, bots, selectedApp, onSelectApp }: IMiniAppsTabProps): React.JSX.Element {
   // When an app is selected, show its full UI panel
   if (selectedApp !== null) {
     return (
       <div className="-mx-6 -my-0 flex h-[calc(100vh-200px)] flex-col">
-        <MiniAppPanel app={selectedApp} onBack={() => { onSelectApp(null) }} />
+        <MiniAppPanel app={selectedApp} bots={bots} onBack={() => { onSelectApp(null) }} />
       </div>
     )
   }
@@ -773,6 +774,7 @@ export function MachineDetailPage(): React.JSX.Element {
       {activeTab === 'miniapps' && (
         <MiniAppsTab
           apps={installedApps}
+          bots={bots}
           selectedApp={selectedApp}
           onSelectApp={setSelectedApp}
         />

@@ -203,15 +203,20 @@ Tech stack (suggested):
 
 # 6. Mini-App Framework
 
-Mini-Apps are modular AI applications inside the platform.
+Mini-Apps are modular AI applications inside the platform. Each Mini-App is a **UI Panel + Bot Worker** pair:
+
+- **UI Panel** — rendered by the Web Control Tower (React component)
+- **Bot Worker** — executed by the Desktop Agent; handles AI calls, tool execution, and data fetching
+
+The Web UI dispatches a structured JSON task to the Bot Worker and polls for the result. The Desktop Agent never exposes AI keys to the Web layer.
 
 Examples:
 
 - SEO Writer
 - Content Generator
 - Code Assistant
-- Sales Reply Generator
-- Document Analyzer
+- Crypto Tracker
+- Writing Helper
 
 ---
 
@@ -219,22 +224,23 @@ Examples:
 
 ```
 mini-app/
- ├── manifest.json
- ├── ui-schema.json
- ├── action-schema.json
- ├── bot-logic.ts
- ├── tools.ts
- └── permissions.json
+ ├── manifest.json       # name, slug, version, permissions
+ ├── ui-schema.json      # Web UI layout definition
+ ├── action-schema.json  # bot task input/output contracts
+ ├── bot-logic.ts        # Bot Worker implementation (runs on Desktop)
+ ├── tools.ts            # Tool definitions used by the bot
+ └── permissions.json    # declared capabilities
 ```
 
 ---
 
 ## 6.2 Separation of Concerns
 
-- UI Schema → Rendered by Web
-- Logic → Executed by Desktop
-- AI Calls → Executed by Desktop
-- Tools → Executed locally
+- UI Schema → Rendered by Web (React panel component)
+- Bot Worker → Runs on Desktop Agent (Bot Worker Thread)
+- AI Calls → Executed by Desktop Agent only
+- Tools → Executed locally inside the sandbox
+- Results → Posted to Cloud Relay, polled by Web UI
 
 ---
 
@@ -253,20 +259,22 @@ User must approve.
 
 # 7. Execution Flow
 
-### Example: “Generate SEO Article”
+### Example: "Fetch BTC market data" (Crypto Tracker Mini-App)
 
-1. User opens Mini-App on Web.
-2. Web renders form.
-3. User submits topic.
-4. Web sends structured action to Desktop via Cloud.
-5. Desktop:
-    - Builds prompt
-    - Calls AI API
-    - Processes result
-6. Desktop streams output.
-7. Web displays result.
+1. User opens the Crypto Tracker Mini-App on the Web Control Tower.
+2. Web renders the Crypto Panel UI.
+3. Web locates the Crypto Tracker Bot Worker (`findBotForApp`).
+4. Web calls `botsApi.start(botId, JSON.stringify({ type: 'get_market_data', symbol: 'BTC' }))`.
+5. Cloud Relay queues the run.
+6. Desktop Agent's Crypto Tracker Bot Worker picks up the run.
+7. Worker fetches live price data and AI analysis using its tools.
+8. Worker posts `{ status: 'completed', result: IMarketDataJSON }` back to the relay.
+9. Web polls `botsApi.getRuns(botId)` every 1.5 s (timeout 15 s).
+10. Web JSON-parses `run.result` and renders the price panel.
 
-Web never processes the prompt.
+If the Desktop Agent is offline, the Web panel falls back to direct CoinGecko API calls.
+
+Web never touches AI keys or calls AI providers directly.
 
 ---
 

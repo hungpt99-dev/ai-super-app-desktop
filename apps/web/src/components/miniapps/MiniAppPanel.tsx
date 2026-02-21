@@ -6,7 +6,8 @@
  */
 
 import React, { useState } from 'react'
-import { type IMiniApp } from '../../lib/api-client.js'
+import { type IBot, type IMiniApp } from '../../lib/api-client.js'
+import { findBotForApp } from './bot-worker.js'
 import { CryptoPanelWeb } from './CryptoPanelWeb.js'
 import { WritingHelperPanelWeb } from './WritingHelperPanelWeb.js'
 
@@ -78,6 +79,8 @@ function GenericAppPanel({ app, onBack }: IGenericPanelProps): React.JSX.Element
 
 interface IMiniAppPanelProps {
   app: IMiniApp
+  /** Full list of bots for this machine — used to find the matching bot worker. */
+  bots: IBot[]
   onBack: () => void
 }
 
@@ -85,14 +88,19 @@ interface IMiniAppPanelProps {
  * MiniAppPanel — selects the correct rich UI based on `app.slug`.
  * Known slugs: `crypto-tracker`, `writing-helper`.
  * All others fall back to a generic instruction panel.
+ *
+ * The matching bot worker (if any) is resolved via `findBotForApp` and passed
+ * down so each panel can dispatch work to the Desktop Agent.
  */
-export function MiniAppPanel({ app, onBack }: IMiniAppPanelProps): React.JSX.Element {
+export function MiniAppPanel({ app, bots, onBack }: IMiniAppPanelProps): React.JSX.Element {
+  const bot = findBotForApp(app, bots)
+
   if (app.slug === 'crypto-tracker') {
-    return <CryptoPanelWeb onBack={onBack} />
+    return <CryptoPanelWeb {...(bot !== undefined ? { bot } : {})} onBack={onBack} />
   }
 
   if (app.slug === 'writing-helper') {
-    return <WritingHelperPanelWeb onBack={onBack} />
+    return <WritingHelperPanelWeb {...(bot !== undefined ? { bot } : {})} onBack={onBack} />
   }
 
   return <GenericAppPanel app={app} onBack={onBack} />

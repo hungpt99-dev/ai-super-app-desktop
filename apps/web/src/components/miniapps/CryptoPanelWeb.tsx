@@ -2,11 +2,19 @@
  * CryptoPanelWeb.tsx
  *
  * Full crypto-tracker UI for the web Control Tower.
- * Fetches live market data from CoinGecko's public API.
- * AI analysis is template-based (no backend AI call required).
+ *
+ * Worker architecture:
+ *   Primary path  — dispatches a Bot Worker run via botsApi.start(), polls
+ *                   until the Desktop Agent returns IMarketData in run.result.
+ *   Fallback path — if bot is unavailable, falls back to CoinGecko / static data.
+ *
+ * Bot input:  JSON.stringify({ type: 'get_market_data', symbol: 'BTC' })
+ * Bot output: IMarketData JSON
  */
 
 import React, { useCallback, useEffect, useState } from 'react'
+import { type IBot } from '../../lib/api-client.js'
+import { runBotTask } from './bot-worker.js'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -20,6 +28,8 @@ interface IMarketData {
   low24h: number
   fetchedAt: string
 }
+
+type WorkerMode = 'bot' | 'local' | null
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -82,6 +92,19 @@ function Spinner(): React.JSX.Element {
   )
 }
 
+function WorkerBadge({ mode }: { mode: WorkerMode }): React.JSX.Element | null {
+  if (mode === null) return null
+  return mode === 'bot' ? (
+    <span className="flex items-center gap-1 rounded-full bg-[var(--color-accent-dim)] px-2 py-0.5 text-[10px] font-medium text-[var(--color-accent)]">
+      🤖 Bot Worker
+    </span>
+  ) : (
+    <span className="flex items-center gap-1 rounded-full bg-[var(--color-surface-2)] px-2 py-0.5 text-[10px] text-[var(--color-text-muted)]">
+      💻 Local
+    </span>
+  )
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function generateAnalysis(data: IMarketData): string {
@@ -135,14 +158,18 @@ async function fetchCoinGecko(symbol: CryptoSymbol): Promise<IMarketData> {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface ICryptoPanelWebProps {
+  /** The bot worker that powers this mini app on the Desktop Agent. */
+  bot?: IBot
   onBack: () => void
 }
 
 /**
  * CryptoPanelWeb — live market data + AI analysis for crypto assets.
- * Uses CoinGecko public API for price data; template-based AI analysis.
+ *
+ * Primary: dispatches work to the bot worker on the Desktop Agent.
+ * Fallback: direct CoinGecko API / static demo data when bot is offline.
  */
-export function CryptoPanelWeb({ onBack }: ICryptoPanelWebProps): React.JSX.Element {
+export function CryptoPanelWeb({ bot, onBack }: ICryptoPanelWebProps): React.JSX.Element {
   const [activeSymbol, setActiveSymbol] = useState<CryptoSymbol>('BTC')
   const [marketData, setMarketData] = useState<IMarketData | null>(null)
   const [analysis, setAnalysis] = useState<string | null>(null)
@@ -150,26 +177,40 @@ export function CryptoPanelWeb({ onBack }: ICryptoPanelWebProps): React.JSX.Elem
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
-  const [usingFallback, setUsingFallback] = useState(false)
+  const [workerMode, setWorkerMode] = useState<WorkerMode>(null)
 
   const fetchMarketData = useCallback(async (symbol: CryptoSymbol) => {
     setIsLoadingData(true)
     setError(null)
     setAnalysis(null)
     try {
-      const data = await fetchCoinGecko(symbol)
-      setMarketData(data)
+      // Primary path: Bot Worker on Desktop Agent
+      if (bot !== undefined && bot.status === 'active') {
+        try {
+          const input = JSON.stringify({ type: 'get_market_data', symbol })
+          const data = await runBotTask<IMarketData>(bot.id, input)
+          setMarketData(data)
+          setWorkerMode('bot')
+          setLastUpdated(new Date())
+          return
+        } catch {
+          // Bot unavailable or timed out — fall through to local path
+        }
+      }
+
+      // Fallback path: direct CoinGecko / static data
+      setWorkerMode('local')
+      try {
+        const data = await fetchCoinGecko(symbol)
+        setMarketData(data)
+      } catch {
+        setMarketData({ ...FALLBACK_PRICES[symbol], fetchedAt: new Date().toISOString() })
+      }
       setLastUpdated(new Date())
-      setUsingFallback(false)
-    } catch {
-      // Use fallback data when CoinGecko is unreachable (CORS / rate-limit)
-      setMarketData(FALLBACK_PRICES[symbol])
-      setLastUpdated(new Date())
-      setUsingFallback(true)
     } finally {
       setIsLoadingData(false)
     }
-  }, [])
+  }, [bot])
 
   useEffect(() => {
     void fetchMarketData(activeSymbol)
@@ -208,13 +249,13 @@ export function CryptoPanelWeb({ onBack }: ICryptoPanelWebProps): React.JSX.Elem
         <div>
           <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">Crypto Analysis</h2>
           <p className="text-xs text-[var(--color-text-muted)]">
-            {lastUpdated !== null
-              ? `Updated ${lastUpdated.toLocaleTimeString()}${usingFallback ? ' · simulated data' : ''}`
-              : 'Loading data…'}
+            {lastUpdated !== null ? `Updated ${lastUpdated.toLocaleTimeString()}` : 'Loading data…'}
           </p>
         </div>
-        <button
-          onClick={() => { void fetchMarketData(activeSymbol) }}
+        <div className="ml-auto flex items-center gap-2">
+          <WorkerBadge mode={workerMode} />
+          <button
+            onClick={() => { void fetchMarketData(activeSymbol) }}
           disabled={isLoadingData}
           className="ml-auto flex items-center gap-2 rounded-lg bg-[var(--color-surface-2)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-border)] disabled:cursor-not-allowed disabled:opacity-50"
         >
@@ -225,7 +266,8 @@ export function CryptoPanelWeb({ onBack }: ICryptoPanelWebProps): React.JSX.Elem
             </svg>
           )}
           Refresh
-        </button>
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 py-5">
@@ -257,7 +299,10 @@ export function CryptoPanelWeb({ onBack }: ICryptoPanelWebProps): React.JSX.Elem
         {/* Price hero */}
         {isLoadingData && marketData === null ? (
           <div className="flex h-40 items-center justify-center">
-            <Spinner />
+            <div className="flex flex-col items-center gap-3 text-[var(--color-text-muted)]">
+              <Spinner />
+              <p className="text-xs">{bot !== undefined ? 'Waiting for Bot Worker…' : 'Fetching data…'}</p>
+            </div>
           </div>
         ) : marketData !== null ? (
           <>
