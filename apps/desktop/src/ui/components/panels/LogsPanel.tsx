@@ -11,25 +11,24 @@ import { useLogStore, type ILogEntry, type LogLevel, type LogSource } from '../.
 // ── Config ────────────────────────────────────────────────────────────────────
 
 const LEVEL_META: Record<LogLevel, { label: string; bg: string; text: string }> = {
-  debug: { label: 'DEBUG', bg: 'bg-[var(--color-surface-2)]',    text: 'text-[var(--color-text-muted)]' },
-  info:  { label: 'INFO',  bg: 'bg-blue-500/10',                 text: 'text-blue-400' },
-  warn:  { label: 'WARN',  bg: 'bg-yellow-500/10',               text: 'text-yellow-400' },
-  error: { label: 'ERROR', bg: 'bg-red-500/10',                  text: 'text-red-400' },
+  debug: { label: 'DEBUG', bg: 'bg-[var(--color-surface-2)]', text: 'text-[var(--color-text-muted)]' },
+  info: { label: 'INFO', bg: 'bg-blue-500/10', text: 'text-blue-400' },
+  warn: { label: 'WARN', bg: 'bg-yellow-500/10', text: 'text-yellow-400' },
+  error: { label: 'ERROR', bg: 'bg-red-500/10', text: 'text-red-400' },
 }
 
 const SOURCE_META: Record<LogSource, { label: string; color: string }> = {
-  system:       { label: 'system',     color: 'text-[var(--color-text-muted)]' },
-  chat:         { label: 'chat',       color: 'text-purple-400' },
-  ai:           { label: 'ai',         color: 'text-[var(--color-accent)]' },
-  bot:          { label: 'bot',        color: 'text-green-400' },
-  agent:        { label: 'agent',      color: 'text-cyan-400' },
-  auth:         { label: 'auth',       color: 'text-orange-400' },
+  system: { label: 'system', color: 'text-[var(--color-text-muted)]' },
+  chat: { label: 'chat', color: 'text-purple-400' },
+  ai: { label: 'ai', color: 'text-[var(--color-accent)]' },
+  agent: { label: 'agent', color: 'text-cyan-400' },
+  auth: { label: 'auth', color: 'text-orange-400' },
   'group-chat': { label: 'group-chat', color: 'text-yellow-400' },
-  router:       { label: 'router',     color: 'text-sky-400' },
+  router: { label: 'router', color: 'text-sky-400' },
 }
 
-const ALL_LEVELS:  LogLevel[]  = ['debug', 'info', 'warn', 'error']
-const ALL_SOURCES: LogSource[] = ['system', 'chat', 'ai', 'bot', 'agent', 'auth', 'group-chat', 'router']
+const ALL_LEVELS: LogLevel[] = ['debug', 'info', 'warn', 'error']
+const ALL_SOURCES: LogSource[] = ['system', 'chat', 'ai', 'agent', 'auth', 'group-chat', 'router']
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -170,7 +169,7 @@ export function LogsPanel(): React.JSX.Element {
 
   // Level counts for badges
   const errorCount = useMemo(() => entries.filter((e) => e.level === 'error').length, [entries])
-  const warnCount  = useMemo(() => entries.filter((e) => e.level === 'warn').length, [entries])
+  const warnCount = useMemo(() => entries.filter((e) => e.level === 'warn').length, [entries])
 
   return (
     <div className="flex h-full flex-col bg-[var(--color-bg)]">
@@ -195,11 +194,10 @@ export function LogsPanel(): React.JSX.Element {
           <button
             onClick={() => { setAutoScroll((v) => !v) }}
             title={autoScroll ? 'Auto-scroll on' : 'Auto-scroll off'}
-            className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
-              autoScroll
+            className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${autoScroll
                 ? 'border-[var(--color-accent)]/40 bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
                 : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'
-            }`}
+              }`}
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="7 13 12 18 17 13" />
@@ -236,11 +234,10 @@ export function LogsPanel(): React.JSX.Element {
           <div className="flex shrink-0 items-center gap-1">
             <button
               onClick={() => { setLevelFilter('all') }}
-              className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
-                levelFilter === 'all'
+              className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors ${levelFilter === 'all'
                   ? 'bg-[var(--color-accent)] text-white'
                   : 'bg-[var(--color-surface-2)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
-              }`}
+                }`}
             >
               All
             </button>
@@ -250,9 +247,8 @@ export function LogsPanel(): React.JSX.Element {
                 <button
                   key={lvl}
                   onClick={() => { setLevelFilter(levelFilter === lvl ? 'all' : lvl) }}
-                  className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors ${
-                    levelFilter === lvl ? `${meta.bg} ${meta.text} ring-1 ring-current` : `bg-[var(--color-surface-2)] ${meta.text} hover:${meta.bg}`
-                  }`}
+                  className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors ${levelFilter === lvl ? `${meta.bg} ${meta.text} ring-1 ring-current` : `bg-[var(--color-surface-2)] ${meta.text} hover:${meta.bg}`
+                    }`}
                 >
                   {meta.label}
                 </button>
@@ -270,11 +266,10 @@ export function LogsPanel(): React.JSX.Element {
                 <button
                   key={src}
                   onClick={() => { setSourceFilter(sourceFilter === src ? 'all' : src) }}
-                  className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
-                    sourceFilter === src
+                  className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors ${sourceFilter === src
                       ? `bg-[var(--color-surface)] ring-1 ring-current ${meta.color}`
                       : `bg-[var(--color-surface-2)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]`
-                  }`}
+                    }`}
                 >
                   {meta.label}
                 </button>

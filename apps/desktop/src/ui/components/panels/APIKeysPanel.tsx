@@ -15,51 +15,51 @@ import {
   setDefaultKeyId,
   updateAPIKey,
   type ILocalAPIKey,
-} from '../../../sdk/api-key-store.js'
+} from '../../../bridges/api-key-store.js'
 import { useAppStore } from '../../store/app-store.js'
 
 const PROVIDERS = [
-  { value: 'openai',    label: 'OpenAI',        icon: '🤖', placeholder: 'sk-…' },
-  { value: 'anthropic', label: 'Anthropic',      icon: '🧠', placeholder: 'sk-ant-…' },
-  { value: 'google',    label: 'Google Gemini',  icon: '✨', placeholder: 'AIza…' },
-  { value: 'mistral',   label: 'Mistral AI',     icon: '💨', placeholder: 'key…' },
-  { value: 'cohere',    label: 'Cohere',         icon: '🔮', placeholder: 'key…' },
-  { value: 'groq',      label: 'Groq',           icon: '⚡', placeholder: 'gsk_…' },
+  { value: 'openai', label: 'OpenAI', icon: '🤖', placeholder: 'sk-…' },
+  { value: 'anthropic', label: 'Anthropic', icon: '🧠', placeholder: 'sk-ant-…' },
+  { value: 'google', label: 'Google Gemini', icon: '✨', placeholder: 'AIza…' },
+  { value: 'mistral', label: 'Mistral AI', icon: '💨', placeholder: 'key…' },
+  { value: 'cohere', label: 'Cohere', icon: '🔮', placeholder: 'key…' },
+  { value: 'groq', label: 'Groq', icon: '⚡', placeholder: 'gsk_…' },
 ]
 
 const PROVIDER_MODELS: Record<string, { value: string; label: string }[]> = {
   openai: [
-    { value: 'gpt-4o',      label: 'GPT-4o' },
+    { value: 'gpt-4o', label: 'GPT-4o' },
     { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
-    { value: 'o3-mini',     label: 'o3 Mini' },
+    { value: 'o3-mini', label: 'o3 Mini' },
     { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
   ],
   anthropic: [
     { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' },
-    { value: 'claude-3-5-haiku-20241022',  label: 'Claude 3.5 Haiku' },
-    { value: 'claude-3-opus-20240229',     label: 'Claude 3 Opus' },
-    { value: 'claude-3-haiku-20240307',    label: 'Claude 3 Haiku' },
+    { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku' },
+    { value: 'claude-3-opus-20240229', label: 'Claude 3 Opus' },
+    { value: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku' },
   ],
   google: [
-    { value: 'gemini-2.0-flash',      label: 'Gemini 2.0 Flash' },
+    { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
     { value: 'gemini-2.0-flash-lite', label: 'Gemini 2.0 Flash Lite' },
-    { value: 'gemini-1.5-pro',        label: 'Gemini 1.5 Pro' },
-    { value: 'gemini-1.5-flash',      label: 'Gemini 1.5 Flash' },
+    { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
+    { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
   ],
   mistral: [
-    { value: 'mistral-small-latest',  label: 'Mistral Small' },
+    { value: 'mistral-small-latest', label: 'Mistral Small' },
     { value: 'mistral-medium-latest', label: 'Mistral Medium' },
-    { value: 'mistral-large-latest',  label: 'Mistral Large' },
+    { value: 'mistral-large-latest', label: 'Mistral Large' },
   ],
   groq: [
-    { value: 'llama3-8b-8192',     label: 'LLaMA 3 8B' },
-    { value: 'llama3-70b-8192',    label: 'LLaMA 3 70B' },
+    { value: 'llama3-8b-8192', label: 'LLaMA 3 8B' },
+    { value: 'llama3-70b-8192', label: 'LLaMA 3 70B' },
     { value: 'mixtral-8x7b-32768', label: 'Mixtral 8x7B' },
-    { value: 'gemma2-9b-it',       label: 'Gemma 2 9B' },
+    { value: 'gemma2-9b-it', label: 'Gemma 2 9B' },
   ],
   cohere: [
     { value: 'command-r-plus', label: 'Command R+' },
-    { value: 'command-r',      label: 'Command R' },
+    { value: 'command-r', label: 'Command R' },
   ],
 }
 
@@ -241,9 +241,8 @@ function KeyRow({ apiKey, isDefault, onToggle, onSetDefault, onChangeModel, onDe
   }
 
   return (
-    <div className={`flex items-center gap-3 rounded-xl border bg-[var(--color-surface)] px-4 py-3 ${
-      isDefault ? 'border-[var(--color-accent)]/50' : 'border-[var(--color-border)]'
-    }`}>
+    <div className={`flex items-center gap-3 rounded-xl border bg-[var(--color-surface)] px-4 py-3 ${isDefault ? 'border-[var(--color-accent)]/50' : 'border-[var(--color-border)]'
+      }`}>
       <span className="text-xl">{provider?.icon ?? '🔑'}</span>
 
       <div className="flex-1 min-w-0">
@@ -281,11 +280,10 @@ function KeyRow({ apiKey, isDefault, onToggle, onSetDefault, onChangeModel, onDe
       </div>
 
       <span
-        className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-          apiKey.isActive
+        className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${apiKey.isActive
             ? 'bg-green-500/10 text-green-400'
             : 'bg-[var(--color-surface-2)] text-[var(--color-text-muted)]'
-        }`}
+          }`}
       >
         {apiKey.isActive ? 'Active' : 'Off'}
       </span>
@@ -295,7 +293,7 @@ function KeyRow({ apiKey, isDefault, onToggle, onSetDefault, onChangeModel, onDe
         <button
           onClick={() => { void handleSetDefault() }}
           disabled={busy}
-          title="Set as default key for all bots"
+          title="Set as default key for all agents"
           className="shrink-0 rounded-lg border border-[var(--color-border)] px-2.5 py-1 text-xs
                      text-[var(--color-text-secondary)] transition-colors
                      hover:border-[var(--color-accent)]/50 hover:text-[var(--color-accent)]

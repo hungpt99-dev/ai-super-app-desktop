@@ -1,18 +1,18 @@
 /**
  * agent-templates.ts
  *
- * Bot templates are derived directly from the BUILTIN_MODULES registry in
+ * Agent templates are derived directly from the BUILTIN_MODULES registry in
  * `core/builtin-modules.ts`.  There is no separate hardcoded list — if you
- * add a new built-in module, it automatically appears as a bot template.
+ * add a new built-in module, it automatically appears as an agent template.
  *
  * External / downloadable templates will be fetched from the marketplace API
- * at runtime and merged in by the Bots tab UI.
+ * at runtime and merged in by the Agents tab UI.
  */
 
-import { BUILTIN_MODULES } from '../../core/builtin-modules.js'
-import type { IBuiltinAgentTemplate } from '../../core/builtin-modules.js'
+import { BUILTIN_MODULES } from '../../app/builtin-modules.js'
+import type { IBuiltinAgentTemplate } from '../../app/builtin-modules.js'
 
-/** A reusable bot type definition shown in the "Create bot" modal. */
+/** A reusable agent type definition shown in the "Create agent" modal. */
 export interface IAgentTemplate {
   /** Unique identifier — equals the module id for built-in templates. */
   id: string

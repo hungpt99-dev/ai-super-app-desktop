@@ -2,7 +2,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod computer;
-mod memory;
 
 use std::collections::HashMap;
 
@@ -716,6 +715,74 @@ async fn modules_invoke_tool(
     resp.json().await.map_err(|e| e.to_string())
 }
 
+// ── Agents commands ────────────────────────────────────────────────────────────
+
+#[derive(Serialize, Deserialize)]
+pub struct IAgentPollResult {
+    pub run_id: String,
+    pub agent_type: String,
+    pub goal: String,
+}
+
+#[derive(Deserialize)]
+pub struct IAgentRunUpdate {
+    pub status: String,
+    pub steps: i32,
+    pub result: Option<serde_json::Value>,
+}
+
+#[tauri::command]
+async fn agents_poll(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<Option<IAgentPollResult>, String> {
+    let token = load_token(&app).unwrap_or_default();
+    if token.is_empty() { return Ok(None); }
+
+    let resp = state
+        .http_client
+        .get(format!("{}/v1/agents/poll", state.gateway_url))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if resp.status() == reqwest::StatusCode::NO_CONTENT {
+        return Ok(None);
+    }
+
+    if !resp.status().is_success() {
+        return Err(format!("poll error: HTTP {}", resp.status().as_u16()));
+    }
+
+    resp.json().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn agents_update_run(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    run_id: String,
+    update: IAgentRunUpdate,
+) -> Result<(), String> {
+    let token = load_token(&app).unwrap_or_default();
+
+    let resp = state
+        .http_client
+        .patch(format!("{}/v1/agents/runs/{}", state.gateway_url, run_id))
+        .bearer_auth(&token)
+        .json(&update)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if !resp.status().is_success() && resp.status() != reqwest::StatusCode::NO_CONTENT {
+        return Err(format!("update run error: HTTP {}", resp.status().as_u16()));
+    }
+
+    Ok(())
+}
+
 // ── Usage command ──────────────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -762,8 +829,6 @@ fn main() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_os::init())
         .setup(|app| {
-            let mem_db = memory::open_db(app.handle()).expect("failed to open memory.db");
-            app.manage(mem_db);
             // Auto-open devtools in debug builds so JS errors are immediately visible.
             #[cfg(debug_assertions)]
             if let Some(win) = app.get_webview_window("main") {
@@ -791,6 +856,9 @@ fn main() {
             modules_invoke_tool,
             // usage
             usage_get,
+            // agents
+            agents_poll,
+            agents_update_run,
             // app
             app_version,
             // computer-use
@@ -815,17 +883,6 @@ fn main() {
             computer::computer_read_file,
             computer::computer_write_file,
             computer::computer_append_file,
-            // memory (local SQLite)
-            memory::memory_upsert,
-            memory::memory_list,
-            memory::memory_get,
-            memory::memory_delete,
-            memory::memory_purge_archived,
-            memory::memory_build_context,
-            memory::memory_append_messages,
-            memory::memory_get_history,
-            memory::memory_clear_session,
-            memory::memory_stats,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

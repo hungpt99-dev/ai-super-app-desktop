@@ -2,29 +2,37 @@
  * chat-group-store.ts
  *
  * Group-chat store — a single shared conversation that routes messages across
- * ALL bots.  Architecture:
+ * ALL agents.  Architecture:
  *
  *  1. User types in the chat bar.
- *  2. `routeMessage()` on the BotRouter picks the best-fit bot (or falls back
+ *  2. `routeMessage()` on the AgentRouter picks the best-fit agent (or falls back
  *     to a generic AI response).
- *  3. If the message implies an executable task, the chosen bot posts a
+ *  3. If the message implies an executable task, the chosen agent posts a
  *     PlanCard message (pendingPlan) so the user can review and confirm.
- *  4. On "Confirm", `executePlan()` runs the bot's task and posts the result
+ *  4. On "Confirm", `executePlan()` runs the agent's task and posts the result
  *     back into the group thread.
- *  5. Any bot can answer a follow-up question about its own task ownership —
- *     the router tracks which bot "owns" which task by topic label.
+ *  5. Any agent can answer a follow-up question about its own task ownership —
+ *     the router tracks which agent "owns" which task by topic label.
  */
 
 import { create } from 'zustand'
 import { getDesktopBridge } from '../lib/bridge.js'
 import { useAgentsStore, type IDesktopAgent } from './agents-store.js'
-import { getDefaultKeyId, listAPIKeys } from '../../sdk/api-key-store.js'
+import { getDefaultKeyId, listAPIKeys } from '../../bridges/api-key-store.js'
 import { useAppStore } from './app-store.js'
 import { addLog } from './log-store.js'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type GroupMsgRole = 'user' | 'bot' | 'system'
+export type GroupMsgRole = 'user' | 'agent' | 'system'
+
+/**
+ * Chat modes to help the router determine intent.
+ * - 'ask': Conversational focus, direct answers.
+ * - 'task': Action focus, plan proposals/execution.
+ * - 'research': Deep dive, aggressive memory retrieval.
+ */
+export type GroupChatMode = 'ask' | 'task' | 'research'
 
 /** A step shown inside a plan card. */
 export interface IPlanStep {
@@ -33,18 +41,18 @@ export interface IPlanStep {
 }
 
 /**
- * A pending plan card attached to a bot message.
+ * A pending plan card attached to an agent message.
  * The user can confirm or dismiss it.
  */
 export interface IPendingPlan {
   /** Unique plan id (same as the message id that carries it). */
   id: string
-  /** The bot that owns and will execute this plan. */
-  botId: string
-  botName: string
+  /** The agent that owns and will execute this plan. */
+  agentId: string
+  agentName: string
   /** Short summary title shown at the top of the card. */
   title: string
-  /** Ordered list of steps the bot plans to execute. */
+  /** Ordered list of steps the agent plans to execute. */
   steps: IPlanStep[]
   /** 'pending' → user has not yet acted; 'confirmed' → running; 'dismissed' → skipped; 'done' → finished */
   status: 'pending' | 'confirmed' | 'dismissed' | 'done'
@@ -56,11 +64,11 @@ export interface IPendingPlan {
 export interface IGroupMessage {
   id: string
   role: GroupMsgRole
-  /** The bot that produced this message (undefined for user / system messages). */
-  botId?: string
-  botName?: string
-  /** Bot avatar emoji or first-letter shorthand. */
-  botAvatar?: string
+  /** The agent that produced this message (undefined for user / system messages). */
+  agentId?: string
+  agentName?: string
+  /** Agent avatar emoji or first-letter shorthand. */
+  agentAvatar?: string
   content: string
   ts: number
   /** When present this message contains an embedded plan proposal card. */
@@ -69,21 +77,24 @@ export interface IGroupMessage {
   isStreaming?: boolean
 }
 
-/** Per-bot task ownership registry — botId → topic label. */
+/** Per-agent task ownership registry — agentId → topic label. */
 type TaskOwnership = Record<string, string>
 
 interface IGroupChatState {
   messages: IGroupMessage[]
-  /** Set of botIds that are currently generating a reply. */
-  thinkingBotIds: Set<string>
-  /** Set of botIds that are currently executing a confirmed plan. */
-  runningBotIds: Set<string>
-  /** Maps botId → task topic label for follow-up routing. */
+  /** Set of agentIds that are currently generating a reply. */
+  thinkingAgentIds: Set<string>
+  /** Set of agentIds that are currently executing a confirmed plan. */
+  runningAgentIds: Set<string>
+  /** Maps agentId → task topic label for follow-up routing. */
   taskOwnership: TaskOwnership
+  mode: GroupChatMode
   error: string | null
 
   /** Send a user message and let the router handle it. */
   send(text: string): Promise<void>
+  /** Change the current chat mode. */
+  setMode(mode: GroupChatMode): void
   /** Confirm a plan card and execute the task. */
   confirmPlan(planId: string): Promise<void>
   /** Dismiss a plan card without executing. */
@@ -136,8 +147,8 @@ async function resolveApiOptions(): Promise<{ apiKey?: string; provider?: string
   } catch { return {} }
 }
 
-function botAvatar(bot: IDesktopAgent): string {
-  return bot.name.charAt(0).toUpperCase()
+function agentAvatar(agent: IDesktopAgent): string {
+  return agent.name.charAt(0).toUpperCase()
 }
 
 function notifyError(title: string, err: unknown): void {
@@ -145,49 +156,51 @@ function notifyError(title: string, err: unknown): void {
   useAppStore.getState().pushNotification({ level: 'error', title, body: msg })
 }
 
-// ─── Bot routing ──────────────────────────────────────────────────────────────
+// ─── Agent routing ────────────────────────────────────────────────────────────
 
 /** Patterns that strongly suggest the user is asking about an in-progress task. */
 const STATUS_PATTERN = /\b(finished|done|completed|ready|progress|status|complete|yet|still|running)\b/i
 
-// ─── AI-powered bot router ────────────────────────────────────────────────────
+// ─── AI-powered agent router ────────────────────────────────────────────────────
 
 /** Result returned by the AI router. */
 interface IRouterDecision {
-  /** ID of the chosen bot, or null → fall back to generic AI. */
-  botId: string | null
+  /** ID of the chosen agent, or null → fall back to generic AI. */
+  agentId: string | null
   /** 'action' → propose a plan card; 'conversational' → reply directly. */
   intent: 'action' | 'conversational'
 }
 
 /**
  * Ask the AI to decide:
- *   1. Which bot (by id) best fits the user's message.
+ *   1. Which agent (by id) best fits the user's message.
  *   2. Whether the message is an executable task or a conversational reply.
  *
- * The model receives a compact bot roster and must respond with a single JSON
+ * The model receives a compact agent roster and must respond with a single JSON
  * object — nothing else.  Falls back to keyword heuristics on any failure.
  */
-async function aiPickBot(
+async function aiPickAgent(
   text: string,
   agents: IDesktopAgent[],
+  mode: GroupChatMode,
 ): Promise<IRouterDecision> {
-  const active = agents.filter((b) => b.status === 'active')
-  if (active.length === 0) return { botId: null, intent: 'conversational' }
+  const active = agents.filter((a) => a.status === 'active')
+  if (active.length === 0) return { agentId: null, intent: 'conversational' }
 
-  const botList = active
-    .map((b) => `- id: "${b.id}", name: "${b.name}", purpose: "${b.description}"`)
+  const agentList = active
+    .map((a) => `- id: "${a.id}", name: "${a.name}", purpose: "${a.description}"`)
     .join('\n')
 
   const prompt =
-    `You are a bot router. Respond with ONLY one line of JSON — no markdown, no explanation.\n\n` +
-    `Available bots:\n${botList}\n\n` +
+    `You are an agent router. Respond with ONLY one line of JSON — no markdown, no explanation.\n\n` +
+    `Available agents:\n${agentList}\n\n` +
     `User message: "${text.replace(/"/g, "'")}"\n\n` +
     `Rules:\n` +
-    `- "botId": the id of the bot whose purpose best fits the message, or null if none fits well.\n` +
+    `- "agentId": the id of the agent whose purpose best fits the message, or null if none fits well.\n` +
     `- "intent": "action" when the user wants something DONE (run, create, analyze, write, fix, deploy, fetch, generate, etc.), ` +
     `"conversational" for questions or chat.\n\n` +
-    `Respond with exactly: {"botId": "<id or null>", "intent": "<action or conversational>"}`
+    `Mode Hint: User has explicitly selected "${mode}" mode. ${mode === 'ask' ? 'Bias towards conversational intent.' : mode === 'task' ? 'Bias towards action intent.' : ''}\n\n` +
+    `Respond with exactly: {"agentId": "<id or null>", "intent": "<action or conversational>"}`
 
   try {
     const bridge = getDesktopBridge()
@@ -203,19 +216,19 @@ async function aiPickBot(
     const match = res.output.match(/\{[\s\S]*?\}/)
     if (!match) throw new Error('Router returned no JSON')
 
-    const parsed = JSON.parse(match[0]) as { botId?: string | null; intent?: string }
-    const chosenId = typeof parsed.botId === 'string' ? parsed.botId : null
-    const chosenBot = chosenId ? active.find((b) => b.id === chosenId) : null
+    const parsed = JSON.parse(match[0]) as { agentId?: string | null; intent?: string }
+    const chosenId = typeof parsed.agentId === 'string' ? parsed.agentId : null
+    const chosenAgent = chosenId ? active.find((a) => a.id === chosenId) : null
 
     addLog({
       level: 'info',
       source: 'router',
-      message: `AI routed → bot: ${chosenBot?.name ?? 'none'}, intent: ${parsed.intent ?? '?'}`,
+      message: `AI routed → agent: ${chosenAgent?.name ?? 'none'}, intent: ${parsed.intent ?? '?'}`,
       detail: text.length > 120 ? `${text.slice(0, 120)}…` : text,
     })
 
     return {
-      botId: chosenBot?.id ?? null,
+      agentId: chosenAgent?.id ?? null,
       intent: parsed.intent === 'action' ? 'action' : 'conversational',
     }
   } catch {
@@ -237,10 +250,10 @@ const _ACTION_KW = [
 ]
 const _INFO_PATTERN = /^(what is|what's|who is|who's|why |when |how does|how do|explain|describe|is it|are you|can you|could you tell)/i
 
-function _scoreBotMatch(bot: IDesktopAgent, text: string): number {
+function _scoreAgentMatch(agent: IDesktopAgent, text: string): number {
   const lower = text.toLowerCase()
-  const desc  = bot.description.toLowerCase()
-  const name  = bot.name.toLowerCase()
+  const desc = agent.description.toLowerCase()
+  const name = agent.name.toLowerCase()
   const userWords = lower.split(/\W+/).filter((w) => w.length >= 4)
   const descWords = desc.split(/\W+/).filter((w) => w.length >= 4)
   const nameWords = name.split(/\W+/).filter((w) => w.length >= 3)
@@ -257,69 +270,81 @@ function _keywordFallback(text: string, active: IDesktopAgent[]): IRouterDecisio
   const isAction = !_INFO_PATTERN.test(lower) && _ACTION_KW.some((w) => lower.includes(w))
   let best: IDesktopAgent | undefined
   let bestScore = 0
-  for (const b of active) {
-    const s = _scoreBotMatch(b, text)
-    if (s > bestScore) { bestScore = s; best = b }
+  for (const a of active) {
+    const s = _scoreAgentMatch(a, text)
+    if (s > bestScore) { bestScore = s; best = a }
   }
   const chosen = bestScore >= 0.1 ? best : active[0]
-  return { botId: chosen?.id ?? null, intent: isAction ? 'action' : 'conversational' }
+  return { agentId: chosen?.id ?? null, intent: isAction ? 'action' : 'conversational' }
 }
 
 /**
  * Check whether the user is asking a status/follow-up question about a task
- * already owned by one of the bots.
- * Returns the owning bot, or undefined.
+ * already owned by one of the agents.
+ * Returns the owning agent, or undefined.
  */
-function findOwnerBot(
+function findOwnerAgent(
   text: string,
   ownership: TaskOwnership,
   agents: IDesktopAgent[],
 ): IDesktopAgent | undefined {
   if (!STATUS_PATTERN.test(text)) return undefined
 
-  // Look for a bot whose owned topic has keywords that appear in the message.
+  // Look for an agent whose owned topic has keywords that appear in the message.
   const lower = text.toLowerCase()
-  for (const [botId, topic] of Object.entries(ownership)) {
+  for (const [agentId, topic] of Object.entries(ownership)) {
     const topicWords = topic.toLowerCase().split(/\W+/).filter((w) => w.length >= 4)
     if (topicWords.some((tw) => lower.includes(tw))) {
-      return agents.find((b) => b.id === botId)
+      return agents.find((a) => a.id === agentId)
     }
   }
   return undefined
 }
 
 /**
- * Build the planned steps for a task based on the bot's templateId.
+ * Build the planned steps for a task based on the agent's templateId.
  */
 const TEMPLATE_STEPS: Record<string, string[]> = {
-  'daily-digest':          ['Fetch top headlines', 'Parse article content', 'Summarise each story', 'Format digest', 'Save output'],
-  'research-assistant':    ['Parse research query', 'Search knowledge sources', 'Extract key facts', 'Synthesise findings', 'Format report'],
-  'price-alert':           ['Connect to market feed', 'Fetch current price', 'Compare with 24h baseline', 'Evaluate alert threshold', 'Generate price report'],
-  'crypto-analysis':       ['Connect to market feed', 'Fetch multi-asset data', 'Run technical analysis', 'Generate AI market outlook', 'Save analysis'],
-  'code-reviewer':         ['Read latest git diff', 'Parse code changes', 'Detect issues & smells', 'Generate suggestions', 'Format review'],
-  'meeting-notes':         ['Read transcript', 'Identify speakers', 'Extract action items', 'Summarise discussion', 'Save notes'],
-  'writing-helper':        ['Parse input text', 'Detect language & tone', 'Apply transformation', 'Review result quality', 'Save output'],
-  'release-notes-writer':  ['Parse git log since last tag', 'Group commits by type', 'Draft release notes', 'Polish language', 'Save release notes'],
-  'bug-triage':            ['Load open issues', 'Classify by severity', 'Suggest owners', 'Generate triage report', 'Save report'],
+  'daily-digest': ['Fetch top headlines', 'Parse article content', 'Summarise each story', 'Format digest', 'Save output'],
+  'research-assistant': ['Parse research query', 'Search knowledge sources', 'Extract key facts', 'Synthesise findings', 'Format report'],
+  'price-alert': ['Connect to market feed', 'Fetch current price', 'Compare with 24h baseline', 'Evaluate alert threshold', 'Generate price report'],
+  'crypto-analysis': ['Connect to market feed', 'Fetch multi-asset data', 'Run technical analysis', 'Generate AI market outlook', 'Save analysis'],
+  'code-reviewer': ['Read latest git diff', 'Parse code changes', 'Detect issues & smells', 'Generate suggestions', 'Format review'],
+  'meeting-notes': ['Read transcript', 'Identify speakers', 'Extract action items', 'Summarise discussion', 'Save notes'],
+  'writing-helper': ['Parse input text', 'Detect language & tone', 'Apply transformation', 'Review result quality', 'Save output'],
+  'release-notes-writer': ['Parse git log since last tag', 'Group commits by type', 'Draft release notes', 'Polish language', 'Save release notes'],
+  'bug-triage': ['Load open issues', 'Classify by severity', 'Suggest owners', 'Generate triage report', 'Save report'],
 }
 const DEFAULT_STEPS = ['Initialise task', 'Process request', 'Execute with AI', 'Review output', 'Complete & save']
 
-function buildPlanSteps(bot: IDesktopAgent): string[] {
-  return TEMPLATE_STEPS[bot.templateId ?? ''] ?? DEFAULT_STEPS
+function buildPlanSteps(agent: IDesktopAgent): string[] {
+  return TEMPLATE_STEPS[agent.templateId ?? ''] ?? DEFAULT_STEPS
 }
 
 // ─── Store ────────────────────────────────────────────────────────────────────
 
 export const useGroupChatStore = create<IGroupChatState>((set, get) => ({
   messages: hydrate(),
-  thinkingBotIds: new Set(),
-  runningBotIds: new Set(),
+  thinkingAgentIds: new Set(),
+  runningAgentIds: new Set(),
   taskOwnership: {},
+  mode: 'ask',
   error: null,
 
   send: async (text: string) => {
     if (!text.trim()) return
-    if (get().thinkingBotIds.size > 0) return  // debounce while any bot is thinking
+    if (get().thinkingAgentIds.size > 0) return  // debounce while any agent is thinking
+
+    const currentMode = get().mode
+
+    // ── Mention detection: check for @Name ─────────────────────────────────────
+    let targetAgent: IDesktopAgent | undefined
+    const mentionMatch = text.match(/@(\w+)/)
+    if (mentionMatch) {
+      const mention = mentionMatch[1]!.toLowerCase()
+      const { agents } = useAgentsStore.getState()
+      targetAgent = agents.find((a) => a.name.toLowerCase().includes(mention))
+    }
 
     const userMsg: IGroupMessage = {
       id: uid(),
@@ -333,33 +358,52 @@ export const useGroupChatStore = create<IGroupChatState>((set, get) => ({
 
     const { agents } = useAgentsStore.getState()
 
+    // ── Tagged routing: if @mention is found, bypass the router ───────────────
+    if (targetAgent) {
+      const intent = currentMode === 'task' ? 'action' : 'conversational'
+      if (intent === 'action') {
+        await _agentProposePlan(targetAgent, text, get, set)
+      } else {
+        await _agentConversationalReply(targetAgent, text, get, set)
+      }
+      return
+    }
+
     // ── Status query: check if an agent already owns this topic ───────────────
-    const ownerBot = findOwnerBot(text, get().taskOwnership, agents)
-    if (ownerBot) {
-      await _botStatusReply(ownerBot, text, get, set)
+    const ownerAgent = findOwnerAgent(text, get().taskOwnership, agents)
+    if (ownerAgent) {
+      await _agentStatusReply(ownerAgent, text, get, set)
       return
     }
 
     // ── AI-powered routing: decide which agent + action vs conversation ───────
-    const decision = await aiPickBot(text, agents)
-    const chosenBot = decision.botId ? agents.find((b) => b.id === decision.botId) : undefined
+    // Boost intent based on mode
+    const decision = await aiPickAgent(text, agents, currentMode)
+
+    // Override intent if mode is specific
+    if (currentMode === 'task') decision.intent = 'action'
+    if (currentMode === 'ask') decision.intent = 'conversational'
+
+    const chosenAgent = decision.agentId ? agents.find((a) => a.id === decision.agentId) : undefined
 
     if (decision.intent === 'action') {
-      if (!chosenBot) {
-        _postSystem(set, get, '⚠️ No active bots available. Create a bot in the **Bots** tab first.')
+      if (!chosenAgent) {
+        _postSystem(set, get, '⚠️ No active agents available. Create an agent in the **Agents** tab first.')
         return
       }
-      await _botProposePlan(chosenBot, text, get, set)
+      await _agentProposePlan(chosenAgent, text, get, set)
       return
     }
 
-    // Conversational — chosen bot replies directly, or fall back to generic AI.
-    if (!chosenBot) {
+    // Conversational — chosen agent replies directly, or fall back to generic AI.
+    if (!chosenAgent) {
       await _genericAiReply(text, get, set)
       return
     }
-    await _botConversationalReply(chosenBot, text, get, set)
+    await _agentConversationalReply(chosenAgent, text, get, set)
   },
+
+  setMode: (mode) => { set({ mode }) },
 
   confirmPlan: async (planId: string) => {
     // Find the message that carries this plan.
@@ -383,16 +427,16 @@ export const useGroupChatStore = create<IGroupChatState>((set, get) => ({
     }
     _patch({ status: 'confirmed' })
 
-    // Mark bot as running.
-    const running = new Set(get().runningBotIds)
-    running.add(plan.botId)
-    set({ runningBotIds: running })
+    // Mark agent as running.
+    const running = new Set(get().runningAgentIds)
+    running.add(plan.agentId)
+    set({ runningAgentIds: running })
 
     // Register task ownership so follow-up questions route back here.
-    set({ taskOwnership: { ...get().taskOwnership, [plan.botId]: plan.title } })
+    set({ taskOwnership: { ...get().taskOwnership, [plan.agentId]: plan.title } })
 
     const { agents } = useAgentsStore.getState()
-    const bot = agents.find((b) => b.id === plan.botId)
+    const agent = agents.find((a) => a.id === plan.agentId)
 
     try {
       // Animate each step as done.
@@ -406,10 +450,10 @@ export const useGroupChatStore = create<IGroupChatState>((set, get) => ({
 
       // Perform the actual AI call.
       const bridge = getDesktopBridge()
-      const aiOptions = await _botAiOptions(bot)
-      const taskPrompt = `You are "${bot?.name ?? 'AI'}", a focused AI agent.\nYour purpose: ${bot?.description ?? plan.title}\n\nTask: ${plan.title}\n\nComplete the task and provide a concise but thorough result.`
+      const aiOptions = await _agentAiOptions(agent)
+      const taskPrompt = `You are "${agent?.name ?? 'AI'}", a focused AI agent.\nYour purpose: ${agent?.description ?? plan.title}\n\nTask: ${plan.title}\n\nComplete the task and provide a concise but thorough result.`
 
-      addLog({ level: 'info', source: 'group-chat', message: `Executing plan: ${plan.title}`, detail: `Bot: ${bot?.name ?? plan.botId}` })
+      addLog({ level: 'info', source: 'group-chat', message: `Executing plan: ${plan.title}`, detail: `Agent: ${agent?.name ?? plan.agentId}` })
 
       const ai = await bridge.ai.generate('chat', taskPrompt, undefined, aiOptions)
       const result = ai.output.startsWith('[Dev mode]')
@@ -418,13 +462,13 @@ export const useGroupChatStore = create<IGroupChatState>((set, get) => ({
 
       _patch({ status: 'done', result, steps: plan.steps.map((s) => ({ ...s, done: true })) })
 
-      // Post a follow-up message from the bot with the result.
+      // Post a follow-up message from the agent with the result.
       const resultMsg: IGroupMessage = {
         id: uid(),
-        role: 'bot',
-        botId: plan.botId,
-        botName: plan.steps[0] ? (bot?.name ?? 'Bot') : 'Bot',
-        botAvatar: bot ? botAvatar(bot) : '🤖',
+        role: 'agent',
+        agentId: plan.agentId,
+        agentName: plan.steps[0] ? (agent?.name ?? 'Agent') : 'Agent',
+        agentAvatar: agent ? agentAvatar(agent) : '🤖',
         content: `✅ **${plan.title}** — completed!\n\n${result.length > 800 ? `${result.slice(0, 800)}…` : result}`,
         ts: Date.now(),
       }
@@ -435,13 +479,13 @@ export const useGroupChatStore = create<IGroupChatState>((set, get) => ({
       addLog({ level: 'info', source: 'group-chat', message: `Plan completed: ${plan.title}` })
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err)
-      notifyError(`${bot?.name ?? 'Bot'} — task failed`, err)
+      notifyError(`${agent?.name ?? 'Agent'} — task failed`, err)
       _patch({ status: 'done', result: `Error: ${errMsg}`, steps: plan.steps.map((s) => ({ ...s, done: false })) })
       addLog({ level: 'error', source: 'group-chat', message: `Plan failed: ${plan.title}`, detail: errMsg })
     } finally {
-      const r = new Set(get().runningBotIds)
-      r.delete(plan.botId)
-      set({ runningBotIds: r })
+      const r = new Set(get().runningAgentIds)
+      r.delete(plan.agentId)
+      set({ runningAgentIds: r })
     }
   },
 
@@ -483,19 +527,19 @@ function _postSystem(
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-function _postBotMsg(
+function _postAgentMsg(
   set: (partial: Partial<IGroupChatState> | ((s: IGroupChatState) => Partial<IGroupChatState>)) => void,
   get: GetFn,
-  bot: IDesktopAgent,
+  agent: IDesktopAgent,
   content: string,
   extra?: Partial<IGroupMessage>,
 ): void {
   const msg: IGroupMessage = {
     id: uid(),
-    role: 'bot',
-    botId: bot.id,
-    botName: bot.name,
-    botAvatar: botAvatar(bot),
+    role: 'agent',
+    agentId: agent.id,
+    agentName: agent.name,
+    agentAvatar: agentAvatar(agent),
     content,
     ts: Date.now(),
     ...extra,
@@ -505,29 +549,29 @@ function _postBotMsg(
   set({ messages: next })
 }
 
-async function _botAiOptions(bot: IDesktopAgent | undefined): Promise<{ apiKey?: string; provider?: string; model?: string } | undefined> {
-  if (bot?.apiKey) {
-    return { apiKey: bot.apiKey, ...(bot.aiProvider ? { provider: bot.aiProvider } : {}) }
+async function _agentAiOptions(agent: IDesktopAgent | undefined): Promise<{ apiKey?: string; provider?: string; model?: string } | undefined> {
+  if (agent?.apiKey) {
+    return { apiKey: agent.apiKey, ...(agent.aiProvider ? { provider: agent.aiProvider } : {}) }
   }
   const global = await resolveApiOptions()
   return Object.keys(global).length > 0 ? global : undefined
 }
 
-/** Let a bot propose a plan card for an action-intent message. */
-async function _botProposePlan(
-  bot: IDesktopAgent,
+/** Let an agent propose a plan card for an action-intent message. */
+async function _agentProposePlan(
+  agent: IDesktopAgent,
   userText: string,
   get: GetFn,
   set: (partial: Partial<IGroupChatState> | ((s: IGroupChatState) => Partial<IGroupChatState>)) => void,
 ): Promise<void> {
-  const thinking = new Set(get().thinkingBotIds)
-  thinking.add(bot.id)
-  set({ thinkingBotIds: thinking })
+  const thinking = new Set(get().thinkingAgentIds)
+  thinking.add(agent.id)
+  set({ thinkingAgentIds: thinking })
 
   await _sleep(600)
 
   const planId = uid()
-  const steps = buildPlanSteps(bot).map((label) => ({ label, done: false }))
+  const steps = buildPlanSteps(agent).map((label) => ({ label, done: false }))
 
   // Derive a short task title from the user message (first 80 chars, title-cased).
   const rawTitle = userText.trim()
@@ -535,8 +579,8 @@ async function _botProposePlan(
 
   const plan: IPendingPlan = {
     id: planId,
-    botId: bot.id,
-    botName: bot.name,
+    agentId: agent.id,
+    agentName: agent.name,
     title,
     steps,
     status: 'pending',
@@ -544,10 +588,10 @@ async function _botProposePlan(
 
   const proposalMsg: IGroupMessage = {
     id: planId,
-    role: 'bot',
-    botId: bot.id,
-    botName: bot.name,
-    botAvatar: botAvatar(bot),
+    role: 'agent',
+    agentId: agent.id,
+    agentName: agent.name,
+    agentAvatar: agentAvatar(agent),
     content: `I can take care of that! Here's my plan:`,
     ts: Date.now(),
     plan,
@@ -556,30 +600,30 @@ async function _botProposePlan(
   const next = [...get().messages, proposalMsg]
   persist(next)
 
-  const t2 = new Set(get().thinkingBotIds)
-  t2.delete(bot.id)
-  set({ messages: next, thinkingBotIds: t2 })
+  const t2 = new Set(get().thinkingAgentIds)
+  t2.delete(agent.id)
+  set({ messages: next, thinkingAgentIds: t2 })
 }
 
-/** Let a bot answer a conversational (non-action) message. */
-async function _botConversationalReply(
-  bot: IDesktopAgent,
+/** Let an agent answer a conversational (non-action) message. */
+async function _agentConversationalReply(
+  agent: IDesktopAgent,
   userText: string,
   get: GetFn,
   set: (partial: Partial<IGroupChatState> | ((s: IGroupChatState) => Partial<IGroupChatState>)) => void,
 ): Promise<void> {
-  const thinking = new Set(get().thinkingBotIds)
-  thinking.add(bot.id)
-  set({ thinkingBotIds: thinking })
+  const thinking = new Set(get().thinkingAgentIds)
+  thinking.add(agent.id)
+  set({ thinkingAgentIds: thinking })
 
   // Insert streaming placeholder.
   const streamId = uid()
   const placeholder: IGroupMessage = {
     id: streamId,
-    role: 'bot',
-    botId: bot.id,
-    botName: bot.name,
-    botAvatar: botAvatar(bot),
+    role: 'agent',
+    agentId: agent.id,
+    agentName: agent.name,
+    agentAvatar: agentAvatar(agent),
     content: '',
     ts: Date.now(),
     isStreaming: true,
@@ -590,19 +634,19 @@ async function _botConversationalReply(
 
   try {
     const bridge = getDesktopBridge()
-    const aiOptions = await _botAiOptions(bot)
+    const aiOptions = await _agentAiOptions(agent)
 
     const recentMsgs = get().messages.slice(-6, -1)
     const context = recentMsgs
       .filter((m) => m.role !== 'system')
-      .map((m) => `${m.role === 'user' ? 'User' : m.botName ?? 'Bot'}: ${m.content.slice(0, 200)}`)
+      .map((m) => `${m.role === 'user' ? 'User' : m.agentName ?? 'Agent'}: ${m.content.slice(0, 200)}`)
       .join('\n')
 
     const prompt = [
-      `You are "${bot.name}", a focused AI agent in a group workspace chat.`,
-      `Your purpose: ${bot.description}`,
+      `You are "${agent.name}", a focused AI agent in a group workspace chat.`,
+      `Your purpose: ${agent.description}`,
       context ? `\nRecent conversation:\n${context}` : null,
-      `\nUser: ${userText}\n${bot.name}:`,
+      `\nUser: ${userText}\n${agent.name}:`,
     ].filter(Boolean).join('\n')
 
     let accumulated = ''
@@ -618,7 +662,7 @@ async function _botConversationalReply(
     const res = await bridge.chat.send(prompt, aiOptions ?? {})
     unsub()
     const final = (accumulated || res.output).startsWith('[Dev mode]')
-      ? `[Offline] Start the full Tauri app to enable AI responses from ${bot.name}.`
+      ? `[Offline] Start the full Tauri app to enable AI responses from ${agent.name}.`
       : accumulated || res.output
 
     const finished = get().messages.map((m) =>
@@ -628,37 +672,37 @@ async function _botConversationalReply(
     set({ messages: finished })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
-    notifyError(`${bot.name} — reply failed`, err)
+    notifyError(`${agent.name} — reply failed`, err)
     const errMsgs = get().messages.map((m) =>
       m.id === streamId ? { ...m, content: `Error: ${msg}`, isStreaming: false } : m,
     )
     persist(errMsgs)
     set({ messages: errMsgs })
   } finally {
-    const t2 = new Set(get().thinkingBotIds)
-    t2.delete(bot.id)
-    set({ thinkingBotIds: t2 })
+    const t2 = new Set(get().thinkingAgentIds)
+    t2.delete(agent.id)
+    set({ thinkingAgentIds: t2 })
   }
 }
 
-/** Let the task-owner bot answer a status follow-up question. */
-async function _botStatusReply(
-  bot: IDesktopAgent,
+/** Let the task-owner agent answer a status follow-up question. */
+async function _agentStatusReply(
+  agent: IDesktopAgent,
   userText: string,
   get: GetFn,
   set: (partial: Partial<IGroupChatState> | ((s: IGroupChatState) => Partial<IGroupChatState>)) => void,
 ): Promise<void> {
-  const thinking = new Set(get().thinkingBotIds)
-  thinking.add(bot.id)
-  set({ thinkingBotIds: thinking })
+  const thinking = new Set(get().thinkingAgentIds)
+  thinking.add(agent.id)
+  set({ thinkingAgentIds: thinking })
 
   const streamId = uid()
   const placeholder: IGroupMessage = {
     id: streamId,
-    role: 'bot',
-    botId: bot.id,
-    botName: bot.name,
-    botAvatar: botAvatar(bot),
+    role: 'agent',
+    agentId: agent.id,
+    agentName: agent.name,
+    agentAvatar: agentAvatar(agent),
     content: '',
     ts: Date.now(),
     isStreaming: true,
@@ -669,11 +713,11 @@ async function _botStatusReply(
 
   try {
     const bridge = getDesktopBridge()
-    const aiOptions = await _botAiOptions(bot)
+    const aiOptions = await _agentAiOptions(agent)
 
-    const ownedTopic = get().taskOwnership[bot.id] ?? 'your assigned task'
+    const ownedTopic = get().taskOwnership[agent.id] ?? 'your assigned task'
     const relatedPlan = [...get().messages].reverse().find(
-      (m) => m.plan?.botId === bot.id && (m.plan.status === 'confirmed' || m.plan.status === 'done'),
+      (m) => m.plan?.agentId === agent.id && (m.plan.status === 'confirmed' || m.plan.status === 'done'),
     )
     const planStatus = relatedPlan?.plan?.status ?? 'unknown'
     const planResult = relatedPlan?.plan?.result
@@ -685,11 +729,11 @@ async function _botStatusReply(
         : `You have been assigned the task "${ownedTopic}" but it has not started yet.`
 
     const prompt = [
-      `You are "${bot.name}", a focused AI agent in a group workspace chat.`,
-      `Your purpose: ${bot.description}`,
+      `You are "${agent.name}", a focused AI agent in a group workspace chat.`,
+      `Your purpose: ${agent.description}`,
       context,
       `\nUser is asking: ${userText}`,
-      `\nRespond with a clear, concise status update. ${bot.name}:`,
+      `\nRespond with a clear, concise status update. ${agent.name}:`,
     ].join('\n')
 
     let accumulated = ''
@@ -715,20 +759,20 @@ async function _botStatusReply(
     set({ messages: finished })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
-    notifyError(`${bot.name} — status reply failed`, err)
+    notifyError(`${agent.name} — status reply failed`, err)
     const errMsgs = get().messages.map((m) =>
       m.id === streamId ? { ...m, content: `Error: ${msg}`, isStreaming: false } : m,
     )
     persist(errMsgs)
     set({ messages: errMsgs })
   } finally {
-    const t2 = new Set(get().thinkingBotIds)
-    t2.delete(bot.id)
-    set({ thinkingBotIds: t2 })
+    const t2 = new Set(get().thinkingAgentIds)
+    t2.delete(agent.id)
+    set({ thinkingAgentIds: t2 })
   }
 }
 
-/** Fallback: generic AI reply when no bots are available. */
+/** Fallback: generic AI reply when no agents are available. */
 async function _genericAiReply(
   userText: string,
   get: GetFn,
@@ -737,9 +781,9 @@ async function _genericAiReply(
   const streamId = uid()
   const placeholder: IGroupMessage = {
     id: streamId,
-    role: 'bot',
-    botName: 'AI Assistant',
-    botAvatar: '✦',
+    role: 'agent',
+    agentName: 'AI Assistant',
+    agentAvatar: '✦',
     content: '',
     ts: Date.now(),
     isStreaming: true,

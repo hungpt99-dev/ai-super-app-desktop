@@ -1,5 +1,5 @@
-import type { IDesktopBridge, IAiRequestOptions, IToastNotification, IAgentPollResult, IAgentRunUpdate } from '../../shared/bridge-types.js'
-import { getModuleManager } from '../../core/module-bootstrap.js'
+import type { IDesktopBridge, IAiRequestOptions, IToastNotification, IAgentPollResult, IAgentRunUpdate } from '../../bridges/bridge-types.js'
+import { getAgentRuntime, getActiveModules } from '../../app/module-bootstrap.js'
 import { useDevSettingsStore } from '../store/dev/dev-settings-store.js'
 
 /** True when running inside the Tauri WebView runtime. */
@@ -21,6 +21,60 @@ function getGatewayBase(): string {
   return DEV_GATEWAY
 }
 
+const sharedModules = {
+  list: (): Promise<{ id: string; name: string; version: string }[]> => {
+    const builtins = getActiveModules()
+    return Promise.resolve(
+      builtins.map((m) => ({
+        id: m.id,
+        name: m.definition.manifest.name,
+        version: m.definition.manifest.version,
+      }))
+    )
+  },
+
+  install: (): Promise<void> => Promise.resolve(),
+  uninstall: (): Promise<void> => Promise.resolve(),
+
+  invokeTool: async (moduleId: string, toolName: string, input?: Record<string, unknown>): Promise<unknown> => {
+    // Legacy shim for UI components
+    const builtins = getActiveModules()
+    const m = builtins.find(x => x.id === moduleId)
+    if (m && toolName !== 'run') {
+      const tool = m.definition.tools.find(t => t.name === toolName)
+      if (tool) {
+        // Mock context for built-in tools to function
+        return tool.run(input ?? {}, {
+          http: {
+            get: async (url: string, opts: any) => {
+              const res = await fetch(url, opts)
+              const text = await res.text()
+              let data: any
+              try { data = JSON.parse(text) } catch { data = null }
+              return { ok: res.ok, status: res.status, data, text }
+            },
+            post: async () => ({ ok: false, status: 500, data: null, text: '' })
+          },
+          ai: {
+            generate: async (req: any) => {
+              // Note: Assumes devBridge is available below, or ai logic
+              // Just a dummy mock for the shim if needed. The actual AI will fail if devBridge isn't ready.
+              return { output: 'Legacy AI shim', tokensUsed: 0 }
+            }
+          },
+          ui: { showDashboard: () => { }, notify: () => { } },
+          store: { get: async () => null, set: async () => { }, delete: async () => { }, has: async () => false }
+        } as any)
+      }
+    }
+
+    // New AgentRuntime behavior
+    const runtime = getAgentRuntime()
+    if (!runtime) return Promise.reject(new Error(`AgentRuntime not initialised — graph ${moduleId} cannot run.`))
+    return runtime.execute(moduleId, input ?? {})
+  },
+}
+
 // ─── Tauri bridge ─────────────────────────────────────────────────────────────
 // All IPC goes through Tauri `invoke()`. Streaming is done by listening to
 // Tauri events that the Rust backend emits as it reads the SSE response.
@@ -37,9 +91,9 @@ const tauriBridge: IDesktopBridge = {
     send: (message: string, options?: IAiRequestOptions) =>
       invoke<{ output: string }>('chat_send', {
         message,
-        ...(options?.apiKey   ? { apiKey:    options.apiKey   } : {}),
+        ...(options?.apiKey ? { apiKey: options.apiKey } : {}),
         ...(options?.provider ? { provider: options.provider } : {}),
-        ...(options?.model    ? { model:    options.model    } : {}),
+        ...(options?.model ? { model: options.model } : {}),
       }),
 
     onStream: (handler) => {
@@ -52,29 +106,7 @@ const tauriBridge: IDesktopBridge = {
   },
 
   // ── Modules ──────────────────────────────────────────────────────────────
-  modules: {
-    list: (): Promise<{ id: string; name: string; version: string }[]> => {
-      const mm = getModuleManager()
-      if (!mm) return Promise.resolve([])
-      return Promise.resolve(
-        Array.from(mm.getActive().entries()).map(([id, def]) => ({
-          id,
-          name: def.manifest.name,
-          version: def.manifest.version,
-        }))
-      )
-    },
-
-    install: (): Promise<void> => Promise.resolve(),
-    uninstall: (): Promise<void> => Promise.resolve(),
-
-    // Module tools run entirely in the JS sandbox — no Rust/backend hop needed.
-    invokeTool: (moduleId: string, toolName: string, input?: Record<string, unknown>): Promise<unknown> => {
-      const mm = getModuleManager()
-      if (!mm) return Promise.reject(new Error(`Module manager not initialised — tool ${moduleId}/${toolName} cannot run.`))
-      return mm.runTool(moduleId, toolName, input ?? {})
-    },
-  },
+  modules: sharedModules,
 
   // ── AI ───────────────────────────────────────────────────────────────────
   ai: {
@@ -84,10 +116,10 @@ const tauriBridge: IDesktopBridge = {
         {
           capability,
           input,
-          ...(context            ? { context }             : {}),
-          ...(options?.apiKey   ? { apiKey:    options.apiKey   } : {}),
+          ...(context ? { context } : {}),
+          ...(options?.apiKey ? { apiKey: options.apiKey } : {}),
           ...(options?.provider ? { provider: options.provider } : {}),
-          ...(options?.model    ? { model:    options.model    } : {}),
+          ...(options?.model ? { model: options.model } : {}),
         },
       )
       return { output: res.output, tokensUsed: res.tokens_used }
@@ -150,9 +182,9 @@ const tauriBridge: IDesktopBridge = {
 
   // ── Agents ─────────────────────────────────────────────────────────────────
   agents: {
-    poll: () => invoke<IAgentPollResult | null>('bots_poll'),
+    poll: () => invoke<IAgentPollResult | null>('agents_poll'),
     updateRun: (runId: string, update: IAgentRunUpdate) =>
-      invoke<undefined>('bots_update_run', { runId, update }).then(() => undefined),
+      invoke<undefined>('agents_update_run', { runId, update }).then(() => undefined),
   },
 }
 
@@ -173,15 +205,15 @@ window.addEventListener('app:notification', (e) => {
 
 const DEV_PROVIDER_MODELS: Record<string, string> = {
   anthropic: 'claude-3-5-haiku-20241022',
-  google:    'gemini-2.0-flash',
-  gemini:    'gemini-2.0-flash',
-  groq:      'llama3-8b-8192',
-  mistral:   'mistral-small-latest',
+  google: 'gemini-2.0-flash',
+  gemini: 'gemini-2.0-flash',
+  groq: 'llama3-8b-8192',
+  mistral: 'mistral-small-latest',
 }
 const DEFAULT_OPENAI_MODEL = 'gpt-4o-mini'
 
 const OPENAI_COMPAT_BASE: Record<string, string> = {
-  groq:    'https://api.groq.com/openai/v1',
+  groq: 'https://api.groq.com/openai/v1',
   mistral: 'https://api.mistral.ai/v1',
 }
 const OPENAI_DEFAULT_BASE = 'https://api.openai.com/v1'
@@ -359,28 +391,7 @@ const devBridge: IDesktopBridge = {
   },
 
   // ── Modules ──────────────────────────────────────────────────────────────
-  modules: {
-    list: (): Promise<{ id: string; name: string; version: string }[]> => {
-      const mm = getModuleManager()
-      if (!mm) return Promise.resolve([])
-      return Promise.resolve(
-        Array.from(mm.getActive().entries()).map(([id, def]) => ({
-          id,
-          name: def.manifest.name,
-          version: def.manifest.version,
-        }))
-      )
-    },
-
-    install: (): Promise<void> => Promise.resolve(),
-    uninstall: (): Promise<void> => Promise.resolve(),
-
-    invokeTool: (moduleId: string, toolName: string, input?: Record<string, unknown>): Promise<unknown> => {
-      const mm = getModuleManager()
-      if (!mm) return Promise.reject(new Error(`[Dev mode] Module manager not initialised yet — tool ${moduleId}/${toolName} cannot run.`))
-      return mm.runTool(moduleId, toolName, input ?? {})
-    },
-  },
+  modules: sharedModules,
 
   // ── AI ───────────────────────────────────────────────────────────────────
   ai: {
@@ -474,7 +485,7 @@ const devBridge: IDesktopBridge = {
   agents: {
     poll: async (): Promise<IAgentPollResult | null> => {
       try {
-        const res = await fetch(`${getGatewayBase()}/v1/bots/poll`, {
+        const res = await fetch(`${getGatewayBase()}/v1/agents/poll`, {
           headers: { Authorization: `Bearer ${DEV_TOKEN}` },
         })
         if (res.status === 204) return null
@@ -486,7 +497,7 @@ const devBridge: IDesktopBridge = {
     },
 
     updateRun: async (runId: string, update: IAgentRunUpdate): Promise<void> => {
-      const res = await fetch(`${getGatewayBase()}/v1/bots/runs/${runId}`, {
+      const res = await fetch(`${getGatewayBase()}/v1/agents/runs/${runId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

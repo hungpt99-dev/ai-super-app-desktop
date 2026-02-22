@@ -1,8 +1,8 @@
 {
-  "name": "ai-super-app-desktop",
+  "name": "agenthub-desktop",
   "private": true,
   "version": "1.0.0",
-  "description": "AI SuperApp \u2013 Desktop client (Tauri + React, open-source)",
+  "description": "AgentHub \u2013 Desktop client (Tauri + React, open-source)",
   "workspaces": [
     "packages/*",
     "apps/desktop",

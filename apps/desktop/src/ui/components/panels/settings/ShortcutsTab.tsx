@@ -2,15 +2,15 @@ import React from 'react'
 import { Card, SectionTitle } from './settings-shared.js'
 
 const KEYBOARD_SHORTCUTS: { key: string; description: string; group: string }[] = [
-  { group: 'Navigation', key: '⌘ 1',     description: 'Go to Chat' },
-  { group: 'Navigation', key: '⌘ 2',     description: 'Go to Bots' },
-  { group: 'Navigation', key: '⌘ 3',     description: 'Go to Activity' },
-  { group: 'Navigation', key: '⌘ ,',     description: 'Open Settings' },
-  { group: 'Chat',       key: 'Enter',   description: 'Send message' },
-  { group: 'Chat',       key: '⇧ Enter', description: 'New line in chat' },
-  { group: 'Chat',       key: '⌘ K',     description: 'Clear chat history' },
-  { group: 'General',    key: 'Esc',     description: 'Close / cancel' },
-  { group: 'General',    key: '⌘ /',     description: 'Toggle keyboard shortcuts' },
+  { group: 'Navigation', key: '⌘ 1', description: 'Go to Chat' },
+  { group: 'Navigation', key: '⌘ 2', description: 'Go to Agents' },
+  { group: 'Navigation', key: '⌘ 3', description: 'Go to Activity' },
+  { group: 'Navigation', key: '⌘ ,', description: 'Open Settings' },
+  { group: 'Chat', key: 'Enter', description: 'Send message' },
+  { group: 'Chat', key: '⇧ Enter', description: 'New line in chat' },
+  { group: 'Chat', key: '⌘ K', description: 'Clear chat history' },
+  { group: 'General', key: 'Esc', description: 'Close / cancel' },
+  { group: 'General', key: '⌘ /', description: 'Toggle keyboard shortcuts' },
 ]
 
 export function ShortcutsTab(): React.JSX.Element {

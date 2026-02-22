@@ -1,21 +1,21 @@
 /**
  * GroupChatWindow.tsx
  *
- * The group-chat surface where the user can assign tasks to bots and
+ * The group-chat surface where the user can assign tasks to agents and
  * communicate with all of them in a single shared thread.
  *
  * Features:
- *  • Bot-routing: messages are routed to the most relevant active bot.
+ *  • Agent-routing: messages are routed to the most relevant active agent.
  *  • Plan cards: action-intent messages trigger a plan proposal that the
- *    user must confirm before the bot executes.
- *  • Step animation: each plan step animates as done while the bot executes.
- *  • Status follow-ups: the task-owner bot answers questions like "is it done?"
+ *    user must confirm before the agent executes.
+ *  • Step animation: each plan step animates as done while the agent executes.
+ *  • Status follow-ups: the task-owner agent answers questions like "is it done?"
  *  • Streaming: conversational replies stream token-by-token.
- *  • Active-bot roster: header shows which bots are currently in the workspace.
+ *  • Active-agent roster: header shows which agents are currently in the workspace.
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useGroupChatStore, type IGroupMessage, type IPendingPlan } from '../../store/chat-group-store.js'
+import { useGroupChatStore, type IGroupMessage, type IPendingPlan, type GroupChatMode } from '../../store/chat-group-store.js'
 import { useAgentsStore } from '../../store/agents-store.js'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -36,8 +36,8 @@ interface IPlanCardProps {
 }
 
 function PlanCard({ plan, onConfirm, onDismiss }: IPlanCardProps): React.JSX.Element {
-  const isRunning   = plan.status === 'confirmed'
-  const isDone      = plan.status === 'done'
+  const isRunning = plan.status === 'confirmed'
+  const isDone = plan.status === 'done'
   const isDismissed = plan.status === 'dismissed'
 
   return (
@@ -131,9 +131,9 @@ interface IBubbleProps {
 }
 
 function MessageBubble({ msg, onConfirm, onDismiss }: IBubbleProps): React.JSX.Element {
-  const isUser   = msg.role === 'user'
+  const isUser = msg.role === 'user'
   const isSystem = msg.role === 'system'
-  const [copied, setCopied]   = useState(false)
+  const [copied, setCopied] = useState(false)
 
   const handleCopy = async (): Promise<void> => {
     await navigator.clipboard.writeText(msg.content)
@@ -161,30 +161,52 @@ function MessageBubble({ msg, onConfirm, onDismiss }: IBubbleProps): React.JSX.E
             ? 'bg-[var(--color-accent)] text-white'
             : 'bg-[var(--color-surface-2)] text-[var(--color-accent)]',
         ].join(' ')}
-        title={isUser ? 'You' : (msg.botName ?? 'Bot')}
+        title={isUser ? 'You' : (msg.agentName ?? 'Agent')}
       >
-        {isUser ? 'U' : (msg.botAvatar ?? '🤖')}
+        {isUser ? 'U' : (msg.agentAvatar ?? '🤖')}
       </div>
 
       {/* Bubble */}
       <div className={`relative flex max-w-[72%] flex-col ${isUser ? 'items-end' : 'items-start'}`}>
-        {/* Bot name label */}
-        {!isUser && msg.botName && (
+        {/* Agent name label */}
+        {!isUser && msg.agentName && (
           <p className="mb-0.5 pl-1 text-[10px] font-semibold text-[var(--color-accent)]">
-            {msg.botName}
+            {msg.agentName}
           </p>
         )}
 
         <div
           className={[
-            'rounded-2xl px-4 py-3 text-sm leading-relaxed',
+            'relative rounded-2xl px-4 py-3 text-sm leading-relaxed',
             isUser
               ? 'rounded-br-md bg-[var(--color-accent)] text-white'
               : 'rounded-bl-md bg-[var(--color-surface)] text-[var(--color-text-primary)]',
           ].join(' ')}
         >
+          {/* Copy button */}
+          {!isUser && !msg.isStreaming && msg.content && (
+            <button
+              onClick={() => void handleCopy()}
+              className="absolute right-2 top-2 hidden h-6 items-center gap-1 rounded-lg bg-[var(--color-surface-2)]/80 px-2 text-[10px] text-[var(--color-text-muted)] backdrop-blur-sm transition-all hover:text-[var(--color-accent)] group-hover:flex"
+              title="Copy message"
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+              </svg>
+              {copied ? 'Copied!' : 'Copy'}
+            </button>
+          )}
+
           {/* Main content */}
-          <span className="whitespace-pre-wrap">{msg.content}</span>
+          <span className="whitespace-pre-wrap">
+            {msg.content.split(/(@\w+)/).map((part, i) =>
+              part.startsWith('@') ? (
+                <span key={i} className="font-bold text-[var(--color-accent)] brightness-125">{part}</span>
+              ) : (
+                part
+              )
+            )}
+          </span>
           {msg.isStreaming && (
             <span className="cursor-blink ml-0.5 inline-block text-[var(--color-accent)]">▌</span>
           )}
@@ -204,27 +226,15 @@ function MessageBubble({ msg, onConfirm, onDismiss }: IBubbleProps): React.JSX.E
           </p>
         </div>
 
-        {/* Copy button */}
-        {!isUser && !msg.isStreaming && msg.content && (
-          <button
-            onClick={() => void handleCopy()}
-            className="absolute -bottom-5 left-0 hidden items-center gap-1 text-[10px] text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-accent)] group-hover:flex"
-          >
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
-            </svg>
-            {copied ? 'Copied!' : 'Copy'}
-          </button>
-        )}
       </div>
     </div>
   )
 }
 
-// ─── Bot roster pill ──────────────────────────────────────────────────────────
+// ─── Agent roster pill ──────────────────────────────────────────────────────────
 
-interface IBotPillProps { name: string; avatar: string; active: boolean }
-function BotPill({ name, avatar, active }: IBotPillProps): React.JSX.Element {
+interface IAgentPillProps { name: string; avatar: string; active: boolean }
+function AgentPill({ name, avatar, active }: IAgentPillProps): React.JSX.Element {
   return (
     <div
       className="flex items-center gap-1.5 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1 text-[11px]"
@@ -256,10 +266,10 @@ function EmptyState({ onSuggest }: { onSuggest: (s: string) => void }): React.JS
         <span className="text-3xl text-[var(--color-accent)]">🤝</span>
       </div>
       <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">
-        Your bot workspace
+        Your agent workspace
       </h2>
       <p className="mt-1.5 max-w-xs text-sm text-[var(--color-text-secondary)]">
-        Assign tasks to your bots or ask them anything. The right bot will take ownership automatically.
+        Assign tasks to your agents or ask them anything. The right agent will take ownership automatically.
       </p>
       <div className="mt-6 flex flex-wrap justify-center gap-2">
         {SUGGESTIONS.map((s) => (
@@ -278,14 +288,14 @@ function EmptyState({ onSuggest }: { onSuggest: (s: string) => void }): React.JS
 
 // ─── Thinking indicator ────────────────────────────────────────────────────────
 
-function ThinkingIndicator({ botName, avatar }: { botName: string; avatar: string }): React.JSX.Element {
+function ThinkingIndicator({ agentName, avatar }: { agentName: string; avatar: string }): React.JSX.Element {
   return (
     <div className="flex animate-fade-in items-end gap-2.5">
       <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--color-surface-2)] text-xs font-bold text-[var(--color-accent)]">
         {avatar}
       </div>
       <div className="flex flex-col items-start">
-        <p className="mb-0.5 pl-1 text-[10px] font-semibold text-[var(--color-accent)]">{botName}</p>
+        <p className="mb-0.5 pl-1 text-[10px] font-semibold text-[var(--color-accent)]">{agentName}</p>
         <div className="rounded-2xl rounded-bl-md bg-[var(--color-surface)] px-4 py-3">
           <span className="flex gap-1">
             {[0, 1, 2].map((i) => (
@@ -304,44 +314,47 @@ function ThinkingIndicator({ botName, avatar }: { botName: string; avatar: strin
 
 // ─── Main component ────────────────────────────────────────────────────────────
 
-/** GroupChatWindow — multi-bot group workspace chat. */
+/** GroupChatWindow — multi-agent group workspace chat. */
 export function GroupChatWindow(): React.JSX.Element {
-  const messages       = useGroupChatStore((s) => s.messages)
-  const thinkingBotIds = useGroupChatStore((s) => s.thinkingBotIds)
-  const runningBotIds  = useGroupChatStore((s) => s.runningBotIds)
-  const error          = useGroupChatStore((s) => s.error)
-  const send           = useGroupChatStore((s) => s.send)
-  const confirmPlan    = useGroupChatStore((s) => s.confirmPlan)
-  const dismissPlan    = useGroupChatStore((s) => s.dismissPlan)
-  const clear          = useGroupChatStore((s) => s.clear)
-  const setError       = useGroupChatStore((s) => s.setError)
+  const messages = useGroupChatStore((s) => s.messages)
+  const thinkingAgentIds = useGroupChatStore((s) => s.thinkingAgentIds)
+  const runningAgentIds = useGroupChatStore((s) => s.runningAgentIds)
+  const error = useGroupChatStore((s) => s.error)
+  const send = useGroupChatStore((s) => s.send)
+  const confirmPlan = useGroupChatStore((s) => s.confirmPlan)
+  const dismissPlan = useGroupChatStore((s) => s.dismissPlan)
+  const clear = useGroupChatStore((s) => s.clear)
+  const setError = useGroupChatStore((s) => s.setError)
+  const mode = useGroupChatStore((s) => s.mode)
+  const setMode = useGroupChatStore((s) => s.setMode)
 
-  const bots           = useAgentsStore((s) => s.agents)
+  const agents = useAgentsStore((s) => s.agents)
 
-  const [input, setInput]       = useState('')
-  const bottomRef               = useRef<HTMLDivElement>(null)
-  const textareaRef             = useRef<HTMLTextAreaElement>(null)
+  const [input, setInput] = useState('')
+  const [showMentions, setShowMentions] = useState(false)
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  const activeBots = useMemo(
-    () => bots.filter((b) => b.status === 'active').slice(0, 8),
-    [bots],
+  const activeAgents = useMemo(
+    () => agents.filter((a) => a.status === 'active').slice(0, 8),
+    [agents],
   )
 
-  const isAnyBotBusy = thinkingBotIds.size > 0 || runningBotIds.size > 0
+  const isAnyAgentBusy = thinkingAgentIds.size > 0 || runningAgentIds.size > 0
 
   // Scroll to bottom on new messages.
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, thinkingBotIds.size])
+  }, [messages, thinkingAgentIds.size])
 
   const submit = useCallback(
     async (text: string) => {
-      if (!text.trim() || isAnyBotBusy) return
+      if (!text.trim() || isAnyAgentBusy) return
       setInput('')
       if (textareaRef.current) textareaRef.current.style.height = 'auto'
       await send(text)
     },
-    [isAnyBotBusy, send],
+    [isAnyAgentBusy, send],
   )
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
@@ -352,17 +365,46 @@ export function GroupChatWindow(): React.JSX.Element {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
+      if (showMentions) {
+        // Handle mention selection if needed, or just submit
+        setShowMentions(false)
+      }
       void submit(input)
     }
   }
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>): void => {
+    const val = e.target.value
+    setInput(val)
+
+    // Simple mention detection
+    const lastWord = val.split(/\s/).pop() ?? ''
+    if (lastWord.startsWith('@')) {
+      setShowMentions(true)
+    } else {
+      setShowMentions(false)
+    }
+
+    e.target.style.height = 'auto'
+    e.target.style.height = `${String(Math.min(e.target.scrollHeight, 120))}px`
+  }
+
+  const insertMention = (name: string): void => {
+    const words = input.split(/\s/)
+    words.pop()
+    const newVal = [...words, `@${name} `].join(' ')
+    setInput(newVal)
+    setShowMentions(false)
+    textareaRef.current?.focus()
+  }
+
   // Build thinking indicators.
   const thinkingEntries = useMemo(() => {
-    return [...thinkingBotIds]
-      .map((id) => bots.find((b) => b.id === id))
+    return [...thinkingAgentIds]
+      .map((id) => agents.find((a) => a.id === id))
       .filter(Boolean)
-      .map((b) => ({ id: b!.id, name: b!.name, avatar: b!.name.charAt(0).toUpperCase() }))
-  }, [thinkingBotIds, bots])
+      .map((a) => ({ id: a!.id, name: a!.name, avatar: a!.name.charAt(0).toUpperCase() }))
+  }, [thinkingAgentIds, agents])
 
   return (
     <div className="flex h-full flex-col bg-[var(--color-bg)]">
@@ -376,14 +418,14 @@ export function GroupChatWindow(): React.JSX.Element {
             </div>
             <div>
               <p className="text-sm font-semibold leading-none text-[var(--color-text-primary)]">
-                Bot Workspace
+                Agent Workspace
               </p>
               <p className="mt-0.5 text-[10px] text-[var(--color-text-secondary)]">
-                {isAnyBotBusy
-                  ? `${runningBotIds.size > 0 ? `${String(runningBotIds.size)} running` : ''}${thinkingBotIds.size > 0 && runningBotIds.size > 0 ? ' · ' : ''}${thinkingBotIds.size > 0 ? `${String(thinkingBotIds.size)} thinking` : ''}…`
-                  : activeBots.length > 0
-                    ? `${String(activeBots.length)} bot${activeBots.length !== 1 ? 's' : ''} active`
-                    : 'No active bots — create one in the Bots tab'}
+                {isAnyAgentBusy
+                  ? `${runningAgentIds.size > 0 ? `${String(runningAgentIds.size)} running` : ''}${thinkingAgentIds.size > 0 && runningAgentIds.size > 0 ? ' · ' : ''}${thinkingAgentIds.size > 0 ? `${String(thinkingAgentIds.size)} thinking` : ''}…`
+                  : activeAgents.length > 0
+                    ? `${String(activeAgents.length)} agent${activeAgents.length !== 1 ? 's' : ''} active`
+                    : 'No active agents — create one in the Agents tab'}
               </p>
             </div>
           </div>
@@ -405,15 +447,15 @@ export function GroupChatWindow(): React.JSX.Element {
           </div>
         </div>
 
-        {/* Bot roster */}
-        {activeBots.length > 0 && (
+        {/* Agent roster */}
+        {activeAgents.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
-            {activeBots.map((b) => (
-              <BotPill
-                key={b.id}
-                name={b.name}
-                avatar={b.name.charAt(0).toUpperCase()}
-                active={runningBotIds.has(b.id) || thinkingBotIds.has(b.id)}
+            {activeAgents.map((a) => (
+              <AgentPill
+                key={a.id}
+                name={a.name}
+                avatar={a.name.charAt(0).toUpperCase()}
+                active={runningAgentIds.has(a.id) || thinkingAgentIds.has(a.id)}
               />
             ))}
           </div>
@@ -437,7 +479,7 @@ export function GroupChatWindow(): React.JSX.Element {
 
             {/* Thinking indicators */}
             {thinkingEntries.map((e) => (
-              <ThinkingIndicator key={e.id} botName={e.name} avatar={e.avatar} />
+              <ThinkingIndicator key={e.id} agentName={e.name} avatar={e.avatar} />
             ))}
           </div>
         )}
@@ -446,54 +488,103 @@ export function GroupChatWindow(): React.JSX.Element {
 
       {/* ── Error banner ────────────────────────────────────────────────────── */}
       {error && (
-        <div className="mx-6 mb-2 flex items-center gap-2.5 rounded-xl border border-red-800 bg-red-950/30 px-4 py-2.5 text-xs text-red-400">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" />
+        <div className="mx-6 mb-4 flex items-center gap-2.5 rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-xs text-red-500">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
-          <span className="flex-1">{error}</span>
-          <button onClick={() => { setError(null) }} className="transition-colors hover:text-red-300" aria-label="Dismiss">✕</button>
+          <span className="flex-1 font-medium">{error}</span>
+          <button onClick={() => { setError(null) }} className="opacity-60 transition-opacity hover:opacity-100" aria-label="Dismiss">✕</button>
         </div>
       )}
 
       {/* ── Input bar ───────────────────────────────────────────────────────── */}
-      <div className="shrink-0 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-6 py-4">
-        <form onSubmit={(e) => { void handleSubmit(e) }}>
-          <div className="flex items-end gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-3 transition-colors focus-within:border-[var(--color-accent)]">
+      <div className="shrink-0 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-6 py-5">
+        <form onSubmit={(e) => { void handleSubmit(e) }} className="relative">
+
+          {/* Mention Suggestions Popup */}
+          {showMentions && activeAgents.length > 0 && (
+            <div className="absolute bottom-full left-0 mb-3 w-64 overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl animate-in fade-in slide-in-from-bottom-2">
+              <div className="border-b border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                Mention Agent
+              </div>
+              <div className="max-h-48 overflow-y-auto p-1">
+                {activeAgents.map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => { insertMention(a.name) }}
+                    className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-[var(--color-accent)] hover:text-white"
+                  >
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--color-surface-2)] text-[10px] font-bold group-hover:bg-white/20">
+                      {a.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 truncate">
+                      <p className="font-semibold">{a.name}</p>
+                      <p className="opacity-70 text-[10px] truncate">{a.description}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Mode Selector */}
+          <div className="mb-3 flex items-center gap-2">
+            {([
+              { id: 'ask', label: 'Ask AI', icon: '❓', color: 'text-blue-400' },
+              { id: 'task', label: 'Assign Task', icon: '🎯', color: 'text-[var(--color-success)]' },
+              { id: 'research', label: 'Research', icon: '🔍', color: 'text-purple-400' },
+            ] as const).map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => { setMode(m.id) }}
+                className={[
+                  'flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-medium transition-all active:scale-95',
+                  mode === m.id
+                    ? `border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)] shadow-[0_0_12px_rgba(var(--color-accent-rgb),0.1)]`
+                    : 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)] hover:border-[var(--color-accent)]/50 hover:text-[var(--color-text-secondary)]',
+                ].join(' ')}
+              >
+                <span className={mode === m.id ? '' : 'grayscale opacity-60'}>{m.icon}</span>
+                {m.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="group relative flex items-end gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg)] p-1.5 pl-4 transition-all focus-within:border-[var(--color-accent)] focus-within:shadow-[0_0_20px_rgba(var(--color-accent-rgb),0.05)]">
             <textarea
               ref={textareaRef}
               rows={1}
               value={input}
-              onChange={(e) => {
-                setInput(e.target.value)
-                e.target.style.height = 'auto'
-                e.target.style.height = `${String(Math.min(e.target.scrollHeight, 120))}px`
-              }}
+              onChange={handleInputChange}
               onKeyDown={handleKeyDown}
               placeholder={
-                activeBots.length === 0
-                  ? 'Create a bot in the Bots tab to get started…'
-                  : isAnyBotBusy
-                    ? 'A bot is working… please wait'
-                    : 'Assign a task or ask a question — the right bot will respond…'
+                activeAgents.length === 0
+                  ? 'Create an agent to get started…'
+                  : isAnyAgentBusy
+                    ? 'Working…'
+                    : mode === 'task'
+                      ? 'What should they do?'
+                      : mode === 'research'
+                        ? 'What should they investigate?'
+                        : 'Ask your agents anything…'
               }
-              disabled={isAnyBotBusy && thinkingBotIds.size > 0}
-              className="flex-1 resize-none bg-transparent text-sm leading-relaxed text-[var(--color-text-primary)] placeholder-[var(--color-text-secondary)] outline-none disabled:opacity-50"
+              disabled={isAnyAgentBusy && thinkingAgentIds.size > 0}
+              className="flex-1 resize-none bg-transparent py-2.5 text-sm leading-relaxed text-[var(--color-text-primary)] placeholder-[var(--color-text-secondary)] outline-none disabled:opacity-50"
               style={{ maxHeight: '120px' }}
             />
             <button
               type="submit"
-              disabled={(isAnyBotBusy && thinkingBotIds.size > 0) || !input.trim()}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--color-accent)] text-white transition-all hover:bg-[var(--color-accent-hover)] active:scale-95 disabled:opacity-40"
+              disabled={(isAnyAgentBusy && thinkingAgentIds.size > 0) || !input.trim()}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--color-accent)] text-white shadow-lg transition-all hover:bg-[var(--color-accent-hover)] hover:shadow-[var(--color-accent)]/20 active:scale-95 disabled:opacity-40 disabled:shadow-none"
               aria-label="Send"
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
               </svg>
             </button>
           </div>
-          <p className="mt-1.5 text-center text-[10px] text-[var(--color-text-muted)]">
-            The right bot takes ownership automatically. Confirm before any task runs.
-          </p>
         </form>
       </div>
     </div>

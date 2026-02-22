@@ -2,10 +2,10 @@
  * DashboardPanel.tsx
  *
  * App home screen.  Shows:
- *  • Stats overview  (total bots, active bots, total runs, API keys configured)
- *  • Default run key selector  (which provider to use for local bot runs)
- *  • Recent activity           (latest runs across all bots)
- *  • Bot template gallery      (quick-create any number of bots from a template)
+ *  • Stats overview  (total agents, active agents, total runs, API keys configured)
+ *  • Default run key selector  (which provider to use for local agent runs)
+ *  • Recent activity           (latest runs across all agents)
+ *  • Agent template gallery    (quick-create any number of agents from a template)
  */
 
 import React, { useCallback, useEffect, useState } from 'react'
@@ -17,7 +17,7 @@ import {
   getDefaultKeyId,
   setDefaultKeyId as persistDefaultKeyId,
   type ILocalAPIKey,
-} from '../../../sdk/api-key-store.js'
+} from '../../../bridges/api-key-store.js'
 import {
   AGENT_TEMPLATES,
   type IAgentTemplate,
@@ -26,12 +26,12 @@ import {
 // ─── Provider meta ────────────────────────────────────────────────────────────
 
 const PROVIDER_LABELS: Record<string, { label: string; icon: string }> = {
-  openai:    { label: 'OpenAI',       icon: '🤖' },
-  anthropic: { label: 'Anthropic',    icon: '🧠' },
-  google:    { label: 'Google Gemini',icon: '✨' },
-  mistral:   { label: 'Mistral AI',   icon: '💨' },
-  cohere:    { label: 'Cohere',       icon: '🔮' },
-  groq:      { label: 'Groq',         icon: '⚡' },
+  openai: { label: 'OpenAI', icon: '🤖' },
+  anthropic: { label: 'Anthropic', icon: '🧠' },
+  google: { label: 'Google Gemini', icon: '✨' },
+  mistral: { label: 'Mistral AI', icon: '💨' },
+  cohere: { label: 'Cohere', icon: '🔮' },
+  groq: { label: 'Groq', icon: '⚡' },
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -85,7 +85,7 @@ function DefaultKeyCard({
         <div>
           <p className="text-sm font-semibold text-[var(--color-text-primary)]">Default Run Key</p>
           <p className="mt-0.5 text-xs text-[var(--color-text-secondary)]">
-            API key used when running bots locally without a cloud account.
+            API key used when running agents locally without a cloud account.
           </p>
         </div>
         <button
@@ -104,7 +104,7 @@ function DefaultKeyCard({
             <button onClick={onGoToKeys} className="text-[var(--color-accent)] hover:underline">
               Add one
             </button>{' '}
-            to run bots locally with AI.
+            to run agents locally with AI.
           </p>
         </div>
       ) : (
@@ -140,7 +140,7 @@ function DefaultKeyCard({
           : defaultKeyId
         return (
           <p className="mt-2 text-[11px] text-[var(--color-success)]">
-            ✓ Bots will use <strong>{display}</strong> by default when run locally.
+            ✓ Agents will use <strong>{display}</strong> by default when run locally.
           </p>
         )
       })()}
@@ -151,33 +151,33 @@ function DefaultKeyCard({
 // ─── Recent activity row ──────────────────────────────────────────────────────
 
 const STATUS_DOT: Record<string, string> = {
-  pending:   'bg-yellow-400',
-  running:   'animate-pulse bg-blue-400',
+  pending: 'bg-yellow-400',
+  running: 'animate-pulse bg-blue-400',
   completed: 'bg-[var(--color-success)]',
-  failed:    'bg-[var(--color-danger)]',
+  failed: 'bg-[var(--color-danger)]',
   cancelled: 'bg-[var(--color-text-muted)]',
 }
 
 const STATUS_BADGE: Record<string, string> = {
-  pending:   'bg-yellow-400/15 text-yellow-400',
-  running:   'bg-blue-400/15 text-blue-400',
+  pending: 'bg-yellow-400/15 text-yellow-400',
+  running: 'bg-blue-400/15 text-blue-400',
   completed: 'bg-[var(--color-success)]/15 text-[var(--color-success)]',
-  failed:    'bg-[var(--color-danger)]/15 text-[var(--color-danger)]',
+  failed: 'bg-[var(--color-danger)]/15 text-[var(--color-danger)]',
   cancelled: 'bg-[var(--color-surface-2)] text-[var(--color-text-muted)]',
 }
 
 interface IActivityRowProps {
   run: IDesktopAgentRun
-  botName: string
-  onOpenBot: () => void
+  agentName: string
+  onOpenAgent: () => void
 }
 
-function ActivityRow({ run, botName, onOpenBot }: IActivityRowProps): React.JSX.Element {
+function ActivityRow({ run, agentName, onOpenAgent }: IActivityRowProps): React.JSX.Element {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
       <span className={`h-2 w-2 shrink-0 rounded-full ${STATUS_DOT[run.status] ?? ''}`} />
       <span className="min-w-0 flex-1 truncate text-sm text-[var(--color-text-primary)]">
-        {botName}
+        {agentName}
       </span>
       <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${STATUS_BADGE[run.status] ?? ''}`}>
         {run.status}
@@ -186,7 +186,7 @@ function ActivityRow({ run, botName, onOpenBot }: IActivityRowProps): React.JSX.
         {relativeTime(run.started_at)}
       </span>
       <button
-        onClick={onOpenBot}
+        onClick={onOpenAgent}
         className="shrink-0 text-xs text-[var(--color-accent)] hover:underline"
       >
         Open
@@ -235,11 +235,11 @@ function TemplateCard({ template, instanceCount, onCreate }: ITemplateCardProps)
                      px-3 py-1.5 text-xs font-medium text-[var(--color-accent)]
                      transition-colors hover:bg-[var(--color-accent)] hover:text-white"
         >
-          + Create bot
+          + Create agent
         </button>
         {instanceCount > 0 && (
           <span className="text-[11px] text-[var(--color-text-muted)]">
-            {String(instanceCount)} bot{instanceCount !== 1 ? 's' : ''}
+            {String(instanceCount)} agent{instanceCount !== 1 ? 's' : ''}
           </span>
         )}
       </div>
@@ -253,7 +253,7 @@ interface ICreateFromTemplateModalProps {
   template: IAgentTemplate
   instanceCount: number
   onClose: () => void
-  onCreated: (botId: string) => void
+  onCreated: (agentId: string) => void
 }
 
 function CreateFromTemplateModal({
@@ -275,16 +275,16 @@ function CreateFromTemplateModal({
         description: template.description,
         templateId: template.id,
       })
-      // Find the newly-created bot (first in list after creation).
-      const newBot = useAgentsStore.getState().agents[0]
-      if (newBot) onCreated(newBot.id)
+      // Find the newly-created agent (first in list after creation).
+      const newAgent = useAgentsStore.getState().agents[0]
+      if (newAgent) onCreated(newAgent.id)
       else onClose()
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       setError(msg)
       // Also push a persistent error toast so it's visible outside the modal.
       void import('../../store/app-store.js').then(({ useAppStore }) => {
-        useAppStore.getState().pushNotification({ level: 'error', title: 'Failed to create bot', body: msg })
+        useAppStore.getState().pushNotification({ level: 'error', title: 'Failed to create agent', body: msg })
       })
     } finally {
       setBusy(false)
@@ -301,7 +301,7 @@ function CreateFromTemplateModal({
           </div>
           <div className="flex-1">
             <h2 className="text-base font-semibold text-[var(--color-text-primary)]">
-              New bot from "{template.name}"
+              New agent from "{template.name}"
             </h2>
             <p className="text-xs text-[var(--color-text-secondary)]">{template.description}</p>
           </div>
@@ -315,7 +315,7 @@ function CreateFromTemplateModal({
 
         <form onSubmit={(e) => { void handleSubmit(e) }} className="flex flex-col gap-4">
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-[var(--color-text-secondary)]">Bot name *</span>
+            <span className="text-xs font-medium text-[var(--color-text-secondary)]">Agent name *</span>
             <input
               autoFocus
               value={name}
@@ -348,7 +348,7 @@ function CreateFromTemplateModal({
               className="rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium
                          text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
             >
-              {busy ? 'Creating…' : 'Create bot'}
+              {busy ? 'Creating…' : 'Create agent'}
             </button>
           </div>
         </form>
@@ -365,15 +365,15 @@ export interface IDashboardPanelProps {
 
 /**
  * DashboardPanel — the app home screen.
- * Stats · Default run key · Recent activity · Bot template gallery.
+ * Stats · Default run key · Recent activity · Agent template gallery.
  */
 export function DashboardPanel({ onNavigate }: IDashboardPanelProps): React.JSX.Element {
   const { user } = useAuthStore()
-  const bots       = useAgentsStore((s) => s.agents)
-  const runs       = useAgentsStore((s) => s.runs)
+  const agents = useAgentsStore((s) => s.agents)
+  const runs = useAgentsStore((s) => s.runs)
 
-  const [apiKeys, setApiKeys]               = useState<ILocalAPIKey[]>([])
-  const [defaultKeyId, setDefaultKeyId]     = useState<string | null>(null)
+  const [apiKeys, setApiKeys] = useState<ILocalAPIKey[]>([])
+  const [defaultKeyId, setDefaultKeyId] = useState<string | null>(null)
   const [activeTemplate, setActiveTemplate] = useState<IAgentTemplate | null>(null)
 
   // Load API keys + default key on mount.
@@ -388,13 +388,13 @@ export function DashboardPanel({ onNavigate }: IDashboardPanelProps): React.JSX.
   }, [])
 
   // ── Derived stats ────────────────────────────────────────────────────────────
-  const activeBots  = bots.filter((b) => b.status === 'active').length
-  const activeKeys  = apiKeys.filter((k) => k.isActive).length
-  const totalRuns   = Object.values(runs).reduce((sum, rs) => sum + rs.length, 0)
+  const activeAgents = agents.filter((b) => b.status === 'active').length
+  const activeKeys = apiKeys.filter((k) => k.isActive).length
+  const totalRuns = Object.values(runs).reduce((sum, rs) => sum + rs.length, 0)
 
   // Flatten + sort all runs; take the latest 8 for the activity feed.
   const recentRuns = Object.entries(runs)
-    .flatMap(([botId, rs]) => rs.map((r) => ({ ...r, bot_id: botId })))
+    .flatMap(([agentId, rs]) => rs.map((r) => ({ ...r, agent_id: agentId })))
     .sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime())
     .slice(0, 8)
 
@@ -404,14 +404,14 @@ export function DashboardPanel({ onNavigate }: IDashboardPanelProps): React.JSX.
     void persistDefaultKeyId(keyId)
   }, [])
 
-  const handleOpenBot = useCallback((botId: string) => {
-    useAgentsStore.getState().selectAgent(botId)
+  const handleOpenAgent = useCallback((agentId: string) => {
+    useAgentsStore.getState().selectAgent(agentId)
     onNavigate('agent-run')
   }, [onNavigate])
 
-  const handleTemplateCreated = useCallback((botId: string) => {
+  const handleTemplateCreated = useCallback((agentId: string) => {
     setActiveTemplate(null)
-    useAgentsStore.getState().selectAgent(botId)
+    useAgentsStore.getState().selectAgent(agentId)
     onNavigate('agent-run')
   }, [onNavigate])
 
@@ -433,10 +433,10 @@ export function DashboardPanel({ onNavigate }: IDashboardPanelProps): React.JSX.
 
           {/* ── Stats row ─────────────────────────────────────────────────── */}
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <StatCard icon="🤖" label="Total Bots"   value={bots.length} />
-            <StatCard icon="⚡" label="Active Bots"  value={activeBots}  accent="text-[var(--color-success)]" />
-            <StatCard icon="▶" label="Total Runs"    value={totalRuns}   accent="text-blue-400" />
-            <StatCard icon="🔑" label="API Keys"     value={activeKeys}  accent="text-yellow-400" />
+            <StatCard icon="🤖" label="Total Agents" value={agents.length} />
+            <StatCard icon="⚡" label="Active Agents" value={activeAgents} accent="text-[var(--color-success)]" />
+            <StatCard icon="▶" label="Total Runs" value={totalRuns} accent="text-blue-400" />
+            <StatCard icon="🔑" label="API Keys" value={activeKeys} accent="text-yellow-400" />
           </div>
 
           {/* ── Default run key ────────────────────────────────────────────── */}
@@ -453,7 +453,7 @@ export function DashboardPanel({ onNavigate }: IDashboardPanelProps): React.JSX.
               <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
                 Recent Activity
               </p>
-              {bots.length > 0 && (
+              {agents.length > 0 && (
                 <button
                   onClick={() => { onNavigate('activity') }}
                   className="text-xs text-[var(--color-accent)] hover:underline"
@@ -467,7 +467,7 @@ export function DashboardPanel({ onNavigate }: IDashboardPanelProps): React.JSX.
               <div className="rounded-2xl border border-dashed border-[var(--color-border)] px-6 py-12 text-center">
                 <p className="text-3xl">📋</p>
                 <p className="mt-3 text-sm text-[var(--color-text-secondary)]">
-                  No runs yet — create a bot and hit Run to get started.
+                  No runs yet — create an agent and hit Run to get started.
                 </p>
                 <button
                   onClick={() => { onNavigate('agents') }}
@@ -475,19 +475,19 @@ export function DashboardPanel({ onNavigate }: IDashboardPanelProps): React.JSX.
                              px-4 py-2 text-sm font-medium text-[var(--color-accent)]
                              transition-colors hover:bg-[var(--color-accent)] hover:text-white"
                 >
-                  Go to Bots
+                  Go to Agents
                 </button>
               </div>
             ) : (
               <div className="space-y-2">
                 {recentRuns.map((run) => {
-                  const bot = bots.find((b) => b.id === run.bot_id)
+                  const agent = agents.find((b) => b.id === run.agent_id)
                   return (
                     <ActivityRow
                       key={run.id}
                       run={run}
-                      botName={bot?.name ?? 'Unknown bot'}
-                      onOpenBot={() => { handleOpenBot(run.bot_id) }}
+                      agentName={agent?.name ?? 'Unknown agent'}
+                      onOpenAgent={() => { handleOpenAgent(run.agent_id) }}
                     />
                   )
                 })}
@@ -495,7 +495,7 @@ export function DashboardPanel({ onNavigate }: IDashboardPanelProps): React.JSX.
             )}
           </section>
 
-          {/* ── Bot templates ──────────────────────────────────────────────── */}
+          {/* ── Agent templates ──────────────────────────────────────────────── */}
           <section>
             <div className="mb-4">
               <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
@@ -508,7 +508,7 @@ export function DashboardPanel({ onNavigate }: IDashboardPanelProps): React.JSX.
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {AGENT_TEMPLATES.map((template) => {
-                const instanceCount = bots.filter((b) => b.templateId === template.id).length
+                const instanceCount = agents.filter((b) => b.templateId === template.id).length
                 return (
                   <TemplateCard
                     key={template.id}
@@ -528,7 +528,7 @@ export function DashboardPanel({ onNavigate }: IDashboardPanelProps): React.JSX.
       {activeTemplate && (
         <CreateFromTemplateModal
           template={activeTemplate}
-          instanceCount={bots.filter((b) => b.templateId === activeTemplate.id).length}
+          instanceCount={agents.filter((b) => b.templateId === activeTemplate.id).length}
           onClose={() => { setActiveTemplate(null) }}
           onCreated={handleTemplateCreated}
         />

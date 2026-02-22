@@ -1,5 +1,5 @@
 {
-  "name": "@ai-super-app/sdk",
+  "name": "@agenthub/sdk",
   "version": "1.0.0",
   "private": true,
   "type": "module",

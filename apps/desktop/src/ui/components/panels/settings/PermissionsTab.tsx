@@ -10,7 +10,7 @@ export function PermissionsTab(): React.JSX.Element {
   const [confirmRevokeAll, setConfirmRevokeAll] = useState(false)
 
   const allEntries = Object.entries(permStore.storedGrants)
-  const totalBots = allEntries.length
+  const totalAgents = allEntries.length
   const totalStandard = allEntries.reduce((n, [, ps]) => n + ps.filter((p) => !HIGH_RISK_PERMISSIONS.has(p)).length, 0)
   const totalHighRisk = allEntries.reduce((n, [, ps]) => n + ps.filter((p) => HIGH_RISK_PERMISSIONS.has(p)).length, 0)
 
@@ -41,7 +41,7 @@ export function PermissionsTab(): React.JSX.Element {
             <p className="text-xs font-semibold text-[var(--color-text-primary)]">How permissions work</p>
             <p className="mt-1 text-[11px] leading-relaxed text-[var(--color-text-muted)]">
               Standard permissions (AI, storage, notifications) are approved automatically.
-              High-risk permissions (shell commands, file system) require your explicit approval each time a new bot is activated.
+              High-risk permissions (shell commands, file system) require your explicit approval each time a new agent is activated.
               Resetting a module clears its saved choice — you will be prompted again on next launch.
             </p>
           </div>
@@ -49,19 +49,18 @@ export function PermissionsTab(): React.JSX.Element {
       </div>
 
       {/* Stats bar */}
-      {totalBots > 0 && (
+      {totalAgents > 0 && (
         <div className="grid grid-cols-3 gap-2">
           <div className="flex flex-col items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] py-3">
-            <span className="text-base font-bold text-[var(--color-text-primary)]">{String(totalBots)}</span>
-            <span className="mt-0.5 text-[10px] text-[var(--color-text-muted)]">{totalBots !== 1 ? 'bots' : 'bot'} granted</span>
+            <span className="text-base font-bold text-[var(--color-text-primary)]">{String(totalAgents)}</span>
+            <span className="mt-0.5 text-[10px] text-[var(--color-text-muted)]">{totalAgents !== 1 ? 'agents' : 'agent'} granted</span>
           </div>
           <div className="flex flex-col items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] py-3">
             <span className="text-base font-bold text-[var(--color-text-primary)]">{String(totalStandard)}</span>
             <span className="mt-0.5 text-[10px] text-[var(--color-text-muted)]">standard</span>
           </div>
-          <div className={`flex flex-col items-center rounded-xl border py-3 ${
-            totalHighRisk > 0 ? 'border-red-800/50 bg-red-900/20' : 'border-[var(--color-border)] bg-[var(--color-surface)]'
-          }`}>
+          <div className={`flex flex-col items-center rounded-xl border py-3 ${totalHighRisk > 0 ? 'border-red-800/50 bg-red-900/20' : 'border-[var(--color-border)] bg-[var(--color-surface)]'
+            }`}>
             <span className={`text-base font-bold ${totalHighRisk > 0 ? 'text-red-300' : 'text-[var(--color-text-primary)]'}`}>
               {String(totalHighRisk)}
             </span>
@@ -83,8 +82,8 @@ export function PermissionsTab(): React.JSX.Element {
             label="Block shell commands"
             description={
               permStore.blockedPermissions.has(Permission.ComputerShell)
-                ? 'Globally blocked — no bot can run shell commands on your machine'
-                : 'Allow bots with shell permission to run commands on your machine'
+                ? 'Globally blocked — no agent can run shell commands on your machine'
+                : 'Allow agents with shell permission to run commands on your machine'
             }
             control={
               <Toggle
@@ -103,8 +102,8 @@ export function PermissionsTab(): React.JSX.Element {
             label="Block file system access"
             description={
               permStore.blockedPermissions.has(Permission.ComputerFiles)
-                ? 'Globally blocked — no bot can access your file system'
-                : 'Allow bots with file permission to read and write files on your machine'
+                ? 'Globally blocked — no agent can access your file system'
+                : 'Allow agents with file permission to read and write files on your machine'
             }
             control={
               <Toggle
@@ -126,11 +125,10 @@ export function PermissionsTab(): React.JSX.Element {
             <button
               onClick={handleRevokeAll}
               onBlur={() => { setConfirmRevokeAll(false) }}
-              className={`text-[10px] font-medium transition-colors ${
-                confirmRevokeAll
+              className={`text-[10px] font-medium transition-colors ${confirmRevokeAll
                   ? 'text-red-400 underline'
                   : 'text-[var(--color-text-muted)] hover:text-red-400'
-              }`}
+                }`}
             >
               {confirmRevokeAll ? '⚠ Confirm revoke all?' : 'Revoke all'}
             </button>
@@ -149,7 +147,7 @@ export function PermissionsTab(): React.JSX.Element {
               </svg>
               <input
                 type="text"
-                placeholder="Search bots…"
+                placeholder="Search agents…"
                 value={search}
                 onChange={(e) => { setSearch(e.target.value) }}
                 className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] py-2 pl-8 pr-3 text-xs text-[var(--color-text-primary)] placeholder-[var(--color-text-secondary)] outline-none transition-colors focus:border-[var(--color-accent)]"
@@ -183,13 +181,13 @@ export function PermissionsTab(): React.JSX.Element {
                 </svg>
               </div>
               <p className="text-xs font-medium text-[var(--color-text-secondary)]">No permissions granted yet</p>
-              <p className="text-[11px] text-[var(--color-text-muted)]">Bots you activate will appear here</p>
+              <p className="text-[11px] text-[var(--color-text-muted)]">Agents you activate will appear here</p>
             </div>
           </Card>
         ) : filteredEntries.length === 0 ? (
           <Card>
             <div className="flex flex-col items-center justify-center gap-2 py-6 text-center">
-              <p className="text-xs text-[var(--color-text-secondary)]">No bots match this filter</p>
+              <p className="text-xs text-[var(--color-text-secondary)]">No agents match this filter</p>
               <button
                 onClick={() => { setSearch(''); setFilter('all') }}
                 className="text-[10px] text-[var(--color-accent)] hover:underline"
@@ -219,7 +217,7 @@ export function PermissionsTab(): React.JSX.Element {
                       <button
                         onClick={() => { permStore.revokeStored(moduleId) }}
                         className="rounded-lg border border-[var(--color-border)] px-2.5 py-1 text-[10px] font-medium text-[var(--color-text-secondary)] transition-colors hover:border-red-700 hover:bg-red-950/30 hover:text-red-400"
-                        title="Clear all permissions for this bot — will prompt again on next activation"
+                        title="Clear all permissions for this agent — will prompt again on next activation"
                       >
                         Reset all
                       </button>

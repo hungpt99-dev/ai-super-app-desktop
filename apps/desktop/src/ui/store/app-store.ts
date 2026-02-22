@@ -1,8 +1,8 @@
 import { create } from 'zustand'
-import type { IToastNotification } from '../../shared/bridge-types.js'
+import type { IToastNotification } from '../../bridges/bridge-types.js'
 import { addLog } from './log-store.js'
 
-export type AppView = 'dashboard' | 'chat' | 'agents' | 'store' | 'activity' | 'logs' | 'settings' | 'api-keys' | 'agent-run'
+export type AppView = 'dashboard' | 'chat' | 'agents' | 'hub' | 'activity' | 'logs' | 'settings' | 'api-keys' | 'agent-run'
 export type Theme = 'dark' | 'light' | 'system'
 export type { IToastNotification }
 
@@ -12,7 +12,7 @@ export interface INotificationEntry {
   title: string
   body: string
   level: IToastNotification['level']
-  /** Optional source label — e.g. bot name or agent name. */
+  /** Optional source label — e.g. agent name. */
   source?: string
   timestamp: number
   read: boolean

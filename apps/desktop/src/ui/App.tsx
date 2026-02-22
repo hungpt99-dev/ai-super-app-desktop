@@ -13,18 +13,19 @@ import {
   PermissionRequestDialog,
   NotificationCenter,
   AuthScreen,
-  StorePanel,
+  HubPanel,
 } from './components/index.js'
 import { useAuthStore } from './store/auth-store.js'
 import { useAppStore } from './store/app-store.js'
 import { DevMetricsOverlay } from './components/dev/index.js'
 import { useDevSettingsStore } from './store/dev/dev-settings-store.js'
-import { startAgentLoop, stopAgentLoop } from '../core/agent-loop.js'
+import { startAgentLoop, stopAgentLoop } from '../app/agent-loop.js'
 import { usePermissionStore } from './store/permission-store.js'
 import { useAgentsStore } from './store/agents-store.js'
 import { getDesktopBridge } from './lib/bridge.js'
-import { initModuleManager } from '../core/module-bootstrap.js'
-import { initTokenStore } from '../sdk/token-store.js'
+import { initAgentRuntime } from '../app/module-bootstrap.js'
+import { initTokenStore } from '../bridges/token-store.js'
+import type { Permission } from '@agenthub/sdk'
 
 const bridge = getDesktopBridge()
 
@@ -102,9 +103,7 @@ export function App(): React.JSX.Element {
   useEffect(() => {
     void (async () => {
       await initTokenStore()
-      await initModuleManager((moduleId, permissions) =>
-        requestPermissions(moduleId, moduleId, permissions),
-      )
+      await initAgentRuntime()
     })()
   }, [])
 
@@ -117,7 +116,7 @@ export function App(): React.JSX.Element {
   }, [pushNotification])
 
   const handleOpenModule = (moduleId: string): void => {
-    // User-created bot — select it and open the run panel.
+    // User-created agent — select it and open the run panel.
     const { agents } = useAgentsStore.getState()
     if (agents.some((b) => b.id === moduleId)) {
       useAgentsStore.getState().selectAgent(moduleId)
@@ -148,7 +147,7 @@ export function App(): React.JSX.Element {
         {activeView === 'dashboard' && <DashboardPanel onNavigate={setView} />}
         {activeView === 'chat' && <GroupChatWindow />}
         {activeView === 'agents' && <FeatureGrid onOpenModule={handleOpenModule} />}
-        {activeView === 'store' && <StorePanel />}
+        {activeView === 'hub' && <HubPanel />}
         {activeView === 'activity' && <ActivityPanel onNavigate={setView} />}
         {activeView === 'logs' && <LogsPanel />}
         {activeView === 'settings' && <SettingsPanel onBack={() => { setView('chat') }} />}

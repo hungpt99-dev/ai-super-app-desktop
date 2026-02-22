@@ -1,12 +1,12 @@
 /**
  * dev-sideload-store.ts
  *
- * Dev-mode sideloading: install a real bot package (.js file that exports
+ * Dev-mode sideloading: install a real agent package (.js file that exports
  * `defineModule(...)`) at runtime without going through the marketplace.
  *
  * Mental model
  * ────────────
- * A bot is a mini-app — a self-contained JS module with its own tools, AI
+ * An agent is a mini-app — a self-contained JS module with its own tools, AI
  * interactions, storage and (optionally) a UI panel.  At runtime the code
  * runs inside ModuleManager's sandbox with full permission enforcement, just
  * like a built-in module.
@@ -17,8 +17,8 @@
  *   2.  The browser creates a Blob URL and `import()`s it dynamically.
  *   3.  We validate the default export is an IModuleDefinition.
  *   4.  The module is registered + activated via ModuleManager.
- *   5.  A template card derived from the manifest appears in the Bots tab.
- *   6.  The user can create bot instances from it and run them immediately.
+ *   5.  A template card derived from the manifest appears in the Agents tab.
+ *   6.  The user can create agent instances from it and run them immediately.
  *
  * Persistence
  * ───────────
@@ -26,11 +26,11 @@
  * survive page reloads.  The MODULE CODE cannot be persisted (Blob URL
  * lifetime = current session), so the developer must re-drop the file after
  * a reload to make the module executable again.  The card will still be
- * visible but the bot will error on tool calls until re-loaded.
+ * visible but the agent will error on tool calls until re-loaded.
  */
 
 import { create } from 'zustand'
-import { getModuleManager } from '../../../core/module-bootstrap.js'
+import { getActiveModules, getModuleManager } from '../../../app/module-bootstrap.js'
 import type { IAgentTemplate } from '../agent-templates.js'
 import type { IModuleDefinition } from '@agenthub/sdk'
 
@@ -62,7 +62,7 @@ export type ISideloadResult =
 // ─── Loader ───────────────────────────────────────────────────────────────────
 
 /**
- * Load a bot package file into the ModuleManager.
+ * Load an agent package file into the ModuleManager.
  *
  * The file must be a compiled JS module whose default export is the result
  * of `defineModule({ manifest, tools, permissions, onActivate })`.
@@ -73,7 +73,7 @@ export type ISideloadResult =
 export async function sideloadFile(file: File): Promise<ISideloadResult> {
   const mm = getModuleManager()
   if (!mm) {
-    return { ok: false, error: 'Module manager is not yet initialised. Wait for the app to finish loading.' }
+    return { ok: false, error: 'Sideloading is currently disabled in the new AgentRuntime core.' }
   }
 
   // 1. Read the file into a Blob URL so we can dynamic-import it.
@@ -171,8 +171,8 @@ interface IDevSideloadStore {
   modules: ISideloadedModule[]
 
   /**
-   * Load a .js bot package file, register it in the ModuleManager, and add
-   * its template card to the Bots tab. Re-loading the same module id hot-reloads it.
+   * Load a .js agent package file, register it in the ModuleManager, and add
+   * its template card to the Agents tab. Re-loading the same module id hot-reloads it.
    */
   loadFile(file: File): Promise<ISideloadResult>
 
@@ -210,7 +210,7 @@ export const useDevSideloadStore = create<IDevSideloadStore>((set, get) => ({
   removeModule: async (id) => {
     const mm = getModuleManager()
     if (mm) {
-      try { await mm.uninstall(id) } catch { /* ignore if not loaded */ }
+      try { await (mm as any).uninstall(id) } catch { /* ignore if not loaded */ }
     }
     const updated = get().modules.filter((m) => m.id !== id)
     writePersisted(updated)
@@ -221,7 +221,7 @@ export const useDevSideloadStore = create<IDevSideloadStore>((set, get) => ({
     const mm = getModuleManager()
     if (mm) {
       for (const m of get().modules) {
-        try { await mm.uninstall(m.id) } catch { /* ignore */ }
+        try { await (mm as any).uninstall(m.id) } catch { /* ignore */ }
       }
     }
     writePersisted([])

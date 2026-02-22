@@ -1,8 +1,8 @@
 /**
- * bot-type-store.ts
+ * agent-type-store.ts
  *
- * Tracks which downloadable bot types the user has installed from the Store.
- * Installed types appear alongside built-in templates in the Bots tab.
+ * Tracks which downloadable agent types the user has installed from the Hub.
+ * Installed types appear alongside built-in templates in the Agents tab.
  */
 
 import { create } from 'zustand'
@@ -22,11 +22,11 @@ function writeInstalled(ids: string[]): void {
 }
 
 interface IAgentTypesStore {
-  /** IDs of downloadable bot types that have been installed from the Store. */
+  /** IDs of downloadable agent types that have been installed from the Hub. */
   installedTypeIds: string[]
-  /** Install a bot type by ID. Idempotent. */
+  /** Install an agent type by ID. Idempotent. */
   installType(id: string): void
-  /** Uninstall a bot type by ID. */
+  /** Uninstall an agent type by ID. */
   uninstallType(id: string): void
   /** Returns true if the given type ID is currently installed. */
   isInstalled(id: string): boolean

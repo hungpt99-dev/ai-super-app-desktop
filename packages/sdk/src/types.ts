@@ -30,14 +30,21 @@ export enum Permission {
   /**
    * Write to the workspace-level shared knowledge base (`scope = "workspace:shared"`).
    * Read is always allowed with `MemoryRead`. Without this permission, a module
-   * can only write to its own private scope (`bot:{moduleId}`).
+   * can only write to its own private scope (`agent:{moduleId}`).
    */
-    MemorySharedWrite = 'memory.shared-write',
+  MemorySharedWrite = 'memory.shared-write',
   /**
    * Make outbound HTTP/HTTPS requests to any URL.
    * Covers `ctx.http.get/post/put/patch/delete/request`.
    */
   NetworkFetch = 'network.fetch',
+  // ── Agent permissions (§10 Security Architecture) ──────────────────────────
+  /** Call another agent (AGENT_CALL_NODE). Enforced by orchestrator. */
+  AgentCall = 'agent.call',
+  /** Execute a registered tool. Enforced by sandbox. */
+  ToolExecute = 'tool.execute',
+  /** Access the local filesystem. HIGH RISK — user approval required. */
+  Filesystem = 'filesystem',
 }
 
 // ─── AI Client ───────────────────────────────────────────────────────────────
@@ -295,7 +302,7 @@ export interface IMemoryStats {
 /**
  * The three memory scopes available to modules.
  *
- * - `private`  — `bot:{moduleId}`          — isolated per-bot (default)
+ * - `private`  — `agent:{moduleId}`          — isolated per-agent (default)
  * - `shared`   — `workspace:shared`         — workspace knowledge base, requires `Permission.MemorySharedWrite` to write
  * - `task`     — `task:{runId}`             — ephemeral, auto-cleared after run ends
  */
@@ -306,7 +313,7 @@ export type IMemoryScope = 'private' | 'shared' | 'task'
  * machine via an embedded SQLite database. Nothing is sent to any server.
  *
  * Scope rules (enforced by SandboxedMemory):
- * - Default `scope` on `upsert` is `private` → stored as `bot:{moduleId}`
+ * - Default `scope` on `upsert` is `private` → stored as `agent:{moduleId}`
  * - `shared` scope → readable by all; writable only with `Permission.MemorySharedWrite`
  * - `task` scope   → ephemeral; auto-cleared by the runtime when the run ends
  *
@@ -405,7 +412,7 @@ export interface IHttpAPI {
  * Structured logger exposed to modules as `ctx.log`.
  *
  * Each call writes a timestamped entry to the desktop Logs tab with
- * `source: 'bot'` and the module id prepended to the message.
+ * `source: 'agent'` and the module id prepended to the message.
  * No permission is required — logging is always available.
  */
 export interface ILogAPI {
@@ -440,7 +447,7 @@ export interface IModuleContext {
    */
   readonly http: IHttpAPI
   /**
-   * Structured logger — writes to the desktop Logs tab with source 'bot'.
+   * Structured logger — writes to the desktop Logs tab with source 'agent'.
    * Always available; no permission required.
    */
   readonly log: ILogAPI
@@ -470,18 +477,18 @@ export type ModuleCategory =
   | 'utilities'
 
 export interface IModuleManifest {
-  name: string
-  version: string
-  minCoreVersion: string
-  maxCoreVersion: string
-  permissions: Permission[]
-  description?: string
-  author?: string
-  /** Emoji or URL displayed in the module store */
-  icon?: string
-  category?: ModuleCategory
-  tags?: string[]
-  homepage?: string
+  readonly name: string
+  readonly version: string
+  readonly minCoreVersion: string
+  readonly maxCoreVersion: string
+  readonly permissions: readonly Permission[]
+  readonly description?: string
+  readonly author?: string
+  /** Emoji or URL displayed in the Agent Hub */
+  readonly icon?: string
+  readonly category?: ModuleCategory
+  readonly tags?: readonly string[]
+  readonly homepage?: string
 }
 
 // ─── Module Definition (defineModule result) ─────────────────────────────────

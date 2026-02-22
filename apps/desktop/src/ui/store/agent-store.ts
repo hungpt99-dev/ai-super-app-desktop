@@ -2,7 +2,7 @@
  * agent-store.ts
  *
  * Live state for the Desktop AI Worker / Agent.
- * Tracks device registration, the active bot run, and simulated system metrics.
+ * Tracks device registration, the active agent run, and simulated system metrics.
  */
 
 import { create } from 'zustand'
@@ -22,9 +22,9 @@ interface IAgentState {
   deviceName: string | null
   /** Current worker status. */
   status: 'offline' | 'idle' | 'running' | 'paused'
-  /** ID of the bot run currently being executed (null when idle). */
+  /** ID of the agent run currently being executed (null when idle). */
   activeRunId: string | null
-  /** Goal/description of the bot run currently being executed (null when idle). */
+  /** Goal/description of the agent run currently being executed (null when idle). */
   activeRunGoal: string | null
   /** Simulated live system metrics. */
   metrics: IAgentMetrics

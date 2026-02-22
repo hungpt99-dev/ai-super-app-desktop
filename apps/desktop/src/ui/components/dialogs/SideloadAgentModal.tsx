@@ -1,7 +1,7 @@
 /**
  * SideloadAgentModal.tsx
  *
- * Dev-mode dialog: install a compiled bot module (.js) directly from disk.
+ * Dev-mode dialog: install a compiled agent module (.js) directly from disk.
  * The file must export `defineModule(...)` as its default export.
  */
 
@@ -10,21 +10,21 @@ import { useDevSideloadStore } from '../../store/dev/dev-sideload-store.js'
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-interface ISideloadBotModalProps {
+interface ISideloadAgentModalProps {
   onClose: () => void
 }
 
-/** Sideload a real bot package (.js compiled module) in dev mode. */
-export function SideloadAgentModal({ onClose }: ISideloadBotModalProps): React.JSX.Element {
+/** Sideload a real agent package (.js compiled module) in dev mode. */
+export function SideloadAgentModal({ onClose }: ISideloadAgentModalProps): React.JSX.Element {
   const { loadFile, modules, removeModule } = useDevSideloadStore()
   const [dragging, setDragging] = useState(false)
-  const [loading, setLoading]  = useState(false)
-  const [result, setResult]    = useState<{ ok: boolean; message: string } | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null)
   const fileRef = React.useRef<HTMLInputElement>(null)
 
   const handleFile = async (file: File): Promise<void> => {
     if (!file.name.endsWith('.js') && !file.name.endsWith('.mjs')) {
-      setResult({ ok: false, message: 'Only .js or .mjs files are accepted. Compile your bot module first.' })
+      setResult({ ok: false, message: 'Only .js or .mjs files are accepted. Compile your agent module first.' })
       return
     }
     setLoading(true)
@@ -32,7 +32,7 @@ export function SideloadAgentModal({ onClose }: ISideloadBotModalProps): React.J
     const r = await loadFile(file)
     setLoading(false)
     if (r.ok) {
-      setResult({ ok: true, message: `✓ "${r.module.name}" v${r.module.version} installed — it now appears in All Bot Types.` })
+      setResult({ ok: true, message: `✓ "${r.module.name}" v${r.module.version} installed — it now appears in All Agent Types.` })
     } else {
       setResult({ ok: false, message: r.error })
     }
@@ -46,8 +46,8 @@ export function SideloadAgentModal({ onClose }: ISideloadBotModalProps): React.J
         <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-6 py-4">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-900/30 text-lg">📦</div>
           <div className="flex-1">
-            <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Sideload Bot Package</h2>
-            <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">Dev mode — install a compiled bot module directly from disk</p>
+            <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Sideload Agent Package</h2>
+            <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">Dev mode — install a compiled agent module directly from disk</p>
           </div>
           <button onClick={onClose} className="rounded-lg p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]">✕</button>
         </div>
@@ -56,19 +56,19 @@ export function SideloadAgentModal({ onClose }: ISideloadBotModalProps): React.J
 
           {/* Concept explainer */}
           <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] px-4 py-3.5">
-            <p className="mb-1 text-[11px] font-semibold text-[var(--color-text-primary)]">How bot packages work</p>
+            <p className="mb-1 text-[11px] font-semibold text-[var(--color-text-primary)]">How agent packages work</p>
             <p className="text-[11px] leading-relaxed text-[var(--color-text-muted)]">
-              A bot is a <span className="text-[var(--color-text-secondary)]">mini-app</span> — a self-contained JS module with tools, AI interactions and storage.
+              An agent is a <span className="text-[var(--color-text-secondary)]">mini-app</span> — a self-contained JS module with tools, AI interactions and storage.
               Build one using the SDK, compile it to a single <code className="rounded bg-[var(--color-surface)] px-1 text-[10px] text-amber-300">.js</code> file, then drop it here.
-              It runs in the same sandbox as built-in bots with full permission enforcement.
+              It runs in the same sandbox as built-in agents with full permission enforcement.
             </p>
             <div className="mt-2.5 rounded-lg bg-[var(--color-surface)] px-3 py-2 font-mono text-[10px] text-[var(--color-text-secondary)]">
-              <span className="text-[var(--color-text-muted)]">// my-bot/src/index.ts</span>{' '}<br />
+              <span className="text-[var(--color-text-muted)]">// my-agent/src/index.ts</span>{' '}<br />
               <span className="text-purple-400">export default </span>
               <span className="text-[var(--color-accent)]">defineModule</span>
               {'({'}<br />
               {'  '}<span className="text-[var(--color-text-secondary)]">manifest: </span>
-              {'{ name: '}<span className="text-emerald-400">'my-bot'</span>{', version: '}<span className="text-emerald-400">'1.0.0'</span>{', ... },'}<br />
+              {'{ name: '}<span className="text-emerald-400">'my-agent'</span>{', version: '}<span className="text-emerald-400">'1.0.0'</span>{', ... },'}<br />
               {'  '}<span className="text-[var(--color-text-secondary)]">permissions:</span>{' [Permission.AiGenerate],'}<br />
               {'  '}<span className="text-[var(--color-text-secondary)]">tools:</span>{' [myTool],'}<br />
               {'  '}<span className="text-purple-400">async </span>
@@ -88,13 +88,12 @@ export function SideloadAgentModal({ onClose }: ISideloadBotModalProps): React.J
               if (file) void handleFile(file)
             }}
             onClick={() => { fileRef.current?.click() }}
-            className={`flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed py-8 text-center transition-colors ${
-              loading
+            className={`flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed py-8 text-center transition-colors ${loading
                 ? 'border-[var(--color-border)] opacity-60'
                 : dragging
                   ? 'border-[var(--color-accent)] bg-[var(--color-accent-dim)]'
                   : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/60 hover:bg-[var(--color-surface-2)]'
-            }`}
+              }`}
           >
             <input
               ref={fileRef}
@@ -115,26 +114,25 @@ export function SideloadAgentModal({ onClose }: ISideloadBotModalProps): React.J
             ) : (
               <>
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--color-text-muted)]">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                  <polyline points="17 8 12 3 7 8"/>
-                  <line x1="12" y1="3" x2="12" y2="15"/>
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
                 </svg>
                 <p className="text-sm font-medium text-[var(--color-text-secondary)]">
                   {dragging ? 'Drop to install' : 'Drop .js file or click to browse'}
                 </p>
-                <p className="text-[11px] text-[var(--color-text-muted)]">Compiled bot module — single .js or .mjs file</p>
+                <p className="text-[11px] text-[var(--color-text-muted)]">Compiled agent module — single .js or .mjs file</p>
               </>
             )}
           </div>
 
           {/* Feedback */}
           {result !== null && (
-            <div className={`rounded-lg border px-3 py-2.5 ${
-              result.ok
+            <div className={`rounded-lg border px-3 py-2.5 ${result.ok
                 ? 'border-emerald-800/40 bg-emerald-950/30'
                 : 'border-red-800/40 bg-red-950/30'
-            }`}>
-              <p className={`text-xs ${ result.ok ? 'text-emerald-400' : 'font-medium text-red-400' }`}>
+              }`}>
+              <p className={`text-xs ${result.ok ? 'text-emerald-400' : 'font-medium text-red-400'}`}>
                 {result.ok ? '' : '⚠ Error: '}{result.message}
               </p>
             </div>

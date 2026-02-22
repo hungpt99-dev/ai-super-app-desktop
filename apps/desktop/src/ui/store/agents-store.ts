@@ -1,52 +1,52 @@
 /**
- * bot-store.ts
+ * agents-store.ts
  *
- * Local-first bot store for the Desktop app.
+ * Local-first agent store for the Desktop app.
  *
  * Architecture
  * ────────────
- * • Local bots  — always available, persisted in localStorage, no auth required.
- * • Cloud bots  — fetched from the backend when authenticated (synced = true).
- * • Run history — stored in localStorage for local bots; fetched from server for
- *                 cloud bots and merged with any local records.
+ * • Local agents  — always available, persisted in localStorage, no auth required.
+ * • Cloud agents  — fetched from the backend when authenticated (synced = true).
+ * • Run history — stored in localStorage for local agents; fetched from server for
+ *                 cloud agents and merged with any local records.
  *
  * The store exposes a unified IDesktopAgent[] regardless of auth state.
- * Components read `bot.synced` to decide which capabilities to offer.
+ * Components read `agent.synced` to decide which capabilities to offer.
  */
 
 import { create } from 'zustand'
-import { tokenStore } from '../../sdk/token-store.js'
-import { cloudAgentsApi, type ICreateAgentInput } from '../../sdk/cloud-agents-api.js'
+import { tokenStore } from '../../bridges/token-store.js'
+import { cloudAgentsApi, type ICreateAgentInput } from '../../bridges/cloud-agents-api.js'
 import { getDesktopBridge } from '../lib/bridge.js'
-import * as LM from '../../sdk/local-memory.js'
+import * as LM from '../../bridges/local-memory.js'
 import { AGENT_TEMPLATES, findTemplate } from './agent-templates.js'
-import { getDefaultKeyId, listAPIKeys } from '../../sdk/api-key-store.js'
+import { getDefaultKeyId, listAPIKeys } from '../../bridges/api-key-store.js'
 
 /** True when running inside the full Tauri app (memory commands are available). */
 const IS_TAURI = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
-/** Build the private memory scope key for a bot. */
-const agentScope = (botId: string): string => `bot:${botId}`
+/** Build the private memory scope key for an agent. */
+const agentScope = (agentId: string): string => `agent:${agentId}`
 /** Build the ephemeral task scope key for a single run. */
 const taskScope = (runId: string): string => `task:${runId}`
 
 /**
- * Resolves AI call options for a bot:
- *   1. Per-bot key if set.
+ * Resolves AI call options for an agent:
+ *   1. Per-agent key if set.
  *   2. Global default BYOK key from api-key-store.
  *   3. undefined (gateway / offline fallback).
  */
 async function resolveAiOptions(
-  bot: { apiKey?: string; aiProvider?: string },
+  agent: { apiKey?: string; aiProvider?: string },
 ): Promise<{ apiKey: string; provider: string; model?: string } | undefined> {
-  // 1. Bot's own key is always primary.
-  if (bot.apiKey) {
+  // 1. Agent's own key is always primary.
+  if (agent.apiKey) {
     return {
-      apiKey: bot.apiKey,
-      provider: bot.aiProvider ?? 'openai',
+      apiKey: agent.apiKey,
+      provider: agent.aiProvider ?? 'openai',
     }
   }
-  // 2. No per-bot key — fall back to the user's global default BYOK key.
+  // 2. No per-agent key — fall back to the user's global default BYOK key.
   try {
     const defaultId = await getDefaultKeyId()
     if (defaultId) {
@@ -63,7 +63,7 @@ async function resolveAiOptions(
 /** Push an error toast via the global app-store. Lazy import avoids circular dep. */
 function notifyError(title: string, err: unknown): void {
   const msg = err instanceof Error ? err.message : String(err)
-  // Lazy-require to avoid a circular dependency (bot-store ← app-store)
+  // Lazy-require to avoid a circular dependency (agent-store ← app-store)
   void import('./app-store.js').then(({ useAppStore }) => {
     useAppStore.getState().pushNotification({ level: 'error', title, body: msg })
   })
@@ -71,15 +71,15 @@ function notifyError(title: string, err: unknown): void {
 
 // ─── Local persistence ─────────────────────────────────────────────────────────
 
-const BOTS_KEY = 'agenthub-agents'
+const AGENTS_KEY = 'agenthub-agents'
 const RUNS_KEY = 'agenthub-agent-runs'
 /** Bump this key whenever the seed set changes to force a re-seed. */
 const SEEDED_KEY = 'agenthub:agents-seeded-v1'
 
 /**
- * Generate the first-launch seed bots from the registered module templates.
- * One bot is created per built-in module template so the Bots tab is
- * never empty on first install — without any hardcoded bot list.
+ * Generate the first-launch seed agents from the registered module templates.
+ * One agent is created per built-in module template so the Agents tab is
+ * never empty on first install — without any hardcoded agent list.
  */
 function buildDefaultAgents(): IDesktopAgent[] {
   const seededAt = new Date(0).toISOString() // fixed timestamp so IDs are stable across re-seeds
@@ -96,9 +96,9 @@ function buildDefaultAgents(): IDesktopAgent[] {
 
 function readAgents(): IDesktopAgent[] {
   try {
-    const raw = localStorage.getItem(BOTS_KEY)
+    const raw = localStorage.getItem(AGENTS_KEY)
     if (raw !== null) return JSON.parse(raw) as IDesktopAgent[]
-    // First launch: seed one bot per built-in module so the tab is never empty.
+    // First launch: seed one agent per built-in module so the tab is never empty.
     if (!localStorage.getItem(SEEDED_KEY)) {
       localStorage.setItem(SEEDED_KEY, '1')
       const defaults = buildDefaultAgents()
@@ -109,8 +109,8 @@ function readAgents(): IDesktopAgent[] {
   } catch { return [] }
 }
 
-function writeAgents(bots: IDesktopAgent[]): void {
-  try { localStorage.setItem(BOTS_KEY, JSON.stringify(bots)) } catch { /* ignore */ }
+function writeAgents(agents: IDesktopAgent[]): void {
+  try { localStorage.setItem(AGENTS_KEY, JSON.stringify(agents)) } catch { /* ignore */ }
 }
 
 function readRuns(): Record<string, IDesktopAgentRun[]> {
@@ -141,7 +141,7 @@ function generateId(): string {
 
 export type RunStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 
-/** A single message in a bot conversation. */
+/** A single message in an agent conversation. */
 export interface IChatMessage {
   id: string
   role: 'user' | 'assistant'
@@ -158,7 +158,7 @@ export interface IChatMessage {
 }
 
 /**
- * A named credential the bot can use when interacting with external services,
+ * A named credential the agent can use when interacting with external services,
  * e.g. `{ key: 'email', value: 'user@example.com', masked: false }` or
  * `{ key: 'password', value: 's3cr3t', masked: true }`.
  * Stored in localStorage only — never sent to the server.
@@ -172,29 +172,29 @@ export interface IAgentCredential {
   masked: boolean
 }
 
-/** A bot as presented by the desktop UI — may be local-only or cloud-backed. */
+/** An agent as presented by the desktop UI — may be local-only or cloud-backed. */
 export interface IDesktopAgent {
   id: string
   name: string
   description: string
   status: 'active' | 'paused'
   created_at: string
-  /** true = this bot exists on the backend and is associated with the current account. */
+  /** true = this agent exists on the backend and is associated with the current account. */
   synced: boolean
-  /** The template this bot was created from, if any (local concept — not sent to server). */
+  /** The template this agent was created from, if any (local concept — not sent to server). */
   templateId?: string
   /**
-   * Per-bot API key override — stored locally only, never sent to the server.
+   * Per-agent API key override — stored locally only, never sent to the server.
    * When set, this key is passed to the AI provider instead of the global app key.
    */
   apiKey?: string
   /**
-   * Per-bot AI provider override (e.g. 'openai', 'anthropic', 'gemini').
+   * Per-agent AI provider override (e.g. 'openai', 'anthropic', 'gemini').
    * When undefined the app-wide provider from Settings › API Keys is used.
    */
   aiProvider?: string
   /**
-   * Named credentials (e.g. login email/password, API tokens) the bot needs to
+   * Named credentials (e.g. login email/password, API tokens) the agent needs to
    * interact with external services. Stored locally only — never sent to the server.
    */
   credentials?: IAgentCredential[]
@@ -203,7 +203,7 @@ export interface IDesktopAgent {
 /** A run record — may live in localStorage or be fetched from the server. */
 export interface IDesktopAgentRun {
   id: string
-  bot_id: string
+  agent_id: string
   status: RunStatus
   steps: number
   /** Human-readable output string (server JSON is formatted before storage). */
@@ -221,69 +221,69 @@ export interface IDesktopAgentRun {
 interface IAgentsStore {
   agents: IDesktopAgent[]
   runs: Record<string, IDesktopAgentRun[]>
-  /** Per-bot conversation history, persisted in localStorage. */
+  /** Per-agent conversation history, persisted in localStorage. */
   chatHistory: Record<string, IChatMessage[]>
-  selectedBotId: string | null
+  selectedAgentId: string | null
   loading: boolean
-  /** IDs of bots currently executing a task run. */
-  runningBotIds: string[]
-  /** IDs of bots currently generating a chat reply. */
-  thinkingBotIds: string[]
+  /** IDs of agents currently executing a task run. */
+  runningAgentIds: string[]
+  /** IDs of agents currently generating a chat reply. */
+  thinkingAgentIds: string[]
   error: string | null
 
-  /** Load bots: local always; merged with cloud when authenticated. */
+  /** Load agents: local always; merged with cloud when authenticated. */
   loadAgents(): Promise<void>
-  /** Create a bot. On server when authenticated, otherwise local-only. */
+  /** Create an agent. On server when authenticated, otherwise local-only. */
   createAgent(input: ICreateAgentInput & { templateId?: string }): Promise<void>
-  /** Delete a bot. Removes from server when synced. */
+  /** Delete an agent. Removes from server when synced. */
   deleteAgent(id: string): Promise<void>
   /** Toggle active ↔ paused. Updates server when synced. */
   toggleStatus(id: string): Promise<void>
   /**
-   * Execute a task run for a bot.
-   * • Cloud bot (synced + authenticated): queues on server; agent-loop executes it.
-   * • Local bot: executes step-by-step via bridge and posts result to chat history.
+   * Execute a task run for an agent.
+   * • Cloud agent (synced + authenticated): queues on server; agent-loop executes it.
+   * • Local agent: executes step-by-step via bridge and posts result to chat history.
    */
   runAgent(id: string): Promise<void>
-  /** Send a chat message to a bot and receive an AI reply. */
-  sendMessage(botId: string, content: string): Promise<void>
+  /** Send a chat message to an agent and receive an AI reply. */
+  sendMessage(agentId: string, content: string): Promise<void>
   /**
    * Confirm a pending-action card and execute the task run.
    * Called when the user clicks "Yes, run it" in the confirmation card.
    */
-  confirmRun(botId: string, msgId: string): Promise<void>
+  confirmRun(agentId: string, msgId: string): Promise<void>
   /**
    * Dismiss a pending-action card without executing.
    * Called when the user clicks "Skip" in the confirmation card.
    */
-  dismissRun(botId: string, msgId: string): void
-  /** Clear the conversation history for a bot. */
-  clearChat(botId: string): void
-  /** Clear ALL bot conversation histories — used by the Privacy settings. */
+  dismissRun(agentId: string, msgId: string): void
+  /** Clear the conversation history for an agent. */
+  clearChat(agentId: string): void
+  /** Clear ALL agent conversation histories — used by the Privacy settings. */
   clearAllChats(): void
-  /** Remove the per-bot API key override and persist the change. */
+  /** Remove the per-agent API key override and persist the change. */
   clearAgentApiKey(id: string): void
-  /** Remove the per-bot AI provider override and persist the change. */
+  /** Remove the per-agent AI provider override and persist the change. */
   clearAgentAiProvider(id: string): void
-  /** Load run history for a bot (local + server when synced). */
-  loadRuns(botId: string): Promise<void>
-  /** Update editable fields of a bot (name, description, apiKey). Local-only for now. */
+  /** Load run history for an agent (local + server when synced). */
+  loadRuns(agentId: string): Promise<void>
+  /** Update editable fields of an agent (name, description, apiKey). Local-only for now. */
   updateAgent(id: string, patch: Partial<Pick<IDesktopAgent, 'name' | 'description' | 'apiKey' | 'aiProvider'>>): Promise<void>
-  /** Replace all credentials for a bot and persist locally. */
+  /** Replace all credentials for an agent and persist locally. */
   updateAgentCredentials(id: string, credentials: IAgentCredential[]): void
   /**
-   * Clear the private memory scope for a bot (`bot:{id}`).
+   * Clear the private memory scope for an agent (`agent:{id}`).
    * Soft-deletes all memory entries in that scope.
    */
-  clearAgentMemory(botId: string): Promise<void>
+  clearAgentMemory(agentId: string): Promise<void>
   /**
-   * Return a context string built from the bot's private memory.
+   * Return a context string built from the agent's private memory.
    * Returns an empty string when running in browser dev mode (no Tauri).
    */
-  buildAgentMemoryContext(botId: string): Promise<string>
+  buildAgentMemoryContext(agentId: string): Promise<string>
   /**
-   * Cancel any active run for the bot — sets its status to 'cancelled' and
-   * removes the bot from the running set so the UI unlocks immediately.
+   * Cancel any active run for the agent — sets its status to 'cancelled' and
+   * removes the agent from the running set so the UI unlocks immediately.
    */
   stopAgent(id: string): void
   selectAgent(id: string | null): void
@@ -302,7 +302,7 @@ const DEFAULT_EXEC_STEPS: readonly [string, string, string, string, string] = [
   'Completing run…',
 ]
 
-/** Resolve execution step labels for a bot from the module registry. */
+/** Resolve execution step labels for an agent from the module registry. */
 function getExecSteps(templateId?: string): readonly [string, string, string, string, string] {
   if (!templateId) return DEFAULT_EXEC_STEPS
   return findTemplate(templateId)?.execSteps ?? DEFAULT_EXEC_STEPS
@@ -327,10 +327,10 @@ export const useAgentsStore = create<IAgentsStore>((set, get) => ({
   agents: readAgents(),
   runs: readRuns(),
   chatHistory: readChat(),
-  selectedBotId: null,
+  selectedAgentId: null,
   loading: false,
-  runningBotIds: [],
-  thinkingBotIds: [],
+  runningAgentIds: [],
+  thinkingAgentIds: [],
   error: null,
 
   loadAgents: async () => {
@@ -343,7 +343,7 @@ export const useAgentsStore = create<IAgentsStore>((set, get) => ({
         return
       }
 
-      // Authenticated: fetch cloud bots and merge with local-only bots.
+      // Authenticated: fetch cloud agents and merge with local-only agents.
       const cloud = await cloudAgentsApi.list()
       const cloudIds = new Set(cloud.map((b) => b.id))
 
@@ -356,15 +356,15 @@ export const useAgentsStore = create<IAgentsStore>((set, get) => ({
         synced: true,
       }))
 
-      // Retain local-only bots that are not already on the server.
+      // Retain local-only agents that are not already on the server.
       const localOnly = local.filter((b) => !b.synced && !cloudIds.has(b.id))
       const merged = [...synced, ...localOnly]
       writeAgents(merged)
       set({ agents: merged, loading: false })
     } catch (err) {
-      // Network failure — fall back to cached local bots.
+      // Network failure — fall back to cached local agents.
       const msg = err instanceof Error ? err.message : String(err)
-      notifyError('Failed to load bots', err)
+      notifyError('Failed to load agents', err)
       set({ agents: readAgents(), loading: false, error: msg })
     }
   },
@@ -374,16 +374,16 @@ export const useAgentsStore = create<IAgentsStore>((set, get) => ({
     try {
       if (tokenStore.getToken()) {
         const cloud = await cloudAgentsApi.create(input)
-        const bot: IDesktopAgent = {
+        const agent: IDesktopAgent = {
           ...cloud,
           synced: true,
           ...(input.templateId !== undefined ? { templateId: input.templateId } : {}),
         }
-        const agents = [bot, ...get().agents]
+        const agents = [agent, ...get().agents]
         writeAgents(agents)
         set({ agents, loading: false })
       } else {
-        const bot: IDesktopAgent = {
+        const agent: IDesktopAgent = {
           id: generateId(),
           name: input.name,
           description: input.description,
@@ -392,27 +392,27 @@ export const useAgentsStore = create<IAgentsStore>((set, get) => ({
           synced: false,
           ...(input.templateId !== undefined ? { templateId: input.templateId } : {}),
         }
-        const agents = [bot, ...get().agents]
+        const agents = [agent, ...get().agents]
         writeAgents(agents)
         set({ agents, loading: false })
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      notifyError('Failed to create bot', err)
+      notifyError('Failed to create agent', err)
       set({ loading: false, error: msg })
       throw err
     }
   },
 
   deleteAgent: async (id) => {
-    const bot = get().agents.find((b) => b.id === id)
-    if (!bot) return
+    const agent = get().agents.find((b) => b.id === id)
+    if (!agent) return
     // Best-effort cloud delete — never block local deletion on API failure.
-    if (bot.synced && tokenStore.getToken()) {
+    if (agent.synced && tokenStore.getToken()) {
       try {
         await cloudAgentsApi.delete(id)
       } catch (err) {
-        notifyError('Cloud sync: failed to delete bot remotely', err)
+        notifyError('Cloud sync: failed to delete agent remotely', err)
         // Fall through — still delete locally.
       }
     }
@@ -423,24 +423,24 @@ export const useAgentsStore = create<IAgentsStore>((set, get) => ({
     set({
       agents,
       runs: remainingRuns,
-      selectedBotId: get().selectedBotId === id ? null : get().selectedBotId,
+      selectedAgentId: get().selectedAgentId === id ? null : get().selectedAgentId,
     })
   },
 
   toggleStatus: async (id) => {
-    const bot = get().agents.find((b) => b.id === id)
-    if (!bot) return
-    const next: 'active' | 'paused' = bot.status === 'active' ? 'paused' : 'active'
-    if (bot.synced && tokenStore.getToken()) {
+    const agent = get().agents.find((b) => b.id === id)
+    if (!agent) return
+    const next: 'active' | 'paused' = agent.status === 'active' ? 'paused' : 'active'
+    if (agent.synced && tokenStore.getToken()) {
       try {
         await cloudAgentsApi.update(id, {
-          name: bot.name,
-          description: bot.description,
+          name: agent.name,
+          description: agent.description,
           status: next,
         })
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
-        notifyError('Failed to update bot status', err)
+        notifyError('Failed to update agent status', err)
         set({ error: msg })
         return
       }
@@ -451,35 +451,35 @@ export const useAgentsStore = create<IAgentsStore>((set, get) => ({
   },
 
   runAgent: async (id) => {
-    const bot = get().agents.find((b) => b.id === id)
-    // Per-bot lock — the same bot can't be queued twice, but different bots run freely.
-    if (!bot || get().runningBotIds.includes(id)) return
-    // Reject commands when the bot has been stopped / paused.
-    if (bot.status === 'paused') {
+    const agent = get().agents.find((b) => b.id === id)
+    // Per-agent lock — the same agent can't be queued twice, but different agents run freely.
+    if (!agent || get().runningAgentIds.includes(id)) return
+    // Reject commands when the agent has been stopped / paused.
+    if (agent.status === 'paused') {
       void import('./app-store.js').then(({ useAppStore }) => {
         useAppStore.getState().pushNotification({
           level: 'warning',
-          title: `${bot.name} is paused`,
-          body: 'Activate the bot first — use the Activate button in the header or Settings tab.',
+          title: `${agent.name} is paused`,
+          body: 'Activate the agent first — use the Activate button in the header or Settings tab.',
         })
       })
       return
     }
 
-    set({ runningBotIds: [...get().runningBotIds, id], error: null })
+    set({ runningAgentIds: [...get().runningAgentIds, id], error: null })
 
     const removeLock = (): void => {
-      set({ runningBotIds: get().runningBotIds.filter((x) => x !== id) })
+      set({ runningAgentIds: get().runningAgentIds.filter((x) => x !== id) })
     }
 
-    // ── Cloud bot: queue on server; agent-loop handles execution ──────────────
-    if (bot.synced && tokenStore.getToken()) {
+    // ── Cloud agent: queue on server; agent-loop handles execution ──────────────
+    if (agent.synced && tokenStore.getToken()) {
       try {
         await cloudAgentsApi.start(id)
         await get().loadRuns(id)
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
-        notifyError('Failed to queue bot run', err)
+        notifyError('Failed to queue agent run', err)
         set({ error: msg })
       } finally {
         removeLock()
@@ -487,10 +487,10 @@ export const useAgentsStore = create<IAgentsStore>((set, get) => ({
       return
     }
 
-    // ── Local bot: execute step-by-step via bridge ────────────────────────────
-    const runId     = generateId()
+    // ── Local agent: execute step-by-step via bridge ────────────────────────────
+    const runId = generateId()
     const startedAt = new Date().toISOString()
-    const execSteps: readonly string[] = getExecSteps(bot.templateId)
+    const execSteps: readonly string[] = getExecSteps(agent.templateId)
 
     const patchRuns = (patch: Partial<IDesktopAgentRun>): void => {
       const updated = { ...get().runs }
@@ -504,7 +504,7 @@ export const useAgentsStore = create<IAgentsStore>((set, get) => ({
     // Insert a 'running' record immediately so the UI reacts.
     const initialRun: IDesktopAgentRun = {
       id: runId,
-      bot_id: id,
+      agent_id: id,
       status: 'running',
       steps: 0,
       result: '',
@@ -527,8 +527,8 @@ export const useAgentsStore = create<IAgentsStore>((set, get) => ({
 
     try {
       for (let i = 0; i < execSteps.length; i++) {
-        // Bail out immediately if the user stopped the bot.
-        if (!get().runningBotIds.includes(id)) return
+        // Bail out immediately if the user stopped the agent.
+        if (!get().runningAgentIds.includes(id)) return
 
         // Advance the step counter and log this step as reached.
         patchRuns({ steps: i + 1, logs: execSteps.slice(0, i + 1) })
@@ -536,25 +536,25 @@ export const useAgentsStore = create<IAgentsStore>((set, get) => ({
         if (i === 2) {
           // Simulate AI thinking time before the actual call.
           await sleep(1200)
-          if (!get().runningBotIds.includes(id)) return
+          if (!get().runningAgentIds.includes(id)) return
           // Perform the actual AI call.
           try {
-            // Build private memory context for this bot (Tauri only).
+            // Build private memory context for this agent (Tauri only).
             let memoryContext = ''
             if (IS_TAURI) {
               try { memoryContext = await LM.memoryBuildContext({ scope: agentScope(id) }) } catch { /* ignore */ }
             }
 
-            const aiOptions = await resolveAiOptions(bot)
+            const aiOptions = await resolveAiOptions(agent)
             const taskPrompt = memoryContext
-              ? `${memoryContext}\n\nTask: ${bot.description}`
-              : `Complete this task: ${bot.description}`
+              ? `${memoryContext}\n\nTask: ${agent.description}`
+              : `Complete this task: ${agent.description}`
             const ai = await bridge.ai.generate('chat', taskPrompt, undefined, aiOptions)
             result = ai.output.startsWith('[Dev mode]')
-              ? `[Offline] Start the full Tauri app to enable real AI execution for: ${bot.description}`
+              ? `[Offline] Start the full Tauri app to enable real AI execution for: ${agent.description}`
               : ai.output
           } catch (aiErr) {
-            const preview = bot.description.length > 120 ? `${bot.description.slice(0, 120)}…` : bot.description
+            const preview = agent.description.length > 120 ? `${agent.description.slice(0, 120)}…` : agent.description
             result = `Task execution failed: ${String(aiErr)}\n\nTask: ${preview}`
           }
         } else {
@@ -564,7 +564,7 @@ export const useAgentsStore = create<IAgentsStore>((set, get) => ({
     } catch (err) {
       result = String(err)
       finalStatus = 'failed'
-      notifyError(`Bot run failed — ${bot.name}`, err)
+      notifyError(`Agent run failed — ${agent.name}`, err)
     }
 
     patchRuns({
@@ -607,20 +607,20 @@ ${preview}`,
     removeLock()
   },
 
-  sendMessage: async (botId, content) => {
-    const bot = get().agents.find((b) => b.id === botId)
-    if (!bot) return
+  sendMessage: async (agentId, content) => {
+    const agent = get().agents.find((b) => b.id === agentId)
+    if (!agent) return
 
     const pushMsg = (msg: IChatMessage): void => {
       const chat = { ...get().chatHistory }
-      chat[botId] = [...(chat[botId] ?? []), msg]
+      chat[agentId] = [...(chat[agentId] ?? []), msg]
       writeChat(chat)
       set({ chatHistory: chat })
     }
 
     pushMsg({ id: generateId(), role: 'user', content, ts: Date.now() })
 
-    if (bot.status === 'paused') {
+    if (agent.status === 'paused') {
       pushMsg({
         id: generateId(),
         role: 'assistant',
@@ -630,7 +630,7 @@ ${preview}`,
       return
     }
 
-    set({ thinkingBotIds: [...get().thinkingBotIds, botId] })
+    set({ thinkingAgentIds: [...get().thinkingAgentIds, agentId] })
 
     try {
       const bridge = getDesktopBridge()
@@ -653,7 +653,7 @@ ${preview}`,
       if (isActionIntent) {
         // Brief thinking pause so the typing indicator is visible.
         await sleep(700)
-        const taskLabel = bot.description.length > 120 ? `${bot.description.slice(0, 120)}…` : bot.description
+        const taskLabel = agent.description.length > 120 ? `${agent.description.slice(0, 120)}…` : agent.description
         pushMsg({
           id: generateId(),
           role: 'assistant',
@@ -665,29 +665,29 @@ ${preview}`,
       }
 
       // ── Plain conversation: answer without running ─────────────────────────
-      const recentHistory = (get().chatHistory[botId] ?? []).slice(-5, -1)
+      const recentHistory = (get().chatHistory[agentId] ?? []).slice(-5, -1)
       const contextLines = recentHistory
-        .map((m) => `${m.role === 'user' ? 'User' : 'Bot'}: ${m.content.slice(0, 200)}`)
+        .map((m) => `${m.role === 'user' ? 'User' : 'Agent'}: ${m.content.slice(0, 200)}`)
         .join('\n')
 
-      // Pull private memory context for this bot (Tauri only).
+      // Pull private memory context for this agent (Tauri only).
       let memCtx = ''
       if (IS_TAURI) {
-        try { memCtx = await LM.memoryBuildContext({ scope: agentScope(botId) }) } catch { /* ignore */ }
+        try { memCtx = await LM.memoryBuildContext({ scope: agentScope(agentId) }) } catch { /* ignore */ }
       }
 
       const prompt = [
         memCtx ? memCtx : null,
-        `You are "${bot.name}", a focused AI agent. Your purpose: ${bot.description}`,
+        `You are "${agent.name}", a focused AI agent. Your purpose: ${agent.description}`,
         contextLines ? `\nRecent conversation:\n${contextLines}` : null,
-        `\nUser: ${content}\nBot:`,
+        `\nUser: ${content}\nAgent:`,
       ].filter(Boolean).join('\n')
 
-      const aiOptions = await resolveAiOptions(bot)
+      const aiOptions = await resolveAiOptions(agent)
       const ai = await bridge.ai.generate('chat', prompt, undefined, aiOptions)
 
       const reply = ai.output.startsWith('[Dev mode]')
-        ? `[Offline] Start the full Tauri app to enable AI responses from ${bot.name}.`
+        ? `[Offline] Start the full Tauri app to enable AI responses from ${agent.name}.`
         : ai.output
 
       pushMsg({ id: generateId(), role: 'assistant', content: reply, ts: Date.now() })
@@ -701,18 +701,18 @@ ${preview}`,
       const userMsg = isConnectionError
         ? 'Cannot reach the AI gateway. Make sure the backend is running, or add a BYOK API key in Settings.'
         : raw
-      notifyError(`${bot.name} encountered an error`, new Error(userMsg))
+      notifyError(`${agent.name} encountered an error`, new Error(userMsg))
       pushMsg({ id: generateId(), role: 'assistant', content: `Error: ${userMsg}`, ts: Date.now() })
     } finally {
-      set({ thinkingBotIds: get().thinkingBotIds.filter((x) => x !== botId) })
+      set({ thinkingAgentIds: get().thinkingAgentIds.filter((x) => x !== agentId) })
     }
   },
 
-  confirmRun: async (botId, msgId) => {
+  confirmRun: async (agentId, msgId) => {
     // Mark the card as confirmed immediately so the UI updates.
     const patch = (status: 'confirmed' | 'dismissed'): void => {
       const chat = { ...get().chatHistory }
-      chat[botId] = (chat[botId] ?? []).map((m) =>
+      chat[agentId] = (chat[agentId] ?? []).map((m) =>
         m.id === msgId && m.pendingAction
           ? { ...m, pendingAction: { ...m.pendingAction, status } }
           : m,
@@ -721,12 +721,12 @@ ${preview}`,
       set({ chatHistory: chat })
     }
     patch('confirmed')
-    await get().runAgent(botId)
+    await get().runAgent(agentId)
   },
 
-  dismissRun: (botId, msgId) => {
+  dismissRun: (agentId, msgId) => {
     const chat = { ...get().chatHistory }
-    chat[botId] = (chat[botId] ?? []).map((m) =>
+    chat[agentId] = (chat[agentId] ?? []).map((m) =>
       m.id === msgId && m.pendingAction
         ? { ...m, pendingAction: { ...m.pendingAction, status: 'dismissed' } }
         : m,
@@ -735,8 +735,8 @@ ${preview}`,
     set({ chatHistory: chat })
   },
 
-  clearChat: (botId) => {
-    const chat = { ...get().chatHistory, [botId]: [] as IChatMessage[] }
+  clearChat: (agentId) => {
+    const chat = { ...get().chatHistory, [agentId]: [] as IChatMessage[] }
     writeChat(chat)
     set({ chatHistory: chat })
   },
@@ -766,21 +766,21 @@ ${preview}`,
     set({ agents })
   },
 
-  loadRuns: async (botId) => {
-    const bot = get().agents.find((b) => b.id === botId)
+  loadRuns: async (agentId) => {
+    const agent = get().agents.find((b) => b.id === agentId)
     const localAll = readRuns()
-    const localRuns = localAll[botId] ?? []
+    const localRuns = localAll[agentId] ?? []
 
-    if (!bot?.synced || !tokenStore.getToken()) {
-      set({ runs: { ...get().runs, [botId]: localRuns } })
+    if (!agent?.synced || !tokenStore.getToken()) {
+      set({ runs: { ...get().runs, [agentId]: localRuns } })
       return
     }
 
     try {
-      const cloud = await cloudAgentsApi.getRuns(botId)
+      const cloud = await cloudAgentsApi.getRuns(agentId)
       const converted: IDesktopAgentRun[] = cloud.map((r) => ({
         id: r.id,
-        bot_id: r.bot_id,
+        agent_id: r.agent_id,
         status: r.status,
         steps: r.steps,
         result: formatResult(r.result),
@@ -796,12 +796,12 @@ ${preview}`,
         (a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime(),
       )
 
-      const updated = { ...get().runs, [botId]: merged }
+      const updated = { ...get().runs, [agentId]: merged }
       writeRuns(updated)
       set({ runs: updated })
     } catch {
       // Network failure — show cached local runs.
-      set({ runs: { ...get().runs, [botId]: localRuns } })
+      set({ runs: { ...get().runs, [agentId]: localRuns } })
     }
   },
 
@@ -818,20 +818,20 @@ ${preview}`,
     set({ agents })
   },
 
-  clearAgentMemory: async (botId) => {
+  clearAgentMemory: async (agentId) => {
     if (!IS_TAURI) return
     try {
-      const entries = await LM.memoryList({ scope: agentScope(botId) })
+      const entries = await LM.memoryList({ scope: agentScope(agentId) })
       await Promise.all(entries.map((e) => LM.memoryDelete(e.id)))
     } catch (err) {
-      notifyError('Failed to clear bot memory', err)
+      notifyError('Failed to clear agent memory', err)
     }
   },
 
-  buildAgentMemoryContext: async (botId) => {
+  buildAgentMemoryContext: async (agentId) => {
     if (!IS_TAURI) return ''
     try {
-      return await LM.memoryBuildContext({ scope: agentScope(botId) })
+      return await LM.memoryBuildContext({ scope: agentScope(agentId) })
     } catch {
       return ''
     }
@@ -839,8 +839,8 @@ ${preview}`,
 
   stopAgent: (id) => {
     // Immediately unblock the running lock so the UI responds.
-    set({ runningBotIds: get().runningBotIds.filter((x) => x !== id) })
-    // Set status to paused so bot rejects all future runAgent / sendMessage calls.
+    set({ runningAgentIds: get().runningAgentIds.filter((x) => x !== id) })
+    // Set status to paused so agent rejects all future runAgent / sendMessage calls.
     const agents = get().agents.map((b) => b.id === id ? { ...b, status: 'paused' as const } : b)
     writeAgents(agents)
     set({ agents })
@@ -858,7 +858,7 @@ ${preview}`,
   },
 
   selectAgent: (id) => {
-    set({ selectedBotId: id })
+    set({ selectedAgentId: id })
     if (id !== null) void get().loadRuns(id)
   },
 

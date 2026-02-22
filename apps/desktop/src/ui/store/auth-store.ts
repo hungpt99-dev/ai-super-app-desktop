@@ -5,8 +5,8 @@ import {
   authMe,
   authLogout,
   authRefresh,
-} from '../../sdk/auth-api.js'
-import { tokenStore } from '../../sdk/token-store.js'
+} from '../../bridges/auth-api.js'
+import { tokenStore } from '../../bridges/token-store.js'
 import { logger } from '@agenthub/shared'
 import { useAppStore } from './app-store.js'
 

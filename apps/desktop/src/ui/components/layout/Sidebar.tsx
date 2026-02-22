@@ -4,7 +4,7 @@ import { useAuthStore } from '../../store/auth-store.js'
 import { useAgentStore } from '../../store/agent-store.js'
 
 /** Views that map directly to a top-level nav item (excludes sub-views like crypto/writing-helper). */
-type INavView = 'dashboard' | 'chat' | 'agents' | 'store' | 'activity' | 'logs' | 'api-keys' | 'settings'
+type INavView = 'dashboard' | 'chat' | 'agents' | 'hub' | 'activity' | 'logs' | 'api-keys' | 'settings'
 
 interface ISidebarProps {
   activeView: AppView
@@ -49,8 +49,8 @@ const NAV_ITEMS: { id: INavView; label: string; icon: React.ReactNode }[] = [
     ),
   },
   {
-    id: 'store',
-    label: 'Store',
+    id: 'hub',
+    label: 'Hub',
     icon: (
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
@@ -102,7 +102,7 @@ const NAV_ITEMS: { id: INavView; label: string; icon: React.ReactNode }[] = [
   },
 ]
 
-/** Returns the matching top-level nav id for a given AppView (module sub-views map to 'bots'). */
+/** Returns the matching top-level nav id for a given AppView (module sub-views map to 'agents'). */
 function toNavView(view: AppView): INavView {
   if (view === 'agent-run') return 'agents'
   return view as INavView
@@ -204,7 +204,7 @@ export function Sidebar({ activeView, onNavigate, unreadCount, onNotifications, 
                 {agentStatus === 'running'
                   ? (activeRunGoal !== null ? activeRunGoal.slice(0, 28) + (activeRunGoal.length > 28 ? '…' : '') : 'Working…')
                   : agentStatus === 'idle' ? 'Idle'
-                  : agentStatus === 'paused' ? 'Paused' : 'Offline'}
+                    : agentStatus === 'paused' ? 'Paused' : 'Offline'}
               </span>
             </div>
             <span className="text-[10px] text-[var(--color-text-muted)]">

@@ -50,19 +50,19 @@ function dayBucket(iso: string): string {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const STATUS_CONFIGS: Record<RunStatus, { dot: string; badge: string; label: string }> = {
-  pending:   { dot: 'bg-yellow-400',               badge: 'bg-yellow-400/15 text-yellow-400',                           label: 'Pending'   },
-  running:   { dot: 'animate-pulse bg-blue-400',    badge: 'bg-blue-400/15 text-blue-400',                               label: 'Running'   },
-  completed: { dot: 'bg-[var(--color-success)]',    badge: 'bg-[var(--color-success)]/15 text-[var(--color-success)]',   label: 'Completed' },
-  failed:    { dot: 'bg-[var(--color-danger)]',     badge: 'bg-[var(--color-danger)]/15 text-[var(--color-danger)]',     label: 'Failed'    },
+  pending: { dot: 'bg-yellow-400', badge: 'bg-yellow-400/15 text-yellow-400', label: 'Pending' },
+  running: { dot: 'animate-pulse bg-blue-400', badge: 'bg-blue-400/15 text-blue-400', label: 'Running' },
+  completed: { dot: 'bg-[var(--color-success)]', badge: 'bg-[var(--color-success)]/15 text-[var(--color-success)]', label: 'Completed' },
+  failed: { dot: 'bg-[var(--color-danger)]', badge: 'bg-[var(--color-danger)]/15 text-[var(--color-danger)]', label: 'Failed' },
   cancelled: { dot: 'bg-[var(--color-text-muted)]', badge: 'bg-[var(--color-surface-2)] text-[var(--color-text-muted)]', label: 'Cancelled' },
 }
 
 const ALL_STATUSES: RunStatus[] = ['pending', 'running', 'completed', 'failed', 'cancelled']
 
-// ─── Flat run record (bot name joined in) ────────────────────────────────────
+// ─── Flat run record (agent name joined in) ──────────────────────────────────
 
 interface IFlatRun extends IDesktopAgentRun {
-  botName: string
+  agentName: string
 }
 
 // ─── Copy hook ────────────────────────────────────────────────────────────────
@@ -93,7 +93,7 @@ function StepStepper({ run }: { run: IFlatRun }): React.JSX.Element | null {
       </p>
       <div className="space-y-1.5 pl-0.5">
         {planned.map((label, i) => {
-          const done   = i < reached.length
+          const done = i < reached.length
           const active = i === reached.length && run.status === 'running'
           return (
             <div key={i} className="flex items-start gap-2.5">
@@ -113,11 +113,10 @@ function StepStepper({ run }: { run: IFlatRun }): React.JSX.Element | null {
                 )}
               </div>
               {/* Label */}
-              <span className={`text-[11px] leading-snug ${
-                done    ? 'text-[var(--color-text-muted)] line-through decoration-[var(--color-text-muted)]/50'
+              <span className={`text-[11px] leading-snug ${done ? 'text-[var(--color-text-muted)] line-through decoration-[var(--color-text-muted)]/50'
                 : active ? 'font-medium text-blue-400'
-                : 'text-[var(--color-text-muted)]'
-              }`}>
+                  : 'text-[var(--color-text-muted)]'
+                }`}>
                 {label}
               </span>
             </div>
@@ -143,14 +142,14 @@ function StatsBar({ runs }: { runs: IFlatRun[] }): React.JSX.Element {
   const rateColor = successRate === null
     ? 'text-[var(--color-text-muted)]'
     : successRate >= 80 ? 'text-[var(--color-success)]'
-    : successRate >= 50 ? 'text-yellow-400'
-    : 'text-[var(--color-danger)]'
+      : successRate >= 50 ? 'text-yellow-400'
+        : 'text-[var(--color-danger)]'
 
   const items = [
-    { label: 'Total',     value: String(runs.length),          accent: 'text-[var(--color-text-primary)]' },
+    { label: 'Total', value: String(runs.length), accent: 'text-[var(--color-text-primary)]' },
     { label: 'Completed', value: String(counts.completed ?? 0), accent: 'text-[var(--color-success)]' },
-    { label: 'Failed',    value: String(counts.failed ?? 0),    accent: 'text-[var(--color-danger)]' },
-    { label: 'Running',   value: String(counts.running ?? 0),   accent: 'text-blue-400' },
+    { label: 'Failed', value: String(counts.failed ?? 0), accent: 'text-[var(--color-danger)]' },
+    { label: 'Running', value: String(counts.running ?? 0), accent: 'text-blue-400' },
     { label: 'Success %', value: successRate !== null ? `${String(successRate)}%` : '—', accent: rateColor },
   ]
 
@@ -173,10 +172,10 @@ function StatsBar({ runs }: { runs: IFlatRun[] }): React.JSX.Element {
 
 interface IRunRowProps {
   run: IFlatRun
-  onOpenBot: () => void
+  onOpenAgent: () => void
 }
 
-function RunRow({ run, onOpenBot }: IRunRowProps): React.JSX.Element {
+function RunRow({ run, onOpenAgent }: IRunRowProps): React.JSX.Element {
   // Auto-expand when running or pending so the stepper is immediately visible.
   const [expanded, setExpanded] = useState(
     run.status === 'running' || run.status === 'pending',
@@ -190,29 +189,28 @@ function RunRow({ run, onOpenBot }: IRunRowProps): React.JSX.Element {
   }, [run.status])
 
   const hasExpandable = run.result.length > 0 || (run.plannedSteps?.length ?? 0) > 0
-  const isReRunnable  = run.local && (
+  const isReRunnable = run.local && (
     run.status === 'completed' || run.status === 'failed' || run.status === 'cancelled'
   )
 
   return (
-    <div className={`rounded-xl border bg-[var(--color-surface)] transition-colors ${
-      run.status === 'running'
-        ? 'border-blue-400/40'
-        : 'border-[var(--color-border)]'
-    }`}>
+    <div className={`rounded-xl border bg-[var(--color-surface)] transition-colors ${run.status === 'running'
+      ? 'border-blue-400/40'
+      : 'border-[var(--color-border)]'
+      }`}>
       {/* ── Row header ─────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 px-4 py-3">
         {/* Status dot */}
         <span className={`h-2 w-2 shrink-0 rounded-full ${cfg.dot}`} />
 
-        {/* Bot name — navigates to bot detail */}
+        {/* Agent name — navigates to agent detail */}
         <button
-          onClick={onOpenBot}
+          onClick={onOpenAgent}
           className="min-w-0 max-w-[160px] truncate text-left text-sm font-medium
                      text-[var(--color-text-primary)] hover:text-[var(--color-accent)]"
-          title={run.botName}
+          title={run.agentName}
         >
-          {run.botName}
+          {run.agentName}
         </button>
 
         {/* Status badge */}
@@ -248,7 +246,7 @@ function RunRow({ run, onOpenBot }: IRunRowProps): React.JSX.Element {
           {/* Stop — running only */}
           {run.status === 'running' && (
             <button
-              onClick={() => { useAgentsStore.getState().stopAgent(run.bot_id) }}
+              onClick={() => { useAgentsStore.getState().stopAgent(run.agent_id) }}
               title="Stop this run"
               className="flex h-6 w-6 items-center justify-center rounded-lg
                          bg-red-500/15 text-red-400 transition-colors hover:bg-red-500/30"
@@ -263,7 +261,7 @@ function RunRow({ run, onOpenBot }: IRunRowProps): React.JSX.Element {
           {/* Re-run — local completed / failed / cancelled */}
           {isReRunnable && (
             <button
-              onClick={() => { void useAgentsStore.getState().runAgent(run.bot_id) }}
+              onClick={() => { void useAgentsStore.getState().runAgent(run.agent_id) }}
               title="Run again"
               className="flex h-6 items-center gap-1 rounded-lg border border-[var(--color-border)]
                          px-2 text-[10px] text-[var(--color-text-muted)] transition-colors
@@ -347,18 +345,18 @@ export interface IActivityPanelProps {
   onNavigate: (view: AppView) => void
 }
 
-/** ActivityPanel — live run history across all bots with interactive controls. */
+/** ActivityPanel — live run history across all agents with interactive controls. */
 export function ActivityPanel({ onNavigate }: IActivityPanelProps): React.JSX.Element {
-  const bots    = useAgentsStore((s) => s.agents)
-  const runs    = useAgentsStore((s) => s.runs)
+  const agents = useAgentsStore((s) => s.agents)
+  const runs = useAgentsStore((s) => s.runs)
   const loading = useAgentsStore((s) => s.loading)
 
-  const [search,       setSearch]       = useState('')
+  const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<RunStatus | 'all'>('all')
-  const [botFilter,    setBotFilter]    = useState<string>('all')
-  const [refreshing,   setRefreshing]   = useState(false)
-  const [sortOrder,    setSortOrder]    = useState<'newest' | 'oldest'>('newest')
-  const [groupByDate,  setGroupByDate]  = useState(true)
+  const [agentFilter, setAgentFilter] = useState<string>('all')
+  const [refreshing, setRefreshing] = useState(false)
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest')
+  const [groupByDate, setGroupByDate] = useState(true)
 
   const liveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -374,16 +372,16 @@ export function ActivityPanel({ onNavigate }: IActivityPanelProps): React.JSX.El
   // Flatten runs once so useMemo below is stable.
   const allRuns: IFlatRun[] = useMemo(() => {
     const flat: IFlatRun[] = []
-    for (const [botId, botRuns] of Object.entries(runs)) {
-      const bot = bots.find((b) => b.id === botId)
-      for (const r of botRuns) flat.push({ ...r, botName: bot?.name ?? 'Unknown bot' })
+    for (const [agentId, agentRuns] of Object.entries(runs)) {
+      const agent = agents.find((a) => a.id === agentId)
+      for (const r of agentRuns) flat.push({ ...r, agentName: agent?.name ?? 'Unknown agent' })
     }
     flat.sort((a, b) => {
       const diff = new Date(b.started_at).getTime() - new Date(a.started_at).getTime()
       return sortOrder === 'newest' ? diff : -diff
     })
     return flat
-  }, [runs, bots, sortOrder])
+  }, [runs, agents, sortOrder])
 
   // Auto-poll every 3 s while any run is active (running or pending).
   const hasActive = useMemo(
@@ -411,20 +409,20 @@ export function ActivityPanel({ onNavigate }: IActivityPanelProps): React.JSX.El
     try { await loadAll() } finally { setRefreshing(false) }
   }
 
-  // Apply search + status + bot filters.
+  // Apply search + status + agent filters.
   const filtered = useMemo(() => allRuns.filter((r) => {
     if (statusFilter !== 'all' && r.status !== statusFilter) return false
-    if (botFilter !== 'all' && r.bot_id !== botFilter) return false
+    if (agentFilter !== 'all' && r.agent_id !== agentFilter) return false
     if (search.length > 0) {
       const q = search.toLowerCase()
       if (
-        !r.botName.toLowerCase().includes(q) &&
+        !r.agentName.toLowerCase().includes(q) &&
         !r.result.toLowerCase().includes(q) &&
         !r.status.toLowerCase().includes(q)
       ) return false
     }
     return true
-  }), [allRuns, statusFilter, botFilter, search])
+  }), [allRuns, statusFilter, agentFilter, search])
 
   // Group filtered runs by date bucket if groupByDate is on.
   const grouped: { label: string; items: IFlatRun[] }[] = useMemo(() => {
@@ -439,8 +437,8 @@ export function ActivityPanel({ onNavigate }: IActivityPanelProps): React.JSX.El
     return Array.from(map.entries()).map(([label, items]) => ({ label, items }))
   }, [filtered, groupByDate])
 
-  const openBot = (botId: string): void => {
-    useAgentsStore.getState().selectAgent(botId)
+  const openAgent = (agent_id: string): void => {
+    useAgentsStore.getState().selectAgent(agent_id)
     onNavigate('agent-run')
   }
 
@@ -464,7 +462,7 @@ export function ActivityPanel({ onNavigate }: IActivityPanelProps): React.JSX.El
               )}
             </div>
             <p className="mt-0.5 text-sm text-[var(--color-text-secondary)]">
-              Live run history across all bots.
+              Live run history across all agents.
             </p>
           </div>
 
@@ -475,11 +473,10 @@ export function ActivityPanel({ onNavigate }: IActivityPanelProps): React.JSX.El
               onClick={() => { setGroupByDate((v) => !v) }}
               title="Group by date"
               className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs
-                          transition-colors ${
-                groupByDate
+                          transition-colors ${groupByDate
                   ? 'border-[var(--color-accent)]/50 text-[var(--color-accent)]'
                   : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-accent)]/50 hover:text-[var(--color-accent)]'
-              }`}
+                }`}
             >
               {/* Calendar icon */}
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
@@ -548,7 +545,7 @@ export function ActivityPanel({ onNavigate }: IActivityPanelProps): React.JSX.El
               </svg>
               <input
                 type="text"
-                placeholder="Search by bot, status, or output…"
+                placeholder="Search by agent, status, or output…"
                 value={search}
                 onChange={(e) => { setSearch(e.target.value) }}
                 className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]
@@ -572,15 +569,15 @@ export function ActivityPanel({ onNavigate }: IActivityPanelProps): React.JSX.El
             </select>
 
             <select
-              value={botFilter}
-              onChange={(e) => { setBotFilter(e.target.value) }}
+              value={agentFilter}
+              onChange={(e) => { setAgentFilter(e.target.value) }}
               className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]
                          px-3 py-2.5 text-sm text-[var(--color-text-primary)] outline-none
                          focus:border-[var(--color-accent)]"
             >
-              <option value="all">All bots</option>
-              {bots.map((b) => (
-                <option key={b.id} value={b.id}>{b.name}</option>
+              <option value="all">All agents</option>
+              {agents.map((a) => (
+                <option key={a.id} value={a.id}>{a.name}</option>
               ))}
             </select>
           </div>
@@ -608,7 +605,7 @@ export function ActivityPanel({ onNavigate }: IActivityPanelProps): React.JSX.El
                 No activity yet
               </p>
               <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-                Create a bot and run it — runs will appear here.
+                Create an agent and run it — runs will appear here.
               </p>
               <button
                 onClick={() => { onNavigate('agents') }}
@@ -616,7 +613,7 @@ export function ActivityPanel({ onNavigate }: IActivityPanelProps): React.JSX.El
                            px-4 py-2 text-sm font-medium text-[var(--color-accent)]
                            transition-colors hover:bg-[var(--color-accent)] hover:text-white"
               >
-                Go to Bots
+                Go to Agents
               </button>
             </div>
           ) : filtered.length === 0 && allRuns.length > 0 ? (
@@ -629,7 +626,7 @@ export function ActivityPanel({ onNavigate }: IActivityPanelProps): React.JSX.El
                 onClick={() => {
                   setSearch('')
                   setStatusFilter('all')
-                  setBotFilter('all')
+                  setAgentFilter('all')
                 }}
                 className="mt-3 text-xs text-[var(--color-accent)] hover:underline"
               >
@@ -645,7 +642,7 @@ export function ActivityPanel({ onNavigate }: IActivityPanelProps): React.JSX.El
                     <RunRow
                       key={run.id}
                       run={run}
-                      onOpenBot={() => { openBot(run.bot_id) }}
+                      onOpenAgent={() => { openAgent(run.agent_id) }}
                     />
                   ))}
                 </div>

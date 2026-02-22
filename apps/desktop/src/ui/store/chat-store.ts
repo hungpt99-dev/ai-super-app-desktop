@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { getDesktopBridge } from '../lib/bridge.js'
-import { getDefaultKeyId, listAPIKeys } from '../../sdk/api-key-store.js'
+import { getDefaultKeyId, listAPIKeys } from '../../bridges/api-key-store.js'
 import { useAppStore } from './app-store.js'
 import { addLog } from './log-store.js'
 

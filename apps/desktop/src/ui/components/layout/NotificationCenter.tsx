@@ -4,17 +4,17 @@ import { useAppStore, type INotificationEntry } from '../../store/app-store.js'
 // ─── Per-level dot colours ────────────────────────────────────────────────────
 
 const LEVEL_DOT: Record<INotificationEntry['level'], string> = {
-  info:    'bg-[var(--color-accent)]',
+  info: 'bg-[var(--color-accent)]',
   success: 'bg-emerald-400',
   warning: 'bg-yellow-400',
-  error:   'bg-red-400',
+  error: 'bg-red-400',
 }
 
 const LEVEL_SOURCE: Record<INotificationEntry['level'], string> = {
-  info:    'text-[var(--color-accent)]',
+  info: 'text-[var(--color-accent)]',
   success: 'text-emerald-400',
   warning: 'text-yellow-400',
-  error:   'text-red-400',
+  error: 'text-red-400',
 }
 
 // ─── Single item ──────────────────────────────────────────────────────────────
@@ -140,7 +140,7 @@ export function NotificationCenter({
                   No notifications yet
                 </p>
                 <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-                  Bots and agents will send them here
+                  Agents will send them here
                 </p>
               </div>
             </div>

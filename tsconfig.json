@@ -1,10 +1,41 @@
 {
   "files": [],
   "references": [
-    { "path": "packages/sdk" },
-    { "path": "packages/shared" },
-    { "path": "apps/desktop" },
-    { "path": "modules/crypto" },
-    { "path": "modules/writing-helper" }
+    {
+      "path": "packages/shared"
+    },
+    {
+      "path": "packages/sdk"
+    },
+    {
+      "path": "packages/storage"
+    },
+    {
+      "path": "packages/provider"
+    },
+    {
+      "path": "packages/network"
+    },
+    {
+      "path": "packages/memory"
+    },
+    {
+      "path": "packages/tools"
+    },
+    {
+      "path": "packages/execution"
+    },
+    {
+      "path": "packages/marketplace"
+    },
+    {
+      "path": "packages/core"
+    },
+    {
+      "path": "packages/sandbox"
+    },
+    {
+      "path": "apps/desktop"
+    }
   ]
 }

@@ -1,8 +1,8 @@
 /**
  * CreateAgentModal.tsx
  *
- * 2-step wizard for creating a new bot instance.
- *   Step 1 — Pick a bot type (or "Custom").
+ * 2-step wizard for creating a new agent instance.
+ *   Step 1 — Pick an agent type (or "Custom").
  *   Step 2 — Set name + description (pre-filled from the selected type).
  */
 
@@ -19,7 +19,7 @@ const CUSTOM_TYPE_ID = '__custom__'
 
 type CreateStep = 'pick-type' | 'configure'
 
-export interface ICreateBotModalProps {
+export interface ICreateAgentModalProps {
   /** Pre-select this template and jump straight to step 2. */
   initialTemplateId?: string
   /** All available templates (built-in + installed from store). */
@@ -29,17 +29,17 @@ export interface ICreateBotModalProps {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-/** 2-step wizard: pick a bot type → configure name and description. */
-export function CreateAgentModal({ initialTemplateId, allTemplates, onClose }: ICreateBotModalProps): React.JSX.Element {
+/** 2-step wizard: pick an agent type → configure name and description. */
+export function CreateAgentModal({ initialTemplateId, allTemplates, onClose }: ICreateAgentModalProps): React.JSX.Element {
   const startAtConfigure = initialTemplateId !== undefined
-  const [step, setStep]        = useState<CreateStep>(startAtConfigure ? 'configure' : 'pick-type')
-  const [typeId, setTypeId]    = useState<string>(initialTemplateId ?? '')
-  const [name, setName]        = useState('')
+  const [step, setStep] = useState<CreateStep>(startAtConfigure ? 'configure' : 'pick-type')
+  const [typeId, setTypeId] = useState<string>(initialTemplateId ?? '')
+  const [name, setName] = useState('')
   const [description, setDesc] = useState('')
-  const [loading, setLoading]  = useState(false)
-  const [error, setError]      = useState<string | null>(null)
-  const { user }               = useAuthStore()
-  const bots                   = useAgentsStore((s) => s.agents)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const { user } = useAuthStore()
+  const agents = useAgentsStore((s) => s.agents)
 
   /** Pre-fill fields from a template. */
   const applyType = (id: string): void => {
@@ -49,7 +49,7 @@ export function CreateAgentModal({ initialTemplateId, allTemplates, onClose }: I
     }
     const t = allTemplates.find((x) => x.id === id)
     if (!t) return
-    const count = bots.filter((b) => b.templateId === id).length
+    const count = agents.filter((b) => b.templateId === id).length
     setName(count === 0 ? t.name : `${t.name} #${String(count + 1)}`)
     setDesc(t.description)
   }
@@ -105,13 +105,13 @@ export function CreateAgentModal({ initialTemplateId, allTemplates, onClose }: I
           )}
           <div className="flex-1">
             <h2 className="text-base font-semibold text-[var(--color-text-primary)]">
-              {step === 'pick-type' ? 'Choose a bot type' : 'Configure your bot'}
+              {step === 'pick-type' ? 'Choose an agent type' : 'Configure your agent'}
             </h2>
             {step === 'configure' && (
               <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
                 {selectedTemplate
                   ? `${selectedTemplate.icon} ${selectedTemplate.name} type`
-                  : 'Custom bot — no template'}
+                  : 'Custom agent — no template'}
               </p>
             )}
           </div>
@@ -128,15 +128,15 @@ export function CreateAgentModal({ initialTemplateId, allTemplates, onClose }: I
           <div className="p-6">
             {!user && (
               <div className="mb-4 rounded-xl bg-blue-500/10 px-4 py-3 text-xs text-blue-300">
-                No sign-in needed — bots are saved locally on this device.
+                No sign-in needed — agents are saved locally on this device.
               </div>
             )}
             <p className="mb-3 text-xs text-[var(--color-text-secondary)]">
-              Select a type. You can create as many bots of the same type as you need.
+              Select a type. You can create as many agents of the same type as you need.
             </p>
             <div className="grid grid-cols-2 gap-3">
               {allTemplates.map((t) => {
-                const count      = bots.filter((b) => b.templateId === t.id).length
+                const count = agents.filter((b) => b.templateId === t.id).length
                 const colorClass = t.colorClass
                 return (
                   <button
@@ -159,7 +159,7 @@ export function CreateAgentModal({ initialTemplateId, allTemplates, onClose }: I
                     </div>
                     {count > 0 && (
                       <p className="text-[10px] text-[var(--color-text-muted)]">
-                        {String(count)} bot{count !== 1 ? 's' : ''} created
+                        {String(count)} agent{count !== 1 ? 's' : ''} created
                       </p>
                     )}
                   </button>
@@ -188,7 +188,7 @@ export function CreateAgentModal({ initialTemplateId, allTemplates, onClose }: I
         {step === 'configure' && (
           <form onSubmit={(e) => { void handleSubmit(e) }} className="flex flex-col gap-4 p-6">
             <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-[var(--color-text-secondary)]">Bot name *</span>
+              <span className="text-xs font-medium text-[var(--color-text-secondary)]">Agent name *</span>
               <input
                 autoFocus
                 value={name}
@@ -228,7 +228,7 @@ export function CreateAgentModal({ initialTemplateId, allTemplates, onClose }: I
                 disabled={loading || !name.trim()}
                 className="rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
               >
-                {loading ? 'Creating…' : 'Create Bot'}
+                {loading ? 'Creating…' : 'Create Agent'}
               </button>
             </div>
           </form>

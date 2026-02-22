@@ -1,10 +1,10 @@
 /**
- * FeatureGrid.tsx — "Bots" tab (thin shell)
+ * FeatureGrid.tsx — "Agents" tab (thin shell)
  *
  * Layout
  * ──────
- * 1. All Bot Types  — one card per template; shows bot count and "+ Add Bot" CTA.
- * 2. My Bots        — flat list of all bot instances (newest-first).
+ * 1. All Agent Types  — one card per template; shows agent count and "+ Add Agent" CTA.
+ * 2. My Agents        — flat list of all agent instances (newest-first).
  *
  * Modals live in components/dialogs/:
  *   - CreateAgentModal  — 2-step wizard (pick type → configure)
@@ -26,53 +26,51 @@ interface IFeatureGridProps {
   onOpenModule: (moduleId: string) => void
 }
 
-// ─── Bot instance row ─────────────────────────────────────────────────────────
+// ─── Agent instance row ─────────────────────────────────────────────────────────
 
-interface IBotInstanceRowProps {
-  bot: IDesktopAgent
-  runningBotIds: string[]
+interface IAgentInstanceRowProps {
+  agent: IDesktopAgent
+  runningAgentIds: string[]
   templateIcon?: string
   templateName?: string
   onOpen: (id: string) => void
 }
 
-function BotInstanceRow({ bot, runningBotIds, templateIcon, templateName, onOpen }: IBotInstanceRowProps): React.JSX.Element {
-  const isRunning = runningBotIds.includes(bot.id)
+function AgentInstanceRow({ agent, runningAgentIds, templateIcon, templateName, onOpen }: IAgentInstanceRowProps): React.JSX.Element {
+  const isRunning = runningAgentIds.includes(agent.id)
 
   return (
     <div className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-3 transition-colors hover:border-[var(--color-accent)]/40">
       <span
-        className={`h-2 w-2 shrink-0 rounded-full ${
-          isRunning
+        className={`h-2 w-2 shrink-0 rounded-full ${isRunning
             ? 'animate-pulse bg-blue-400'
-            : bot.status === 'active'
+            : agent.status === 'active'
               ? 'bg-[var(--color-success)]'
               : 'bg-yellow-400'
-        }`}
+          }`}
       />
       {templateIcon && <span className="shrink-0 text-base">{templateIcon}</span>}
       <span className="min-w-0 flex-1 truncate text-sm text-[var(--color-text-primary)]">
-        {bot.name}
+        {agent.name}
       </span>
       {templateName && (
         <span className="hidden shrink-0 rounded-full bg-[var(--color-surface-2)] px-2 py-0.5 text-[10px] text-[var(--color-text-muted)] sm:inline">
           {templateName}
         </span>
       )}
-      {bot.synced && (
+      {agent.synced && (
         <span className="shrink-0 text-[10px] text-[var(--color-text-muted)]" title="Cloud synced">☁</span>
       )}
       <span
-        className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
-          bot.status === 'active'
+        className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${agent.status === 'active'
             ? 'bg-[var(--color-success)]/15 text-[var(--color-success)]'
             : 'bg-yellow-400/15 text-yellow-400'
-        }`}
+          }`}
       >
-        {bot.status}
+        {agent.status}
       </span>
       <button
-        onClick={() => { onOpen(bot.id) }}
+        onClick={() => { onOpen(agent.id) }}
         className="shrink-0 rounded-lg bg-[var(--color-accent-dim)] px-3 py-1.5 text-xs font-medium text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)] hover:text-white"
       >
         ▶ Open
@@ -81,34 +79,33 @@ function BotInstanceRow({ bot, runningBotIds, templateIcon, templateName, onOpen
   )
 }
 
-// ─── Bot type card ────────────────────────────────────────────────────────────
+// ─── Agent type card ────────────────────────────────────────────────────────────
 
-interface IBotTypeCardProps {
+interface IAgentTypeCardProps {
   icon: string
   label: string
   description: string
   badge: string
   badgeClass: string
-  /** undefined = built-in bot (no user instances); 0+ = agent bot type */
-  botCount?: number
+  /** undefined = built-in agent (no user instances); 0+ = agent agent type */
+  agentCount?: number
   runningCount?: number
   /** true when the built-in panel is currently open */
   isActive?: boolean
   onAction: () => void
 }
 
-function BotTypeCard({
+function AgentTypeCard({
   icon, label, description, badge, badgeClass,
-  botCount, runningCount = 0, isActive = false, onAction,
-}: IBotTypeCardProps): React.JSX.Element {
-  const isTool = botCount === undefined
+  agentCount, runningCount = 0, isActive = false, onAction,
+}: IAgentTypeCardProps): React.JSX.Element {
+  const isTool = agentCount === undefined
   return (
     <div
-      className={`flex flex-col rounded-2xl border bg-[var(--color-surface)] p-5 transition-all ${
-        isActive
+      className={`flex flex-col rounded-2xl border bg-[var(--color-surface)] p-5 transition-all ${isActive
           ? 'border-[var(--color-accent)] shadow-[0_0_0_1px_var(--color-accent-dim)]'
           : 'border-[var(--color-border)] hover:border-[var(--color-accent)] hover:shadow-[0_0_0_1px_var(--color-accent-dim)]'
-      }`}
+        }`}
     >
       <div className="mb-3 flex items-start justify-between gap-2">
         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--color-surface-2)] text-2xl">
@@ -120,7 +117,7 @@ function BotTypeCard({
           </span>
           {!isTool && (
             <span className="text-[10px] text-[var(--color-text-muted)]">
-              {String(botCount)} bot{botCount !== 1 ? 's' : ''}
+              {String(agentCount)} agent{agentCount !== 1 ? 's' : ''}
             </span>
           )}
           {runningCount > 0 && (
@@ -137,47 +134,46 @@ function BotTypeCard({
 
       <button
         onClick={onAction}
-        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-          isActive
+        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${isActive
             ? 'bg-emerald-950/50 text-emerald-400 hover:bg-emerald-900/50'
             : 'bg-[var(--color-accent-dim)] text-[var(--color-accent)] hover:bg-[var(--color-accent)] hover:text-white'
-        }`}
+          }`}
       >
         {isTool
           ? (isActive ? '● Open' : '→ Open')
-          : '+ Add Bot'}
+          : '+ Add Agent'}
       </button>
     </div>
   )
 }
 
-// ─── FeatureGrid (Bots tab) ───────────────────────────────────────────────────
+// ─── FeatureGrid (Agents tab) ───────────────────────────────────────────────────
 
 /**
- * FeatureGrid — the Bots tab.
- * Bot types (templates) are the primary organisational unit.
- * Each type card is expandable and shows all its bot instances.
- * One bot type can power any number of bots with different names and configurations.
+ * FeatureGrid — the Agents tab.
+ * Agent types (templates) are the primary organisational unit.
+ * Each type card is expandable and shows all its agent instances.
+ * One agent type can power any number of agents with different names and configurations.
  */
 export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Element {
-  const bots              = useAgentsStore((s) => s.agents)
-  const runningBotIds     = useAgentsStore((s) => s.runningBotIds)
-  const installedTypeIds  = useAgentTypesStore((s) => s.installedTypeIds)
-  const devEnabled         = useDevSettingsStore((s) => s.enabled)
-  const sideloadedModules  = useDevSideloadStore((s) => s.modules)
-  const removeSideloaded   = useDevSideloadStore((s) => s.removeModule)
+  const agents = useAgentsStore((s) => s.agents)
+  const runningAgentIds = useAgentsStore((s) => s.runningAgentIds)
+  const installedTypeIds = useAgentTypesStore((s) => s.installedTypeIds)
+  const devEnabled = useDevSettingsStore((s) => s.enabled)
+  const sideloadedModules = useDevSideloadStore((s) => s.modules)
+  const removeSideloaded = useDevSideloadStore((s) => s.removeModule)
 
-  // All bot types = built-in + installed store types + dev-sideloaded modules
+  // All agent types = built-in + installed hub types + dev-sideloaded modules
   const allTemplates = useMemo<IAgentTemplate[]>(() => [
     ...AGENT_TEMPLATES,
     ...AGENT_TEMPLATES.filter((t) => installedTypeIds.includes(t.id)),
     ...(devEnabled ? sideloadedModules : []),
   ].filter((t, i, a) => a.findIndex((x) => x.id === t.id) === i), [installedTypeIds, devEnabled, sideloadedModules])
 
-  const [search, setSearch]            = useState('')
-  const [showCreate, setShowCreate]    = useState(false)
+  const [search, setSearch] = useState('')
+  const [showCreate, setShowCreate] = useState(false)
   const [createTemplate, setCreateTpl] = useState<string | undefined>(undefined)
-  const [showImport, setShowImport]    = useState(false)
+  const [showImport, setShowImport] = useState(false)
 
   useEffect(() => { void useAgentsStore.getState().loadAgents() }, [])
 
@@ -186,23 +182,23 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
     setShowCreate(true)
   }
 
-  // Group bots by templateId — used for bot count on type cards.
-  const botsByTemplate = useMemo<Record<string, IDesktopAgent[]>>(() => {
+  // Group agents by templateId — used for agent count on type cards.
+  const agentsByTemplate = useMemo<Record<string, IDesktopAgent[]>>(() => {
     const map: Record<string, IDesktopAgent[]> = {}
     for (const t of allTemplates) map[t.id] = []
-    for (const bot of bots) {
-      if (bot.templateId !== undefined && bot.templateId in map) {
-        const bucket = map[bot.templateId]
-        if (bucket !== undefined) bucket.push(bot)
+    for (const agent of agents) {
+      if (agent.templateId !== undefined && agent.templateId in map) {
+        const bucket = map[agent.templateId]
+        if (bucket !== undefined) bucket.push(agent)
       }
     }
     return map
-  }, [bots, allTemplates])
+  }, [agents, allTemplates])
 
-  // All bots sorted newest-first for the flat "My Bots" list.
-  const allBots = useMemo(
-    () => [...bots].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
-    [bots],
+  // All agents sorted newest-first for the flat "My Agents" list.
+  const allAgents = useMemo(
+    () => [...agents].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+    [agents],
   )
 
   // Search filtering.
@@ -211,21 +207,21 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
   const visibleTemplates = search.length === 0
     ? allTemplates
     : allTemplates.filter((t) =>
-        t.name.toLowerCase().includes(q) ||
-        t.description.toLowerCase().includes(q),
+      t.name.toLowerCase().includes(q) ||
+      t.description.toLowerCase().includes(q),
+    )
+
+  const visibleAllAgents = search.length === 0
+    ? allAgents
+    : allAgents.filter((a) => {
+      const tmpl = a.templateId ? allTemplates.find((t) => t.id === a.templateId) : undefined
+      return (
+        a.name.toLowerCase().includes(q) ||
+        (tmpl?.name.toLowerCase().includes(q) ?? false)
       )
+    })
 
-  const visibleAllBots = search.length === 0
-    ? allBots
-    : allBots.filter((b) => {
-        const tmpl = b.templateId ? allTemplates.find((t) => t.id === b.templateId) : undefined
-        return (
-          b.name.toLowerCase().includes(q) ||
-          (tmpl?.name.toLowerCase().includes(q) ?? false)
-        )
-      })
-
-  const isEmpty = visibleTemplates.length === 0 && visibleAllBots.length === 0
+  const isEmpty = visibleTemplates.length === 0 && visibleAllAgents.length === 0
 
   return (
     <div className="flex h-full flex-col bg-[var(--color-bg)]">
@@ -234,31 +230,31 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
       <div className="shrink-0 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-8 py-5">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">Bots</h1>
+            <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">Agents</h1>
             <p className="mt-0.5 text-sm text-[var(--color-text-secondary)]">
-              Create multiple bots from the same type, each with its own name.
+              Create multiple agents from the same type, each with its own name.
             </p>
           </div>
           <div className="flex items-center gap-2">
             {devEnabled && (
               <button
                 onClick={() => { setShowImport(true) }}
-                title="Sideload a compiled bot package (.js) — dev mode"
+                title="Sideload a compiled agent package (.js) — dev mode"
                 className="inline-flex items-center gap-1.5 rounded-xl border border-amber-700/60 bg-amber-900/20 px-3 py-2 text-xs font-medium text-amber-400 transition-colors hover:bg-amber-900/40"
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                  <polyline points="17 8 12 3 7 8"/>
-                  <line x1="12" y1="3" x2="12" y2="15"/>
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
                 </svg>
-                Sideload Bot
+                Sideload Agent
               </button>
             )}
             <button
               onClick={() => { openCreate() }}
               className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)]"
             >
-              + New Bot
+              + New Agent
             </button>
           </div>
         </div>
@@ -279,23 +275,23 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
             </svg>
             <input
               type="text"
-              placeholder="Search bot types or bots…"
+              placeholder="Search agent types or agents…"
               value={search}
               onChange={(e) => { setSearch(e.target.value) }}
               className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2.5 pl-10 pr-4 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-secondary)] outline-none focus:border-[var(--color-accent)] transition-colors"
             />
           </div>
 
-          {/* All Bot Types */}
+          {/* All Agent Types */}
           {visibleTemplates.length > 0 && (
             <section>
               <div className="mb-4 flex items-center justify-between">
                 <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
-                  All Bot Types
+                  All Agent Types
                 </p>
                 <button
                   type="button"
-                  onClick={() => { onOpenModule('store') }}
+                  onClick={() => { onOpenModule('hub') }}
                   className="text-[10px] text-[var(--color-accent)] hover:underline"
                 >
                   Browse more →
@@ -303,18 +299,18 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {visibleTemplates.map((template) => {
-                  const typeBots     = botsByTemplate[template.id] ?? []
-                  const runningCount = typeBots.filter((b) => runningBotIds.includes(b.id)).length
+                  const typeAgents = agentsByTemplate[template.id] ?? []
+                  const runningCount = typeAgents.filter((a) => runningAgentIds.includes(a.id)).length
                   const isDevImported = devEnabled && sideloadedModules.some((d) => d.id === template.id)
                   return (
                     <div key={template.id} className="relative">
-                      <BotTypeCard
+                      <AgentTypeCard
                         icon={template.icon}
                         label={template.name}
                         description={template.description}
                         badge={isDevImported ? '📦 Sideloaded' : template.name}
                         badgeClass={isDevImported ? 'bg-amber-900/40 text-amber-400' : template.colorClass}
-                        botCount={typeBots.length}
+                        agentCount={typeAgents.length}
                         runningCount={runningCount}
                         onAction={() => { openCreate(template.id) }}
                       />
@@ -334,20 +330,20 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
             </section>
           )}
 
-          {/* My Bots — flat list of all bot instances (newest first) */}
-          {visibleAllBots.length > 0 && (
+          {/* My Agents — flat list of all agent instances (newest first) */}
+          {visibleAllAgents.length > 0 && (
             <section>
               <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
-                My Bots
+                My Agents
               </p>
               <div className="space-y-2">
-                {visibleAllBots.map((bot) => {
-                  const tmpl = bot.templateId ? allTemplates.find((t) => t.id === bot.templateId) : undefined
+                {visibleAllAgents.map((agent) => {
+                  const tmpl = agent.templateId ? allTemplates.find((t) => t.id === agent.templateId) : undefined
                   return (
-                    <BotInstanceRow
-                      key={bot.id}
-                      bot={bot}
-                      runningBotIds={runningBotIds}
+                    <AgentInstanceRow
+                      key={agent.id}
+                      agent={agent}
+                      runningAgentIds={runningAgentIds}
                       templateIcon={tmpl?.icon ?? '✏️'}
                       templateName={tmpl?.name ?? 'Custom'}
                       onOpen={onOpenModule}
@@ -379,14 +375,14 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
       {devEnabled && sideloadedModules.length > 0 && (
         <div className="shrink-0 border-t border-amber-900/30 bg-amber-950/20 px-8 py-2">
           <p className="text-[11px] text-amber-400">
-            📦 {String(sideloadedModules.length)} sideloaded bot package{sideloadedModules.length !== 1 ? 's' : ''} active.
+            📦 {String(sideloadedModules.length)} sideloaded agent package{sideloadedModules.length !== 1 ? 's' : ''} active.
             {' '}
             <button onClick={() => { setShowImport(true) }} className="underline hover:no-underline">Manage</button>
           </p>
         </div>
       )}
 
-      {/* Create Bot wizard */}
+      {/* Create Agent wizard */}
       {showCreate && (
         <CreateAgentModal
           allTemplates={allTemplates}
@@ -395,7 +391,7 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
         />
       )}
 
-      {/* Dev mode: Sideload Bot Package modal */}
+      {/* Dev mode: Sideload Agent Package modal */}
       {showImport && (
         <SideloadAgentModal onClose={() => { setShowImport(false) }} />
       )}

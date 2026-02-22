@@ -1,74 +1,62 @@
-# AI SuperApp Desktop
+# AgentHub
 
-Open-source Tauri desktop client for [AI SuperApp](https://ai-superapp.com).
+---
 
-## Related Repositories
+## Overview
 
-| Repo | Visibility | Purpose |
-|------|-----------|---------|
-| `ai-super-app-desktop` | **Public** | **This repo** — open-source Tauri desktop client |
-| `ai-super-app-backend` | Private | Go API server |
-| `ai-super-app-web` | Private | SaaS web dashboard |
+AgentHub is a cross-platform AI Agent Operating System, SDK, and Marketplace. It enables developers to build, publish, and distribute modular AI agents with custom logic, UI, and permission control, running on desktop and web clients.
 
-## Tech Stack
+---
 
-- **Tauri 2** + Rust — desktop shell
-- **React 18** + TypeScript (strict) — UI renderer
-- **Zustand** — state management
-- **TailwindCSS** — styling
-- **Vite 5** — build tool
+## Key Features
 
-## Getting Started
+- Modular agent runtime engine
+- SDK for agent development (Rust & TypeScript)
+- Schema-driven UI rendering
+- Permission and sandbox enforcement
+- Memory abstraction (local & shared)
+- Remote control via HTTP/WebSocket
+- Agent marketplace for distribution
+- Deterministic, persistent orchestration
 
-```bash
-# Install dependencies
-npm install
-
-# Run in development (hot-reload renderer + Tauri)
-npm run dev
-
-# Type-check all packages
-npm run typecheck
-
-# Run tests
-npm test
-```
-
-## Project Structure
-
-```
-ai-super-app-desktop/
- ├── apps/
- │    └── desktop/          # Tauri app (main process + React renderer)
- │         ├── src-tauri/   # Rust backend (main.rs, computer.rs, memory.rs)
- │         └── src/
- │              ├── core/   # Module manager, permission engine, sandbox
- │              ├── sdk/    # AiSdkProxy — HTTP client for Go backend
- │              └── ui/     # React components, stores, hooks
- ├── packages/
- │    ├── sdk/              # Shared Module SDK types (open-source)
- │    └── shared/           # Shared utilities & types (open-source)
- ├── modules/               # Built-in bot modules
- │    ├── crypto/
- │    └── writing-helper/
- └── docs/
-```
+---
 
 ## Architecture
 
 ```
-Desktop UI (React)
-  └─► Core (Module Manager + Permission Engine + Sandbox)
-        └─► SDK Proxy (AiSdkProxy)
-              └─► Backend API (ai-super-app-backend, Go)
+Marketplace
+   │
+Agent Package (.ahpkg)
+   │
+Agent Runtime Engine
+   │
+Transport Layer (HTTP/WS)
+   │
+Desktop Client (Tauri) / Web Client (SPA)
 ```
 
-The desktop app **never calls AI providers directly**. All AI traffic routes through the backend gateway.
+---
 
-## Contributing
+## Getting Started
 
-See [AGENTS.md](AGENTS.md) for coding standards, architecture rules, and contribution guidelines.
+1. Build agents using the SDK
+2. Define manifest, logic, UI, and permissions
+3. Package and publish to marketplace
+4. Install and manage agents via desktop/web client
+
+---
+
+## Documentation
+
+- docs/vision.md — Project vision & philosophy
+- docs/technical-design.md — Technical architecture
+- docs/codebase.md — Codebase structure & rules
+- docs/agents.md — Agent specification & lifecycle
+
+---
 
 ## License
 
-MIT
+AgentHub is open-source and welcomes community contributions.
+
+---
