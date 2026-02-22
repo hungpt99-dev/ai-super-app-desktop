@@ -18,6 +18,15 @@ import { create } from 'zustand'
 import { tokenStore } from '../../sdk/token-store.js'
 import { botApi, type ICreateBotInput } from '../../sdk/bot-api.js'
 import { getDesktopBridge } from '../lib/bridge.js'
+import * as LM from '../../sdk/local-memory.js'
+
+/** True when running inside the full Tauri app (memory commands are available). */
+const IS_TAURI = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+
+/** Build the private memory scope key for a bot. */
+const botScope = (botId: string): string => `bot:${botId}`
+/** Build the ephemeral task scope key for a single run. */
+const taskScope = (runId: string): string => `task:${runId}`
 
 /** Push an error toast via the global app-store. Lazy import avoids circular dep. */
 function notifyError(title: string, err: unknown): void {
@@ -259,6 +268,16 @@ interface IBotStore {
   updateBot(id: string, patch: Partial<Pick<IDesktopBot, 'name' | 'description' | 'apiKey' | 'aiProvider'>>): Promise<void>
   /** Replace all credentials for a bot and persist locally. */
   updateBotCredentials(id: string, credentials: IBotCredential[]): void
+  /**
+   * Clear the private memory scope for a bot (`bot:{id}`).
+   * Soft-deletes all memory entries in that scope.
+   */
+  clearBotMemory(botId: string): Promise<void>
+  /**
+   * Return a context string built from the bot's private memory.
+   * Returns an empty string when running in browser dev mode (no Tauri).
+   */
+  buildBotMemoryContext(botId: string): Promise<string>
   /**
    * Cancel any active run for the bot — sets its status to 'cancelled' and
    * removes the bot from the running set so the UI unlocks immediately.
@@ -524,10 +543,19 @@ export const useBotStore = create<IBotStore>((set, get) => ({
           if (!get().runningBotIds.includes(id)) return
           // Perform the actual AI call.
           try {
+            // Build private memory context for this bot (Tauri only).
+            let memoryContext = ''
+            if (IS_TAURI) {
+              try { memoryContext = await LM.memoryBuildContext({ scope: botScope(id) }) } catch { /* ignore */ }
+            }
+
             const aiOptions = bot.apiKey
               ? { apiKey: bot.apiKey, ...(bot.aiProvider ? { provider: bot.aiProvider } : {}) }
               : undefined
-            const ai = await bridge.ai.generate('chat', `Complete this task: ${bot.description}`, undefined, aiOptions)
+            const taskPrompt = memoryContext
+              ? `${memoryContext}\n\nTask: ${bot.description}`
+              : `Complete this task: ${bot.description}`
+            const ai = await bridge.ai.generate('chat', taskPrompt, undefined, aiOptions)
             result = ai.output.startsWith('[Dev mode]')
               ? `[Offline] Start the full Tauri app to enable real AI execution for: ${bot.description}`
               : ai.output
@@ -552,6 +580,14 @@ export const useBotStore = create<IBotStore>((set, get) => ({
       result,
       ended_at: new Date().toISOString(),
     })
+
+    // Purge ephemeral task-scoped memory now that the run is done.
+    if (IS_TAURI) {
+      try {
+        const taskEntries = await LM.memoryList({ scope: taskScope(runId) })
+        await Promise.all(taskEntries.map((e) => LM.memoryDelete(e.id)))
+      } catch { /* non-fatal */ }
+    }
 
     // Post the run result as an assistant message so chat history reflects it.
     if (result) {
@@ -639,9 +675,19 @@ ${preview}`,
       const contextLines = recentHistory
         .map((m) => `${m.role === 'user' ? 'User' : 'Bot'}: ${m.content.slice(0, 200)}`)
         .join('\n')
-      const prompt = `You are "${bot.name}", a focused AI agent. Your purpose: ${bot.description}${
-        contextLines ? `\n\nRecent conversation:\n${contextLines}` : ''
-      }\n\nUser: ${content}\nBot:`
+
+      // Pull private memory context for this bot (Tauri only).
+      let memCtx = ''
+      if (IS_TAURI) {
+        try { memCtx = await LM.memoryBuildContext({ scope: botScope(botId) }) } catch { /* ignore */ }
+      }
+
+      const prompt = [
+        memCtx ? memCtx : null,
+        `You are "${bot.name}", a focused AI agent. Your purpose: ${bot.description}`,
+        contextLines ? `\nRecent conversation:\n${contextLines}` : null,
+        `\nUser: ${content}\nBot:`,
+      ].filter(Boolean).join('\n')
 
       const aiOptions = bot.apiKey
         ? { apiKey: bot.apiKey, ...(bot.aiProvider ? { provider: bot.aiProvider } : {}) }
@@ -770,6 +816,25 @@ ${preview}`,
     const bots = get().bots.map((b) => (b.id === id ? { ...b, credentials } : b))
     writeBots(bots)
     set({ bots })
+  },
+
+  clearBotMemory: async (botId) => {
+    if (!IS_TAURI) return
+    try {
+      const entries = await LM.memoryList({ scope: botScope(botId) })
+      await Promise.all(entries.map((e) => LM.memoryDelete(e.id)))
+    } catch (err) {
+      notifyError('Failed to clear bot memory', err)
+    }
+  },
+
+  buildBotMemoryContext: async (botId) => {
+    if (!IS_TAURI) return ''
+    try {
+      return await LM.memoryBuildContext({ scope: botScope(botId) })
+    } catch {
+      return ''
+    }
   },
 
   stopBot: (id) => {

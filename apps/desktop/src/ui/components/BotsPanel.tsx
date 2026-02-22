@@ -811,6 +811,28 @@ function SettingsTab({ bot, template, colorClass, onDelete, isRunning, onStop }:
   const [savedProv,    setSavedProv]    = useState(false)
   // Credentials state
   const [credentials, setCredentials] = useState<IBotCredential[]>(bot.credentials ?? [])
+  // Bot memory state
+  const [memoryContext,  setMemoryContext]  = useState<string | null>(null)
+  const [loadingMemory,  setLoadingMemory]  = useState(false)
+  const [clearingMemory, setClearingMemory] = useState(false)
+  const [memoryCleaned,  setMemoryCleaned]  = useState(false)
+
+  const loadMemoryPreview = async (): Promise<void> => {
+    setLoadingMemory(true)
+    const ctx = await useBotStore.getState().buildBotMemoryContext(bot.id)
+    setMemoryContext(ctx || null)
+    setLoadingMemory(false)
+  }
+
+  const handleClearMemory = async (): Promise<void> => {
+    if (!window.confirm(`Clear all private memory for "${bot.name}"? This cannot be undone.`)) return
+    setClearingMemory(true)
+    await useBotStore.getState().clearBotMemory(bot.id)
+    setMemoryContext(null)
+    setClearingMemory(false)
+    setMemoryCleaned(true)
+    setTimeout(() => { setMemoryCleaned(false) }, 2_000)
+  }
 
   const handleSave = async (): Promise<void> => {
     if (!name.trim()) return
@@ -989,6 +1011,58 @@ function SettingsTab({ bot, template, colorClass, onDelete, isRunning, onStop }:
                 Custom provider active
               </span>
             )}
+          </div>
+        </div>
+      </section>
+      {/* ── Bot Memory ─────────────────────────────────────────────────────── */}
+      <section>
+        <p className="mb-4 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Private Memory</p>
+        <div className="space-y-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+          <p className="text-xs leading-relaxed text-[var(--color-text-secondary)]">
+            This bot's private memory — preferences, learned behaviours, and past context — is stored
+            <span className="font-medium text-[var(--color-text-primary)]"> locally on your machine</span> and automatically
+            injected into every AI call.
+          </p>
+          {/* Scope pills */}
+          <div className="flex flex-wrap gap-2">
+            {[
+              { label: 'Private',  hint: `bot:${bot.id.slice(0, 8)}…`, color: 'border-[var(--color-accent)] text-[var(--color-accent)] bg-[var(--color-accent)]/8' },
+              { label: 'Shared',   hint: 'workspace:shared',            color: 'border-[var(--color-border)] text-[var(--color-text-muted)]' },
+              { label: 'Ephemeral',hint: 'task:runId',                  color: 'border-[var(--color-border)] text-[var(--color-text-muted)]' },
+            ].map(({ label, hint, color }) => (
+              <div key={label} className={`rounded-lg border px-3 py-1.5 ${color}`}>
+                <p className="text-[10px] font-semibold">{label}</p>
+                <p className="font-mono text-[9px] opacity-70">{hint}</p>
+              </div>
+            ))}
+          </div>
+          {/* Context preview */}
+          {memoryContext !== null && (
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-3">
+              <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Context Preview</p>
+              <p className="whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-[var(--color-text-secondary)]">
+                {memoryContext}
+              </p>
+            </div>
+          )}
+          {memoryContext === null && !loadingMemory && (
+            <p className="text-xs italic text-[var(--color-text-muted)]">No private memories stored yet for this bot.</p>
+          )}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => { void loadMemoryPreview() }}
+              disabled={loadingMemory}
+              className="rounded-xl border border-[var(--color-border)] px-4 py-2 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)] disabled:opacity-50"
+            >
+              {loadingMemory ? 'Loading…' : 'Preview Memory'}
+            </button>
+            <button
+              onClick={() => { void handleClearMemory() }}
+              disabled={clearingMemory}
+              className="rounded-xl border border-[var(--color-danger)]/40 px-4 py-2 text-xs font-medium text-[var(--color-danger)] transition-colors hover:bg-[var(--color-danger)]/10 disabled:opacity-50"
+            >
+              {memoryCleaned ? '✓ Cleared' : clearingMemory ? 'Clearing…' : 'Clear Memory'}
+            </button>
           </div>
         </div>
       </section>

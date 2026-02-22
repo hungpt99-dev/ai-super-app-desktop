@@ -27,7 +27,12 @@ export enum Permission {
   MemoryRead = 'memory.read',
   /** Write to (and delete from) the local persistent memory store. */
   MemoryWrite = 'memory.write',
-  // ── Network permissions ───────────────────────────────────────────────────
+  /**
+   * Write to the workspace-level shared knowledge base (`scope = "workspace:shared"`).
+   * Read is always allowed with `MemoryRead`. Without this permission, a module
+   * can only write to its own private scope (`bot:{moduleId}`).
+   */
+    MemorySharedWrite = 'memory.shared-write',
   /**
    * Make outbound HTTP/HTTPS requests to any URL.
    * Covers `ctx.http.get/post/put/patch/delete/request`.
@@ -288,8 +293,22 @@ export interface IMemoryStats {
 }
 
 /**
+ * The three memory scopes available to modules.
+ *
+ * - `private`  — `bot:{moduleId}`          — isolated per-bot (default)
+ * - `shared`   — `workspace:shared`         — workspace knowledge base, requires `Permission.MemorySharedWrite` to write
+ * - `task`     — `task:{runId}`             — ephemeral, auto-cleared after run ends
+ */
+export type IMemoryScope = 'private' | 'shared' | 'task'
+
+/**
  * Local persistent memory API — reads and writes are stored on the user's
  * machine via an embedded SQLite database. Nothing is sent to any server.
+ *
+ * Scope rules (enforced by SandboxedMemory):
+ * - Default `scope` on `upsert` is `private` → stored as `bot:{moduleId}`
+ * - `shared` scope → readable by all; writable only with `Permission.MemorySharedWrite`
+ * - `task` scope   → ephemeral; auto-cleared by the runtime when the run ends
  *
  * Requires `Permission.MemoryRead` to read, `Permission.MemoryWrite` to write.
  */
