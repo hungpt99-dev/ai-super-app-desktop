@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { IToastNotification } from '../../shared/bridge-types.js'
 import { addLog } from './log-store.js'
 
-export type AppView = 'dashboard' | 'chat' | 'bots' | 'activity' | 'logs' | 'settings' | 'api-keys' | 'bot-run'
+export type AppView = 'dashboard' | 'chat' | 'agents' | 'store' | 'activity' | 'logs' | 'settings' | 'api-keys' | 'agent-run'
 export type Theme = 'dark' | 'light' | 'system'
 export type { IToastNotification }
 
@@ -35,7 +35,7 @@ interface IAppState {
   clearHistory: () => void
 }
 
-const THEME_KEY = 'ai-superapp-theme'
+const THEME_KEY = 'agenthub-theme'
 
 function readSavedTheme(): Theme {
   try {

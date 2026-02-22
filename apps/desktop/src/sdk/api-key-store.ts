@@ -13,7 +13,7 @@
 const IS_TAURI = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
 /** Namespaced localStorage key to avoid collisions. */
-const LS_KEY = 'ai-superapp:api-keys'
+const LS_KEY = 'agenthub:api-keys'
 
 export interface ILocalAPIKey {
   /** Unique local identifier. */
@@ -151,7 +151,7 @@ export async function getActiveKeyForProvider(provider: string): Promise<string 
 
 // ── Default key for bot runs ─────────────────────────────────────────────────
 
-const DEFAULT_KEY_STORE_KEY = 'ai-superapp:default-key'
+const DEFAULT_KEY_STORE_KEY = 'agenthub:default-key'
 
 /**
  * Returns the key ID chosen as the default for local bot runs,

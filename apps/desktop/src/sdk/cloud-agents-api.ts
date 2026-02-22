@@ -14,7 +14,7 @@ function baseURL(): string {
   return import.meta.env.VITE_GATEWAY_URL ?? 'http://localhost:3000'
 }
 
-async function botFetch<T>(method: string, path: string, body?: unknown): Promise<T> {
+async function cloudAgentsFetch<T>(method: string, path: string, body?: unknown): Promise<T> {
   const token = tokenStore.getToken()
   if (!token) throw new Error('NOT_AUTHENTICATED')
   const controller = new AbortController()
@@ -43,14 +43,14 @@ async function botFetch<T>(method: string, path: string, body?: unknown): Promis
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 /** Input for creating or updating a bot. */
-export interface ICreateBotInput {
+export interface ICreateAgentInput {
   name: string
   description: string
   goal?: string
 }
 
 /** A bot record returned by the backend. */
-export interface ICloudBot {
+export interface ICloudAgent {
   id: string
   name: string
   description: string
@@ -61,7 +61,7 @@ export interface ICloudBot {
 }
 
 /** A run record returned by the backend. `result` is JSONB or null. */
-export interface ICloudBotRun {
+export interface ICloudAgentRun {
   id: string
   bot_id: string
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
@@ -74,29 +74,29 @@ export interface ICloudBotRun {
 // ─── API ──────────────────────────────────────────────────────────────────────
 
 /** CRUD and run operations for bots. All methods throw NOT_AUTHENTICATED without a token. */
-export const botApi = {
-  list: (): Promise<ICloudBot[]> =>
-    botFetch<ICloudBot[]>('GET', '/v1/bots'),
+export const cloudAgentsApi = {
+  list: (): Promise<ICloudAgent[]> =>
+    cloudAgentsFetch<ICloudAgent[]>('GET', '/v1/bots'),
 
-  create: (input: ICreateBotInput): Promise<ICloudBot> =>
-    botFetch<ICloudBot>('POST', '/v1/bots', input),
+  create: (input: ICreateAgentInput): Promise<ICloudAgent> =>
+    cloudAgentsFetch<ICloudAgent>('POST', '/v1/bots', input),
 
   update: (
     id: string,
     input: { name: string; description: string; goal?: string; status: 'active' | 'paused' },
-  ): Promise<ICloudBot> =>
-    botFetch<ICloudBot>('PUT', `/v1/bots/${id}`, input),
+  ): Promise<ICloudAgent> =>
+    cloudAgentsFetch<ICloudAgent>('PUT', `/v1/bots/${id}`, input),
 
   delete: async (id: string): Promise<void> => {
-    await botFetch<undefined>('DELETE', `/v1/bots/${id}`)
+    await cloudAgentsFetch<undefined>('DELETE', `/v1/bots/${id}`)
   },
 
   /** Create a pending run on the server. The desktop agent-loop will pick it up. */
   start: (id: string): Promise<{ run_id: string; status: string }> =>
-    botFetch<{ run_id: string; status: string }>('POST', `/v1/bots/${id}/runs`),
+    cloudAgentsFetch<{ run_id: string; status: string }>('POST', `/v1/bots/${id}/runs`),
 
-  getRuns: (botId: string, limit = 20): Promise<ICloudBotRun[]> =>
-    botFetch<ICloudBotRun[]>('GET', `/v1/bots/${botId}/runs?limit=${String(limit)}`),
+  getRuns: (botId: string, limit = 20): Promise<ICloudAgentRun[]> =>
+    cloudAgentsFetch<ICloudAgentRun[]>('GET', `/v1/bots/${botId}/runs?limit=${String(limit)}`),
 
   updateRun: async (
     runId: string,
@@ -104,7 +104,7 @@ export const botApi = {
     steps: number,
     result?: Record<string, unknown>,
   ): Promise<void> => {
-    await botFetch<undefined>('PATCH', `/v1/bots/runs/${runId}`, {
+    await cloudAgentsFetch<undefined>('PATCH', `/v1/bots/runs/${runId}`, {
       status,
       steps,
       ...(result !== undefined ? { result } : {}),

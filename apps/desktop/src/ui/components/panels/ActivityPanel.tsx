@@ -13,8 +13,8 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useBotStore, type IDesktopBotRun, type RunStatus } from '../store/bot-store.js'
-import type { AppView } from '../store/app-store.js'
+import { useAgentsStore, type IDesktopAgentRun, type RunStatus } from '../../store/agents-store.js'
+import type { AppView } from '../../store/app-store.js'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -61,7 +61,7 @@ const ALL_STATUSES: RunStatus[] = ['pending', 'running', 'completed', 'failed', 
 
 // ─── Flat run record (bot name joined in) ────────────────────────────────────
 
-interface IFlatRun extends IDesktopBotRun {
+interface IFlatRun extends IDesktopAgentRun {
   botName: string
 }
 
@@ -248,7 +248,7 @@ function RunRow({ run, onOpenBot }: IRunRowProps): React.JSX.Element {
           {/* Stop — running only */}
           {run.status === 'running' && (
             <button
-              onClick={() => { useBotStore.getState().stopBot(run.bot_id) }}
+              onClick={() => { useAgentsStore.getState().stopAgent(run.bot_id) }}
               title="Stop this run"
               className="flex h-6 w-6 items-center justify-center rounded-lg
                          bg-red-500/15 text-red-400 transition-colors hover:bg-red-500/30"
@@ -263,7 +263,7 @@ function RunRow({ run, onOpenBot }: IRunRowProps): React.JSX.Element {
           {/* Re-run — local completed / failed / cancelled */}
           {isReRunnable && (
             <button
-              onClick={() => { void useBotStore.getState().runBot(run.bot_id) }}
+              onClick={() => { void useAgentsStore.getState().runAgent(run.bot_id) }}
               title="Run again"
               className="flex h-6 items-center gap-1 rounded-lg border border-[var(--color-border)]
                          px-2 text-[10px] text-[var(--color-text-muted)] transition-colors
@@ -349,9 +349,9 @@ export interface IActivityPanelProps {
 
 /** ActivityPanel — live run history across all bots with interactive controls. */
 export function ActivityPanel({ onNavigate }: IActivityPanelProps): React.JSX.Element {
-  const bots    = useBotStore((s) => s.bots)
-  const runs    = useBotStore((s) => s.runs)
-  const loading = useBotStore((s) => s.loading)
+  const bots    = useAgentsStore((s) => s.agents)
+  const runs    = useAgentsStore((s) => s.runs)
+  const loading = useAgentsStore((s) => s.loading)
 
   const [search,       setSearch]       = useState('')
   const [statusFilter, setStatusFilter] = useState<RunStatus | 'all'>('all')
@@ -363,9 +363,9 @@ export function ActivityPanel({ onNavigate }: IActivityPanelProps): React.JSX.El
   const liveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const loadAll = useCallback(async (): Promise<void> => {
-    await useBotStore.getState().loadBots()
-    const { bots: loaded } = useBotStore.getState()
-    await Promise.all(loaded.map((b) => useBotStore.getState().loadRuns(b.id)))
+    await useAgentsStore.getState().loadAgents()
+    const { agents: loaded } = useAgentsStore.getState()
+    await Promise.all(loaded.map((b) => useAgentsStore.getState().loadRuns(b.id)))
   }, [])
 
   // Initial load.
@@ -440,8 +440,8 @@ export function ActivityPanel({ onNavigate }: IActivityPanelProps): React.JSX.El
   }, [filtered, groupByDate])
 
   const openBot = (botId: string): void => {
-    useBotStore.getState().selectBot(botId)
-    onNavigate('bot-run')
+    useAgentsStore.getState().selectAgent(botId)
+    onNavigate('agent-run')
   }
 
   const activeCount = allRuns.filter((r) => r.status === 'running').length
@@ -611,7 +611,7 @@ export function ActivityPanel({ onNavigate }: IActivityPanelProps): React.JSX.El
                 Create a bot and run it — runs will appear here.
               </p>
               <button
-                onClick={() => { onNavigate('bots') }}
+                onClick={() => { onNavigate('agents') }}
                 className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-[var(--color-accent-dim)]
                            px-4 py-2 text-sm font-medium text-[var(--color-accent)]
                            transition-colors hover:bg-[var(--color-accent)] hover:text-white"

@@ -25,12 +25,12 @@ import type {
   IScrollOptions,
   IShellResult,
   IAiClient,
-} from '@ai-super-app/sdk'
-import { Permission } from '@ai-super-app/sdk'
+} from '@agenthub/sdk'
+import { Permission } from '@agenthub/sdk'
 import type { PermissionEngine } from '../core/permission-engine.js'
 import { ComputerAgent } from './computer-agent.js'
 import * as CU from './computer-use.js'
-import { logger } from '@ai-super-app/shared'
+import { logger } from '@agenthub/shared'
 
 const log = logger.child('SandboxedComputer')
 

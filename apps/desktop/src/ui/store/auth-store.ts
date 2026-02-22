@@ -7,7 +7,7 @@ import {
   authRefresh,
 } from '../../sdk/auth-api.js'
 import { tokenStore } from '../../sdk/token-store.js'
-import { logger } from '@ai-super-app/shared'
+import { logger } from '@agenthub/shared'
 import { useAppStore } from './app-store.js'
 
 function notifyError(title: string, err: unknown): void {
@@ -22,7 +22,7 @@ const log = logger.child('AuthStore')
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const REFRESH_TOKEN_KEY = 'ai-superapp-refresh-token'
+const REFRESH_TOKEN_KEY = 'agenthub-refresh-token'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

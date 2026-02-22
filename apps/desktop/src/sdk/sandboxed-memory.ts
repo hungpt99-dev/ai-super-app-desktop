@@ -26,8 +26,8 @@ import type {
   IMemoryStats,
   IMemoryUpsertInput,
   MemoryType,
-} from '@ai-super-app/sdk'
-import { Permission } from '@ai-super-app/sdk'
+} from '@agenthub/sdk'
+import { Permission } from '@agenthub/sdk'
 import type { PermissionEngine } from '../core/permission-engine.js'
 import * as LM from './local-memory.js'
 

@@ -83,7 +83,7 @@ function Spinner(): React.JSX.Element {
 interface ICryptoPanelProps {
   /** Back-navigation handler — required in standalone mode, unused in embedded mode. */
   onBack?: () => void
-  /** When true, hides the panel header so it can live inside another layout (e.g. BotsPanel). */
+  /** When true, hides the panel header so it can live inside another layout (e.g. AgentsPanel). */
   embedded?: boolean
 }
 

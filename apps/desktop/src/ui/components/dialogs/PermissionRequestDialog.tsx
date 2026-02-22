@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react'
-import type { Permission } from '@ai-super-app/sdk'
+import type { Permission } from '@agenthub/sdk'
 import {
   usePermissionStore,
   PERMISSION_META,
   HIGH_RISK_PERMISSIONS,
-} from '../store/permission-store.js'
+} from '../../store/permission-store.js'
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 

@@ -1,22 +1,27 @@
 import React, { useEffect, useState } from 'react'
-import { GroupChatWindow } from './components/GroupChatWindow.js'
-import { FeatureGrid } from './components/FeatureGrid.js'
-import { Sidebar } from './components/Sidebar.js'
-import { ToastContainer } from './components/Toast.js'
-import { SettingsPanel } from './components/SettingsPanel.js'
-import { BotsPanel } from './components/BotsPanel.js'
-import { DashboardPanel } from './components/DashboardPanel.js'
-import { ActivityPanel } from './components/ActivityPanel.js'
-import { LogsPanel } from './components/LogsPanel.js'
-import { APIKeysPanel } from './components/APIKeysPanel.js'
-import { PermissionRequestDialog } from './components/PermissionRequestDialog.js'
-import { NotificationCenter } from './components/NotificationCenter.js'
-import { AuthScreen } from './components/AuthScreen.js'
+import {
+  GroupChatWindow,
+  FeatureGrid,
+  Sidebar,
+  ToastContainer,
+  SettingsPanel,
+  AgentRunPanel,
+  DashboardPanel,
+  ActivityPanel,
+  LogsPanel,
+  APIKeysPanel,
+  PermissionRequestDialog,
+  NotificationCenter,
+  AuthScreen,
+  StorePanel,
+} from './components/index.js'
 import { useAuthStore } from './store/auth-store.js'
 import { useAppStore } from './store/app-store.js'
+import { DevMetricsOverlay } from './components/dev/index.js'
+import { useDevSettingsStore } from './store/dev/dev-settings-store.js'
 import { startAgentLoop, stopAgentLoop } from '../core/agent-loop.js'
 import { usePermissionStore } from './store/permission-store.js'
-import { useBotStore } from './store/bot-store.js'
+import { useAgentsStore } from './store/agents-store.js'
 import { getDesktopBridge } from './lib/bridge.js'
 import { initModuleManager } from '../core/module-bootstrap.js'
 import { initTokenStore } from '../sdk/token-store.js'
@@ -34,6 +39,7 @@ export function App(): React.JSX.Element {
   const unreadCount = useAppStore((s) => s.unreadCount)
   const requestPermissions = usePermissionStore((s) => s.requestPermissions)
   const { user } = useAuthStore()
+  const showPerfMetrics = useDevSettingsStore((s) => s.enabled && s.showPerformanceMetrics)
   const [notifOpen, setNotifOpen] = useState(false)
   const [authOpen, setAuthOpen] = useState(false)
 
@@ -112,10 +118,10 @@ export function App(): React.JSX.Element {
 
   const handleOpenModule = (moduleId: string): void => {
     // User-created bot — select it and open the run panel.
-    const { bots } = useBotStore.getState()
-    if (bots.some((b) => b.id === moduleId)) {
-      useBotStore.getState().selectBot(moduleId)
-      setView('bot-run')
+    const { agents } = useAgentsStore.getState()
+    if (agents.some((b) => b.id === moduleId)) {
+      useAgentsStore.getState().selectAgent(moduleId)
+      setView('agent-run')
     }
   }
 
@@ -141,12 +147,13 @@ export function App(): React.JSX.Element {
       <main className="flex h-full flex-1 flex-col overflow-hidden">
         {activeView === 'dashboard' && <DashboardPanel onNavigate={setView} />}
         {activeView === 'chat' && <GroupChatWindow />}
-        {activeView === 'bots' && <FeatureGrid onOpenModule={handleOpenModule} />}
+        {activeView === 'agents' && <FeatureGrid onOpenModule={handleOpenModule} />}
+        {activeView === 'store' && <StorePanel />}
         {activeView === 'activity' && <ActivityPanel onNavigate={setView} />}
         {activeView === 'logs' && <LogsPanel />}
         {activeView === 'settings' && <SettingsPanel onBack={() => { setView('chat') }} />}
         {activeView === 'api-keys' && <APIKeysPanel onBack={() => { setView('chat') }} />}
-        {activeView === 'bot-run' && <BotsPanel onBack={() => { setView('bots') }} />}
+        {activeView === 'agent-run' && <AgentRunPanel onBack={() => { setView('agents') }} />}
       </main>
 
       {/* Global toast overlay — rendered outside main so it floats above all panels */}
@@ -154,6 +161,9 @@ export function App(): React.JSX.Element {
 
       {/* Global permission request dialog — floats above everything */}
       <PermissionRequestDialog />
+
+      {/* Developer performance metrics overlay */}
+      {showPerfMetrics && <DevMetricsOverlay />}
     </div>
   )
 }

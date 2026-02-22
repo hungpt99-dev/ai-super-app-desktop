@@ -12,10 +12,10 @@
  * `Content-Type: application/json` header is set unless overridden.
  */
 
-import type { IHttpAPI, IHttpRequestOptions, IHttpResponse } from '@ai-super-app/sdk'
-import { Permission } from '@ai-super-app/sdk'
+import type { IHttpAPI, IHttpRequestOptions, IHttpResponse } from '@agenthub/sdk'
+import { Permission } from '@agenthub/sdk'
 import type { PermissionEngine } from '../core/permission-engine.js'
-import { logger } from '@ai-super-app/shared'
+import { logger } from '@agenthub/shared'
 
 const log = logger.child('SandboxedHttp')
 
@@ -119,7 +119,11 @@ export class SandboxedHttp implements IHttpAPI {
       const responseHeaders: Record<string, string> = {}
       res.headers.forEach((value, key) => { responseHeaders[key] = value })
 
-      log.debug('http.response', { moduleId: this.moduleId, status: res.status, url })
+      if (!res.ok) {
+        log.warn('http.response error', { moduleId: this.moduleId, status: res.status, url, body: text })
+      } else {
+        log.debug('http.response', { moduleId: this.moduleId, status: res.status, url })
+      }
 
       return {
         status: res.status,
@@ -128,6 +132,9 @@ export class SandboxedHttp implements IHttpAPI {
         data,
         text,
       }
+    } catch (err) {
+      log.error('http.request failed', { moduleId: this.moduleId, method, url, err: err instanceof Error ? err.message : String(err) })
+      throw err
     } finally {
       clearTimeout(timer)
     }

@@ -1,5 +1,5 @@
 /**
- * BotsPanel.tsx
+ * AgentsPanel.tsx
  *
  * Bot detail panel with three tabs:
  *   - Custom UI  - rich per-template/category widget (hidden for bots with no template)
@@ -8,22 +8,24 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react'
-import { useBotStore, type IDesktopBot, type IDesktopBotRun, type IChatMessage, type IBotCredential } from '../store/bot-store.js'
-import { useAppStore } from '../store/app-store.js'
+import { useAgentsStore, type IDesktopAgent, type IDesktopAgentRun, type IChatMessage, type IAgentCredential } from '../../store/agents-store.js'
+import { useAppStore } from '../../store/app-store.js'
 import {
-  BOT_TEMPLATES,
-  BOT_TYPE_CATALOG,
-  TEMPLATE_CATEGORY_COLORS,
-  type IBotTemplate,
-} from '../store/bot-templates.js'
-import { CryptoPanel } from './modules/CryptoPanel.js'
-import { WritingHelperPanel } from './modules/WritingHelperPanel.js'
+  findTemplate,
+  type IAgentTemplate,
+} from '../../store/agent-templates.js'
+import { CryptoPanel } from '../modules/CryptoPanel.js'
+import { WritingHelperPanel } from '../modules/WritingHelperPanel.js'
 
-const ALL_TEMPLATES = [...BOT_TEMPLATES, ...BOT_TYPE_CATALOG]
+/** Map module id → its embedded interactive panel (maintained alongside BUILTIN_MODULES). */
+const MODULE_PANELS: Record<string, React.JSX.Element> = {
+  'crypto':         <CryptoPanel embedded />,
+  'writing-helper': <WritingHelperPanel embedded />,
+}
 
 // ─── Tab type ──────────────────────────────────────────────────────────────────
 
-type BotTab = 'chat' | 'custom' | 'settings'
+type AgentTab = 'chat' | 'custom' | 'settings'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -65,7 +67,7 @@ const ACTIVE_STATUSES = new Set(['pending', 'running'])
 
 // ─── Run history item ─────────────────────────────────────────────────────────
 
-function RunItem({ run }: { run: IDesktopBotRun }): React.JSX.Element {
+function RunItem({ run }: { run: IDesktopAgentRun }): React.JSX.Element {
   const [expanded, setExpanded] = useState(false)
   return (
     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
@@ -107,7 +109,7 @@ function RunItem({ run }: { run: IDesktopBotRun }): React.JSX.Element {
  * Subscribes directly to the store so it re-renders on every `patchRuns` call.
  */
 function RunProgress({ botId, runId }: { botId: string; runId: string }): React.JSX.Element {
-  const runs   = useBotStore((s) => s.runs)
+  const runs   = useAgentsStore((s) => s.runs)
   const run    = (runs[botId] ?? []).find((r) => r.id === runId)
   const planned = run?.plannedSteps ?? ['Running…']
   const logs    = run?.logs ?? []
@@ -169,7 +171,7 @@ function RunProgress({ botId, runId }: { botId: string; runId: string }): React.
 
 // ─── Run history section (collapsed by default) ───────────────────────────────
 
-function RunHistorySection({ botRuns, botId }: { botRuns: IDesktopBotRun[]; botId: string }): React.JSX.Element {
+function RunHistorySection({ botRuns, botId }: { botRuns: IDesktopAgentRun[]; botId: string }): React.JSX.Element {
   const [open, setOpen] = useState(false)
   return (
     <section>
@@ -185,7 +187,7 @@ function RunHistorySection({ botRuns, botId }: { botRuns: IDesktopBotRun[]; botI
         <div className="mt-3 space-y-2">
           {botRuns.map((run) => <RunItem key={run.id} run={run} />)}
           <button
-            onClick={() => { void useBotStore.getState().loadRuns(botId) }}
+            onClick={() => { void useAgentsStore.getState().loadRuns(botId) }}
             className="text-xs text-[var(--color-accent)] hover:underline"
           >
             Refresh
@@ -198,15 +200,59 @@ function RunHistorySection({ botRuns, botId }: { botRuns: IDesktopBotRun[]; botI
 
 // ─── Chat tab ─────────────────────────────────────────────────────────────────
 
+// Stable empty array — a new `[]` literal on every selector call causes
+// useSyncExternalStore to see a different reference every tick → infinite loop.
+const EMPTY_CHAT: IChatMessage[] = []
+
+/**
+ * ChatTabErrorBoundary — catches render/effect errors in ChatTab so a single
+ * bot crash cannot take down the whole app.
+ */
+class ChatTabErrorBoundary extends React.Component<
+  { botName: string; children: React.ReactNode },
+  { hasError: boolean; message: string }
+> {
+  constructor(props: { botName: string; children: React.ReactNode }) {
+    super(props)
+    this.state = { hasError: false, message: '' }
+  }
+
+  static getDerivedStateFromError(err: unknown): { hasError: boolean; message: string } {
+    const message = err instanceof Error ? err.message : String(err)
+    return { hasError: true, message }
+  }
+
+  override render(): React.ReactNode {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-[var(--color-danger)]/30 bg-[var(--color-danger)]/5 px-6 py-10 text-center">
+          <p className="text-2xl">⚠️</p>
+          <p className="text-sm font-semibold text-[var(--color-danger)]">
+            {this.props.botName} encountered an error
+          </p>
+          <p className="max-w-xs text-xs text-[var(--color-text-muted)]">{this.state.message}</p>
+          <button
+            onClick={() => { this.setState({ hasError: false, message: '' }) }}
+            className="mt-2 rounded-lg bg-[var(--color-surface-2)] px-4 py-1.5 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+          >
+            Try again
+          </button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
 interface IChatTabProps {
-  bot: IDesktopBot
-  botRuns: IDesktopBotRun[]
+  bot: IDesktopAgent
+  botRuns: IDesktopAgentRun[]
 }
 
 function ChatTab({ bot, botRuns }: IChatTabProps): React.JSX.Element {
-  const messages   = useBotStore((s) => s.chatHistory[bot.id] ?? ([] as IChatMessage[]))
-  const isThinking = useBotStore((s) => s.thinkingBotIds.includes(bot.id))
-  const error      = useBotStore((s) => s.error)
+  const messages   = useAgentsStore((s) => s.chatHistory[bot.id] ?? EMPTY_CHAT)
+  const isThinking = useAgentsStore((s) => s.thinkingBotIds.includes(bot.id))
+  const error      = useAgentsStore((s) => s.error)
   const [input, setInput] = useState('')
   const bottomRef         = useRef<HTMLDivElement>(null)
 
@@ -216,7 +262,7 @@ function ChatTab({ bot, botRuns }: IChatTabProps): React.JSX.Element {
     const text = input.trim()
     if (!text || isThinking) return
     setInput('')
-    void useBotStore.getState().sendMessage(bot.id, text)
+    void useAgentsStore.getState().sendMessage(bot.id, text)
   }
 
   return (
@@ -224,7 +270,7 @@ function ChatTab({ bot, botRuns }: IChatTabProps): React.JSX.Element {
       {error && (
         <div className="flex items-center justify-between rounded-xl bg-[var(--color-danger)]/10 px-4 py-3 text-sm text-[var(--color-danger)]">
           <span>{error}</span>
-          <button onClick={() => { useBotStore.getState().clearError() }} className="ml-4 text-xs underline">Dismiss</button>
+          <button onClick={() => { useAgentsStore.getState().clearError() }} className="ml-4 text-xs underline">Dismiss</button>
         </div>
       )}
 
@@ -239,7 +285,7 @@ function ChatTab({ bot, botRuns }: IChatTabProps): React.JSX.Element {
           </span>
         </div>
         <button
-          onClick={() => { useBotStore.getState().clearChat(bot.id) }}
+          onClick={() => { useAgentsStore.getState().clearChat(bot.id) }}
           className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
         >
           Clear
@@ -272,7 +318,7 @@ function ChatTab({ bot, botRuns }: IChatTabProps): React.JSX.Element {
               <div className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
                 {m.role === 'assistant' && (
                   <div className="mr-2 mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--color-surface-2)] text-xs">
-                    {bot.templateId ? (ALL_TEMPLATES.find((t) => t.id === bot.templateId)?.icon ?? '🤖') : '🤖'}
+                    {bot.templateId ? (findTemplate(bot.templateId)?.icon ?? '🤖') : '🤖'}
                   </div>
                 )}
                 <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
@@ -292,13 +338,13 @@ function ChatTab({ bot, botRuns }: IChatTabProps): React.JSX.Element {
                       <p className="mb-3 text-xs leading-relaxed text-[var(--color-text-secondary)]">{m.pendingAction.label}</p>
                       <div className="flex gap-2">
                         <button
-                          onClick={() => { void useBotStore.getState().confirmRun(bot.id, m.id) }}
+                          onClick={() => { void useAgentsStore.getState().confirmRun(bot.id, m.id) }}
                           className="rounded-lg bg-[var(--color-success)] px-4 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
                         >
                           ✅ Yes, run it
                         </button>
                         <button
-                          onClick={() => { useBotStore.getState().dismissRun(bot.id, m.id) }}
+                          onClick={() => { useAgentsStore.getState().dismissRun(bot.id, m.id) }}
                           className="rounded-lg border border-[var(--color-border)] px-4 py-1.5 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
                         >
                           ✕ Skip
@@ -322,7 +368,7 @@ function ChatTab({ bot, botRuns }: IChatTabProps): React.JSX.Element {
           {isThinking && (
             <div className="flex items-start gap-2">
               <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--color-surface-2)] text-xs">
-                {bot.templateId ? (ALL_TEMPLATES.find((t) => t.id === bot.templateId)?.icon ?? '🤖') : '🤖'}
+                {bot.templateId ? (findTemplate(bot.templateId)?.icon ?? '🤖') : '🤖'}
               </div>
               <div className="rounded-2xl bg-[var(--color-surface-2)] px-4 py-3">
                 <span className="flex gap-1">
@@ -370,311 +416,11 @@ function ChatTab({ bot, botRuns }: IChatTabProps): React.JSX.Element {
 
 // ─── Custom UI tab ────────────────────────────────────────────────────────────
 
-interface ICustomTabProps { template: IBotTemplate; bot: IDesktopBot; latestRun?: IDesktopBotRun | undefined }
-
-function FinanceWidget({ template, bot, latestRun }: ICustomTabProps): React.JSX.Element {
-  const isStock    = template.id === 'stock-screener'
-  const lines      = latestRun?.result ? latestRun.result.split('\n').filter(Boolean) : []
-  const highlights = lines.slice(0, 6)
-  const mockTickers = isStock
-    ? [
-        { symbol: 'AAPL', price: '172.34', change: '+1.2%', up: true },
-        { symbol: 'MSFT', price: '420.11', change: '+0.8%', up: true },
-        { symbol: 'NVDA', price: '875.50', change: '-0.4%', up: false },
-        { symbol: 'TSLA', price: '183.20', change: '+2.1%', up: true },
-      ]
-    : [
-        { symbol: 'BTC', price: '67,420', change: '+3.4%', up: true },
-        { symbol: 'ETH', price: '3,512',  change: '+1.8%', up: true },
-        { symbol: 'SOL', price: '148.30', change: '-0.9%', up: false },
-        { symbol: 'BNB', price: '571.10', change: '+0.5%', up: true },
-      ]
-  return (
-    <div className="space-y-5">
-      <div className="rounded-2xl border border-[var(--color-border)] bg-gradient-to-br from-emerald-500/10 to-transparent p-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">{isStock ? 'Screener' : 'Crypto Watch'}</p>
-            <p className="mt-1 text-2xl font-bold text-[var(--color-text-primary)]">{template.icon} {template.name}</p>
-            <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">{bot.description}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-[10px] text-[var(--color-text-muted)]">Last run</p>
-            <p className="text-sm font-semibold text-[var(--color-text-primary)]">{latestRun ? relativeTime(latestRun.started_at) : 'Never'}</p>
-          </div>
-        </div>
-      </div>
-      <div>
-        <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">{isStock ? 'Watched Stocks' : 'Watched Assets'}</p>
-        <div className="grid grid-cols-2 gap-3">
-          {mockTickers.map((t) => (
-            <div key={t.symbol} className="flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
-              <div>
-                <p className="text-xs font-bold text-[var(--color-text-primary)]">{t.symbol}</p>
-                <p className="text-[10px] text-[var(--color-text-muted)]">$ {t.price}</p>
-              </div>
-              <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${t.up ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>
-                {t.change}
-              </span>
-            </div>
-          ))}
-        </div>
-        <p className="mt-2 text-[9px] text-[var(--color-text-muted)]">Prices are illustrative; live data populated after first run.</p>
-      </div>
-      {highlights.length > 0 ? (
-        <div>
-          <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Latest Analysis</p>
-          <div className="space-y-2 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-            {highlights.map((line, i) => (
-              <div key={i} className="flex items-start gap-2 text-sm text-[var(--color-text-primary)]">
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
-                {line}
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div className="rounded-2xl border border-dashed border-[var(--color-border)] px-6 py-8 text-center">
-          <p className="text-2xl">{template.icon}</p>
-          <p className="mt-2 text-sm text-[var(--color-text-secondary)]">Run this bot to populate live market data.</p>
-        </div>
-      )}
-    </div>
-  )
+function CustomTabContent({ bot }: { bot: IDesktopAgent; latestRun?: IDesktopAgentRun | undefined }): React.JSX.Element | null {
+  if (!bot.templateId) return null
+  return MODULE_PANELS[bot.templateId] ?? null
 }
 
-function ResearchWidget({ template, bot, latestRun }: ICustomTabProps): React.JSX.Element {
-  const paragraphs = latestRun?.result ? latestRun.result.split('\n').filter(Boolean) : []
-  const findings   = paragraphs.slice(0, 5)
-  return (
-    <div className="space-y-5">
-      <div className="rounded-2xl border border-[var(--color-border)] bg-gradient-to-br from-purple-500/10 to-transparent p-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Research</p>
-            <p className="mt-1 text-2xl font-bold text-[var(--color-text-primary)]">{template.icon} {template.name}</p>
-            <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">{bot.description}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-[10px] text-[var(--color-text-muted)]">Reports</p>
-            <p className="text-2xl font-bold text-purple-400">{latestRun ? '1' : '0'}</p>
-          </div>
-        </div>
-      </div>
-      <div>
-        <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Sources</p>
-        <div className="space-y-2">
-          {['Wikipedia', 'Google News', 'ArXiv', 'HackerNews'].map((src) => (
-            <div key={src} className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5">
-              <span className="h-2 w-2 rounded-full bg-purple-400" />
-              <span className="text-sm text-[var(--color-text-primary)]">{src}</span>
-              <span className="ml-auto text-[10px] text-[var(--color-text-muted)]">pending</span>
-            </div>
-          ))}
-        </div>
-      </div>
-      {findings.length > 0 ? (
-        <div>
-          <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Key Findings</p>
-          <div className="divide-y divide-[var(--color-border)] rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]">
-            {findings.map((line, i) => (
-              <p key={i} className="px-5 py-3 text-sm leading-relaxed text-[var(--color-text-primary)]">{line}</p>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div className="rounded-2xl border border-dashed border-[var(--color-border)] px-6 py-8 text-center">
-          <p className="text-2xl">{template.icon}</p>
-          <p className="mt-2 text-sm text-[var(--color-text-secondary)]">Run the bot to generate a research report.</p>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function AutomationWidget({ template, bot, latestRun }: ICustomTabProps): React.JSX.Element {
-  const PIPELINE_STEPS = ['Parse trigger', 'Fetch data', 'Process & transform', 'Generate output', 'Save / deliver']
-  const completedUntil = latestRun?.status === 'completed' ? PIPELINE_STEPS.length
-    : latestRun?.status === 'running' ? 2 : 0
-  return (
-    <div className="space-y-5">
-      <div className="rounded-2xl border border-[var(--color-border)] bg-gradient-to-br from-orange-500/10 to-transparent p-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Automation</p>
-            <p className="mt-1 text-2xl font-bold text-[var(--color-text-primary)]">{template.icon} {template.name}</p>
-            <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">{bot.description}</p>
-          </div>
-          <div className={`rounded-full px-3 py-1 text-xs font-semibold ${
-            latestRun?.status === 'running' ? 'bg-blue-400/15 text-blue-400'
-            : latestRun?.status === 'completed' ? 'bg-[var(--color-success)]/15 text-[var(--color-success)]'
-            : 'bg-[var(--color-surface-2)] text-[var(--color-text-muted)]'
-          }`}>
-            {latestRun?.status ?? 'idle'}
-          </div>
-        </div>
-      </div>
-      <div>
-        <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Pipeline</p>
-        <ol className="space-y-2">
-          {PIPELINE_STEPS.map((step, i) => {
-            const done   = i < completedUntil
-            const active = i === completedUntil && latestRun?.status === 'running'
-            return (
-              <li key={step} className="flex items-center gap-3">
-                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold transition-all ${
-                  done ? 'bg-[var(--color-success)] text-white'
-                  : active ? 'animate-pulse bg-blue-400 text-white'
-                  : 'border border-[var(--color-border)] text-[var(--color-text-muted)]'
-                }`}>
-                  {done ? '✓' : active ? '…' : String(i + 1)}
-                </span>
-                <p className={`flex-1 text-sm ${done || active ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-muted)]'}`}>{step}</p>
-                {done   && <span className="text-[10px] text-[var(--color-success)]">done</span>}
-                {active && <span className="text-[10px] text-blue-400">running</span>}
-              </li>
-            )
-          })}
-        </ol>
-      </div>
-      <div>
-        <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Schedule</p>
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            { label: 'Trigger',  value: 'Manual' },
-            { label: 'Last Run', value: latestRun ? relativeTime(latestRun.started_at) : 'Never' },
-            { label: 'Duration', value: latestRun ? formatDuration(latestRun.started_at, latestRun.ended_at) : '—' },
-          ].map(({ label, value }) => (
-            <div key={label} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">{label}</p>
-              <p className="mt-1 text-sm font-medium text-[var(--color-text-primary)]">{value}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function CreativeWidget({ template, bot, latestRun }: ICustomTabProps): React.JSX.Element {
-  const draft     = latestRun?.result ?? ''
-  const wordCount = draft ? draft.split(/\s+/).filter(Boolean).length : 0
-  return (
-    <div className="space-y-5">
-      <div className="rounded-2xl border border-[var(--color-border)] bg-gradient-to-br from-pink-500/10 to-transparent p-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Creative</p>
-            <p className="mt-1 text-2xl font-bold text-[var(--color-text-primary)]">{template.icon} {template.name}</p>
-            <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">{bot.description}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-[10px] text-[var(--color-text-muted)]">Words</p>
-            <p className="text-2xl font-bold text-pink-400">{String(wordCount)}</p>
-          </div>
-        </div>
-      </div>
-      {draft && (
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            { label: 'Words',      value: String(wordCount) },
-            { label: 'Characters', value: String(draft.length) },
-            { label: 'Generated',  value: latestRun ? relativeTime(latestRun.started_at) : '—' },
-          ].map(({ label, value }) => (
-            <div key={label} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-3 text-center">
-              <p className="text-lg font-bold text-[var(--color-text-primary)]">{value}</p>
-              <p className="text-[10px] text-[var(--color-text-muted)]">{label}</p>
-            </div>
-          ))}
-        </div>
-      )}
-      {draft ? (
-        <div>
-          <div className="mb-3 flex items-center justify-between">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Draft Output</p>
-            <button
-              onClick={() => { void navigator.clipboard.writeText(draft) }}
-              className="rounded-lg border border-[var(--color-border)] px-3 py-1 text-[10px] text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
-            >
-              Copy
-            </button>
-          </div>
-          <div className="max-h-80 overflow-y-auto rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-text-primary)]">{draft}</p>
-          </div>
-        </div>
-      ) : (
-        <div className="rounded-2xl border border-dashed border-[var(--color-border)] px-6 py-8 text-center">
-          <p className="text-2xl">{template.icon}</p>
-          <p className="mt-2 text-sm text-[var(--color-text-secondary)]">Run the bot to generate your first draft.</p>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function ProductivityWidget({ template, bot, latestRun }: ICustomTabProps): React.JSX.Element {
-  const rawLines    = latestRun?.result ? latestRun.result.split('\n').filter(Boolean) : []
-  const bulletItems = rawLines.filter((l) => /^[*-]/.test(l.trim())).slice(0, 10)
-  const prose       = rawLines.filter((l) => !/^[*-]/.test(l.trim())).slice(0, 3)
-  return (
-    <div className="space-y-5">
-      <div className="rounded-2xl border border-[var(--color-border)] bg-gradient-to-br from-blue-500/10 to-transparent p-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Productivity</p>
-            <p className="mt-1 text-2xl font-bold text-[var(--color-text-primary)]">{template.icon} {template.name}</p>
-            <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">{bot.description}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-[10px] text-[var(--color-text-muted)]">Items</p>
-            <p className="text-2xl font-bold text-blue-400">{String(bulletItems.length || rawLines.length)}</p>
-          </div>
-        </div>
-      </div>
-      {prose.length > 0 && (
-        <div className="space-y-2 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
-          {prose.map((p, i) => (
-            <p key={i} className="text-sm leading-relaxed text-[var(--color-text-primary)]">{p}</p>
-          ))}
-        </div>
-      )}
-      {bulletItems.length > 0 ? (
-        <div>
-          <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Items</p>
-          <div className="divide-y divide-[var(--color-border)] rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]">
-            {bulletItems.map((item, i) => (
-              <div key={i} className="flex items-start gap-3 px-5 py-3">
-                <span className="mt-0.5 shrink-0 text-[var(--color-success)]">✓</span>
-                <span className="text-sm text-[var(--color-text-primary)]">{item.replace(/^[*-]\s*/, '')}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : !latestRun ? (
-        <div className="rounded-2xl border border-dashed border-[var(--color-border)] px-6 py-8 text-center">
-          <p className="text-2xl">{template.icon}</p>
-          <p className="mt-2 text-sm text-[var(--color-text-secondary)]">Run the bot to populate your digest.</p>
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
-function CustomTabContent({ template, bot, latestRun }: { template?: IBotTemplate | undefined; bot: IDesktopBot; latestRun?: IDesktopBotRun | undefined }): React.JSX.Element | null {
-  if (!template) return null
-  // Special interactive tool templates — render their full interactive panel embedded.
-  if (template.id === 'crypto-analysis') return <CryptoPanel embedded />
-  if (template.id === 'writing-helper')  return <WritingHelperPanel embedded />
-  const props: ICustomTabProps = { template, bot, latestRun }
-  switch (template.category) {
-    case 'finance':      return <FinanceWidget      {...props} />
-    case 'research':     return <ResearchWidget     {...props} />
-    case 'automation':   return <AutomationWidget   {...props} />
-    case 'creative':     return <CreativeWidget     {...props} />
-    case 'productivity': return <ProductivityWidget {...props} />
-  }
-}
 
 // ─── Credential sub-components ───────────────────────────────────────────────
 
@@ -682,7 +428,7 @@ function CredentialRow({
   cred,
   onRemove,
 }: {
-  cred: IBotCredential
+  cred: IAgentCredential
   onRemove: () => void
 }): React.JSX.Element {
   const [show, setShow] = useState(!cred.masked)
@@ -717,7 +463,7 @@ function CredentialRow({
   )
 }
 
-function AddCredentialForm({ onAdd }: { onAdd: (cred: IBotCredential) => void }): React.JSX.Element {
+function AddCredentialForm({ onAdd }: { onAdd: (cred: IAgentCredential) => void }): React.JSX.Element {
   const [key,     setKey]     = useState('')
   const [value,   setValue]   = useState('')
   const [masked,  setMasked]  = useState(false)
@@ -789,8 +535,8 @@ function AddCredentialForm({ onAdd }: { onAdd: (cred: IBotCredential) => void })
 // ─── Settings tab ─────────────────────────────────────────────────────────────
 
 function SettingsTab({ bot, template, colorClass, onDelete, isRunning, onStop }: {
-  bot: IDesktopBot
-  template?: IBotTemplate | undefined
+  bot: IDesktopAgent
+  template?: IAgentTemplate | undefined
   colorClass: string
   onDelete: () => void
   isRunning: boolean
@@ -810,7 +556,7 @@ function SettingsTab({ bot, template, colorClass, onDelete, isRunning, onStop }:
   const [savingProv,   setSavingProv]   = useState(false)
   const [savedProv,    setSavedProv]    = useState(false)
   // Credentials state
-  const [credentials, setCredentials] = useState<IBotCredential[]>(bot.credentials ?? [])
+  const [credentials, setCredentials] = useState<IAgentCredential[]>(bot.credentials ?? [])
   // Bot memory state
   const [memoryContext,  setMemoryContext]  = useState<string | null>(null)
   const [loadingMemory,  setLoadingMemory]  = useState(false)
@@ -819,15 +565,14 @@ function SettingsTab({ bot, template, colorClass, onDelete, isRunning, onStop }:
 
   const loadMemoryPreview = async (): Promise<void> => {
     setLoadingMemory(true)
-    const ctx = await useBotStore.getState().buildBotMemoryContext(bot.id)
+    const ctx = await useAgentsStore.getState().buildAgentMemoryContext(bot.id)
     setMemoryContext(ctx || null)
     setLoadingMemory(false)
   }
 
   const handleClearMemory = async (): Promise<void> => {
-    if (!window.confirm(`Clear all private memory for "${bot.name}"? This cannot be undone.`)) return
     setClearingMemory(true)
-    await useBotStore.getState().clearBotMemory(bot.id)
+    await useAgentsStore.getState().clearAgentMemory(bot.id)
     setMemoryContext(null)
     setClearingMemory(false)
     setMemoryCleaned(true)
@@ -837,7 +582,7 @@ function SettingsTab({ bot, template, colorClass, onDelete, isRunning, onStop }:
   const handleSave = async (): Promise<void> => {
     if (!name.trim()) return
     setSaving(true)
-    await useBotStore.getState().updateBot(bot.id, { name: name.trim(), description: desc.trim() })
+    await useAgentsStore.getState().updateAgent(bot.id, { name: name.trim(), description: desc.trim() })
     setSaving(false)
     setSaved(true)
     setTimeout(() => { setSaved(false) }, 2_000)
@@ -847,9 +592,9 @@ function SettingsTab({ bot, template, colorClass, onDelete, isRunning, onStop }:
     setSavingKey(true)
     const trimmed = apiKey.trim()
     if (trimmed) {
-      await useBotStore.getState().updateBot(bot.id, { apiKey: trimmed })
+      await useAgentsStore.getState().updateAgent(bot.id, { apiKey: trimmed })
     } else {
-      useBotStore.getState().clearBotApiKey(bot.id)
+      useAgentsStore.getState().clearAgentApiKey(bot.id)
     }
     setSavingKey(false)
     setSavedKey(true)
@@ -859,9 +604,9 @@ function SettingsTab({ bot, template, colorClass, onDelete, isRunning, onStop }:
   const handleSaveProvider = async (): Promise<void> => {
     setSavingProv(true)
     if (aiProvider) {
-      await useBotStore.getState().updateBot(bot.id, { aiProvider })
+      await useAgentsStore.getState().updateAgent(bot.id, { aiProvider })
     } else {
-      useBotStore.getState().clearBotAiProvider(bot.id)
+      useAgentsStore.getState().clearAgentAiProvider(bot.id)
     }
     setSavingProv(false)
     setSavedProv(true)
@@ -945,7 +690,7 @@ function SettingsTab({ bot, template, colorClass, onDelete, isRunning, onStop }:
                 type="button"
                 onClick={() => {
                   setApiKey('')
-                  useBotStore.getState().clearBotApiKey(bot.id)
+                  useAgentsStore.getState().clearAgentApiKey(bot.id)
                 }}
                 className="text-xs text-[var(--color-danger)] hover:underline"
               >
@@ -1082,7 +827,7 @@ function SettingsTab({ bot, template, colorClass, onDelete, isRunning, onStop }:
                   onRemove={() => {
                     const next = credentials.filter((_, i) => i !== idx)
                     setCredentials(next)
-                    useBotStore.getState().updateBotCredentials(bot.id, next)
+                    useAgentsStore.getState().updateAgentCredentials(bot.id, next)
                   }}
                 />
               ))}
@@ -1092,16 +837,15 @@ function SettingsTab({ bot, template, colorClass, onDelete, isRunning, onStop }:
             onAdd={(cred) => {
               const next = [...credentials, cred]
               setCredentials(next)
-              useBotStore.getState().updateBotCredentials(bot.id, next)
+              useAgentsStore.getState().updateAgentCredentials(bot.id, next)
             }}
           />
           {credentials.length > 0 && (
             <button
               type="button"
               onClick={() => {
-                if (!window.confirm('Clear all credentials for this bot?')) return
                 setCredentials([])
-                useBotStore.getState().updateBotCredentials(bot.id, [])
+                useAgentsStore.getState().updateAgentCredentials(bot.id, [])
               }}
               className="text-xs text-[var(--color-danger)] hover:underline"
             >
@@ -1116,7 +860,6 @@ function SettingsTab({ bot, template, colorClass, onDelete, isRunning, onStop }:
           {[
             { label: 'Bot ID',   value: bot.id },
             { label: 'Template', value: template?.name ?? 'Custom' },
-            { label: 'Category', value: template?.category ?? '—' },
             { label: 'Sync',     value: bot.synced ? 'Cloud' : 'Local only' },
             { label: 'Created',  value: new Date(bot.created_at).toLocaleString() },
           ].map(({ label, value }) => (
@@ -1135,7 +878,7 @@ function SettingsTab({ bot, template, colorClass, onDelete, isRunning, onStop }:
             <p className="text-xs text-[var(--color-text-muted)]">{bot.status === 'active' ? 'Bot will run when triggered.' : 'Bot is paused and will not execute.'}</p>
           </div>
           <button
-            onClick={() => { void useBotStore.getState().toggleStatus(bot.id) }}
+            onClick={() => { void useAgentsStore.getState().toggleStatus(bot.id) }}
             className={`rounded-xl px-4 py-2 text-xs font-medium transition-colors ${
               bot.status === 'active'
                 ? 'border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
@@ -1155,7 +898,7 @@ function SettingsTab({ bot, template, colorClass, onDelete, isRunning, onStop }:
               <p className="text-sm font-semibold text-[var(--color-text-primary)]">{template.name}</p>
               <p className="text-xs text-[var(--color-text-muted)]">{template.description}</p>
             </div>
-            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${colorClass}`}>{template.category}</span>
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${colorClass}`}>{template.name}</span>
           </div>
         </section>
       )}
@@ -1175,15 +918,15 @@ function SettingsTab({ bot, template, colorClass, onDelete, isRunning, onStop }:
   )
 }
 
-// ─── BotRunPanel ──────────────────────────────────────────────────────────────
+// ─── AgentRunPanel ──────────────────────────────────────────────────────────────
 
-export interface IBotRunPanelProps { onBack: () => void }
+export interface IAgentRunPanelProps { onBack: () => void }
 
-export function BotRunPanel({ onBack }: IBotRunPanelProps): React.JSX.Element {
-  const selectedBotId = useBotStore((s) => s.selectedBotId)
-  const bots          = useBotStore((s) => s.bots)
-  const runs          = useBotStore((s) => s.runs)
-  const runningBotIds = useBotStore((s) => s.runningBotIds)
+export function AgentRunPanel({ onBack }: IAgentRunPanelProps): React.JSX.Element {
+  const selectedBotId = useAgentsStore((s) => s.selectedBotId)
+  const bots          = useAgentsStore((s) => s.agents)
+  const runs          = useAgentsStore((s) => s.runs)
+  const runningBotIds = useAgentsStore((s) => s.runningBotIds)
   const setView       = useAppStore((s) => s.setView)
 
   const bot       = bots.find((b) => b.id === selectedBotId)
@@ -1192,11 +935,12 @@ export function BotRunPanel({ onBack }: IBotRunPanelProps): React.JSX.Element {
   const hasActive = botRuns.some((r) => ACTIVE_STATUSES.has(r.status))
   const latestRun = botRuns[0]
 
-  const template   = bot?.templateId ? ALL_TEMPLATES.find((t) => t.id === bot.templateId) : undefined
-  const colorClass = template ? TEMPLATE_CATEGORY_COLORS[template.category] : 'bg-[var(--color-surface-2)] text-[var(--color-text-muted)]'
-  const hasCustom  = template !== undefined
+  const template   = bot?.templateId ? findTemplate(bot.templateId) : undefined
+  const colorClass = template?.colorClass ?? 'bg-[var(--color-surface-2)] text-[var(--color-text-muted)]'
+  const hasCustom  = bot?.templateId !== undefined && bot.templateId in MODULE_PANELS
 
-  const [tab, setTab] = useState<BotTab>('chat')
+  const [tab, setTab]             = useState<AgentTab>('chat')
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   useEffect(() => {
     if (!hasCustom && tab === 'custom') setTab('chat')
@@ -1204,12 +948,12 @@ export function BotRunPanel({ onBack }: IBotRunPanelProps): React.JSX.Element {
 
   useEffect(() => {
     if (!selectedBotId || !hasActive) return
-    const timer = setInterval(() => { void useBotStore.getState().loadRuns(selectedBotId) }, 5_000)
+    const timer = setInterval(() => { void useAgentsStore.getState().loadRuns(selectedBotId) }, 5_000)
     return () => { clearInterval(timer) }
   }, [selectedBotId, hasActive])
 
   useEffect(() => {
-    if (!bot) setView('bots')
+    if (!bot) setView('agents')
   }, [bot, setView])
 
   if (!bot) return <div />
@@ -1217,14 +961,13 @@ export function BotRunPanel({ onBack }: IBotRunPanelProps): React.JSX.Element {
   const busy             = isRunning || hasActive
 
   const handleDelete = (): void => {
-    if (!window.confirm(`Delete bot "${bot.name}"? This cannot be undone.`)) return
-    void useBotStore.getState().deleteBot(bot.id).then(() => { onBack() })
+    void useAgentsStore.getState().deleteAgent(bot.id).then(() => { onBack() })
   }
 
   const customTabLabel = template ? `${template.icon} ${template.name}` : ''
-  const tabs: { id: BotTab; label: string }[] = [
+  const tabs: { id: AgentTab; label: string }[] = [
     { id: 'chat',     label: '💬 Chat' },
-    ...(hasCustom ? [{ id: 'custom' as BotTab, label: customTabLabel }] : []),
+    ...(hasCustom ? [{ id: 'custom' as AgentTab, label: customTabLabel }] : []),
     { id: 'settings', label: 'Settings' },
   ]
 
@@ -1247,7 +990,7 @@ export function BotRunPanel({ onBack }: IBotRunPanelProps): React.JSX.Element {
                 {bot.status}
               </span>
               {template && (
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${colorClass}`}>{template.category}</span>
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${colorClass}`}>{template.name}</span>
               )}
               {bot.synced
                 ? <span className="rounded-full bg-blue-400/15 px-2 py-0.5 text-[10px] font-semibold text-blue-400">Cloud</span>
@@ -1261,15 +1004,60 @@ export function BotRunPanel({ onBack }: IBotRunPanelProps): React.JSX.Element {
             </div>
             {bot.description && <p className="mt-0.5 truncate text-xs text-[var(--color-text-secondary)]">{bot.description}</p>}
           </div>
-          {busy && (
-            <button
-              onClick={() => { useBotStore.getState().stopBot(bot.id) }}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-[var(--color-danger)]/40 bg-[var(--color-danger)]/10 px-4 py-2 text-xs font-semibold text-[var(--color-danger)] transition-colors hover:bg-[var(--color-danger)]/20"
-            >
-              <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
-              Stop
-            </button>
-          )}
+          <div className="flex shrink-0 items-center gap-2">
+            {bot.status === 'active' && (
+              <button
+                onClick={() => { useAgentsStore.getState().stopAgent(bot.id) }}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--color-danger)]/40 bg-[var(--color-danger)]/10 px-4 py-2 text-xs font-semibold text-[var(--color-danger)] transition-colors hover:bg-[var(--color-danger)]/20"
+              >
+                {busy && <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />}
+                Stop
+              </button>
+            )}
+            {bot.status === 'paused' && (
+              <button
+                onClick={() => { void useAgentsStore.getState().toggleStatus(bot.id) }}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--color-success)]/40 bg-[var(--color-success)]/10 px-4 py-2 text-xs font-semibold text-[var(--color-success)] transition-colors hover:bg-[var(--color-success)]/20"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                  <polygon points="5 3 19 12 5 21 5 3" />
+                </svg>
+                Activate
+              </button>
+            )}
+            {confirmDelete ? (
+              <div className="flex items-center gap-1.5 rounded-xl border border-[var(--color-danger)]/40 bg-[var(--color-surface)] px-2 py-1">
+                <span className="text-[11px] text-[var(--color-text-secondary)]">Delete?</span>
+                <button
+                  onClick={handleDelete}
+                  className="rounded-lg bg-[var(--color-danger)] px-2.5 py-1 text-[11px] font-semibold text-white transition-colors hover:opacity-80"
+                >
+                  Delete
+                </button>
+                <button
+                  onClick={() => { setConfirmDelete(false) }}
+                  className="rounded-lg px-2 py-1 text-[11px] text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text-primary)]"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => { setConfirmDelete(true) }}
+                disabled={busy}
+                aria-label="Delete bot"
+                title="Delete bot"
+                className="rounded-lg p-1.5 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-danger)]/10 hover:text-[var(--color-danger)] disabled:pointer-events-none disabled:opacity-40"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                  <path d="M10 11v6M14 11v6" />
+                  <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
         <div className="flex gap-1">
           {tabs.map((t) => (
@@ -1296,13 +1084,15 @@ export function BotRunPanel({ onBack }: IBotRunPanelProps): React.JSX.Element {
       <div className="flex-1 overflow-y-auto px-6 py-6">
         <div className="mx-auto max-w-2xl">
           {tab === 'custom' && hasCustom && (
-            <CustomTabContent template={template} bot={bot} latestRun={latestRun} />
+            <CustomTabContent bot={bot} latestRun={latestRun} />
           )}
           {tab === 'chat' && (
-            <ChatTab
-              bot={bot}
-              botRuns={botRuns}
-            />
+            <ChatTabErrorBoundary botName={bot.name}>
+              <ChatTab
+                bot={bot}
+                botRuns={botRuns}
+              />
+            </ChatTabErrorBoundary>
           )}
           {tab === 'settings' && (
             <SettingsTab
@@ -1311,7 +1101,7 @@ export function BotRunPanel({ onBack }: IBotRunPanelProps): React.JSX.Element {
               colorClass={colorClass}
               onDelete={handleDelete}
               isRunning={isRunning}
-              onStop={() => { useBotStore.getState().stopBot(bot.id) }}
+              onStop={() => { useAgentsStore.getState().stopAgent(bot.id) }}
             />
           )}
         </div>
@@ -1320,4 +1110,4 @@ export function BotRunPanel({ onBack }: IBotRunPanelProps): React.JSX.Element {
   )
 }
 
-export { BotRunPanel as BotsPanel }
+export { AgentRunPanel as AgentsPanel }

@@ -1,17 +1,13 @@
 import React, { useState } from 'react'
-import { useBotTypeStore } from '../store/bot-type-store.js'
+import { useAgentTypesStore } from '../../store/agent-types-store.js'
 import {
-  BOT_TYPE_CATALOG,
-  BOT_TEMPLATES,
-  TEMPLATE_CATEGORY_COLORS,
-} from '../store/bot-templates.js'
+  AGENT_TEMPLATES,
+} from '../../store/agent-templates.js'
 
 // ─── Store ────────────────────────────────────────────────────────────────────
 
-/** All bot types: built-in + downloadable catalog. */
-const ALL_BOT_TYPES = [...BOT_TEMPLATES, ...BOT_TYPE_CATALOG]
-
-const ALL_CATEGORIES = ['All', ...Array.from(new Set(ALL_BOT_TYPES.map((t) => t.category)))]
+/** All bot types available — built-in only (downloadable types come from the marketplace API). */
+const ALL_BOT_TYPES = [...AGENT_TEMPLATES]
 
 // ─── BotTypeCard ──────────────────────────────────────────────────────────────
 
@@ -24,7 +20,7 @@ interface IBotTypeCardProps {
 }
 
 function BotTypeCard({ botType, isInstalled, isBuiltIn, onInstall, onRemove }: IBotTypeCardProps): React.JSX.Element {
-  const colorClass = TEMPLATE_CATEGORY_COLORS[botType.category]
+  const colorClass = botType.colorClass
   return (
     <div
       className={`flex flex-col rounded-2xl border bg-[var(--color-surface)] p-5 transition-all ${
@@ -38,7 +34,7 @@ function BotTypeCard({ botType, isInstalled, isBuiltIn, onInstall, onRemove }: I
           {botType.icon}
         </div>
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${colorClass}`}>
-          {botType.category}
+          {botType.name}
         </span>
       </div>
       <p className="mb-1 text-sm font-semibold text-[var(--color-text-primary)]">{botType.name}</p>
@@ -82,23 +78,20 @@ function BotTypeCard({ botType, isInstalled, isBuiltIn, onInstall, onRemove }: I
  * Built-in types are always available; catalog types must be installed.
  */
 export function ModuleStore(): React.JSX.Element {
-  const botTypeStore = useBotTypeStore()
+  const botTypeStore = useAgentTypesStore()
   const { installedTypeIds } = botTypeStore
 
-  const [search, setSearch]     = useState('')
-  const [category, setCategory] = useState('All')
+  const [search, setSearch] = useState('')
 
-  const BUILT_IN_IDS = new Set(BOT_TEMPLATES.map((t) => t.id))
+  const BUILT_IN_IDS = new Set(AGENT_TEMPLATES.map((t) => t.id))
 
   const q = search.toLowerCase()
   const visibleBotTypes = ALL_BOT_TYPES.filter((t) => {
-    const matchesSearch =
+    return (
       q.length === 0 ||
       t.name.toLowerCase().includes(q) ||
-      t.description.toLowerCase().includes(q) ||
-      t.category.toLowerCase().includes(q)
-    const matchesCategory = category === 'All' || t.category === category
-    return matchesSearch && matchesCategory
+      t.description.toLowerCase().includes(q)
+    )
   })
 
   return (
@@ -126,40 +119,22 @@ export function ModuleStore(): React.JSX.Element {
       <div className="flex-1 overflow-y-auto px-8 py-6">
         <div className="mx-auto max-w-3xl space-y-6">
 
-          {/* Search + category filter */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="relative flex-1">
-              <svg
-                className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
-                width="14" height="14" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-              >
-                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-              <input
-                type="text"
-                placeholder="Search bot types…"
-                value={search}
-                onChange={(e) => { setSearch(e.target.value) }}
-                className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2.5 pl-10 pr-4 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-secondary)] outline-none focus:border-[var(--color-accent)] transition-colors"
-              />
-            </div>
-            <div className="flex gap-1.5 overflow-x-auto pb-0.5">
-              {ALL_CATEGORIES.map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => { setCategory(cat) }}
-                  className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors capitalize ${
-                    category === cat
-                      ? 'bg-[var(--color-accent)] text-white'
-                      : 'border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:border-[var(--color-accent)]/50 hover:text-[var(--color-text-primary)]'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
+          {/* Search */}
+          <div className="relative">
+            <svg
+              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
+              width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            >
+              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Search bot types…"
+              value={search}
+              onChange={(e) => { setSearch(e.target.value) }}
+              className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2.5 pl-10 pr-4 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-secondary)] outline-none focus:border-[var(--color-accent)] transition-colors"
+            />
           </div>
 
           {/* Built-in section */}
@@ -191,7 +166,7 @@ export function ModuleStore(): React.JSX.Element {
                 <div className="flex flex-col items-center justify-center py-16 text-center">
                   <p className="text-2xl">🔍</p>
                   <p className="mt-3 text-sm text-[var(--color-text-secondary)]">No results for &quot;{search}&quot;.</p>
-                  <button onClick={() => { setSearch(''); setCategory('All') }} className="mt-3 text-xs text-[var(--color-accent)] hover:underline">Clear filters</button>
+                  <button onClick={() => { setSearch('') }} className="mt-3 text-xs text-[var(--color-accent)] hover:underline">Clear filters</button>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -217,7 +192,7 @@ export function ModuleStore(): React.JSX.Element {
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <p className="text-2xl">🔍</p>
               <p className="mt-3 text-sm text-[var(--color-text-secondary)]">No bot types match &quot;{search}&quot;.</p>
-              <button onClick={() => { setSearch(''); setCategory('All') }} className="mt-3 text-xs text-[var(--color-accent)] hover:underline">Clear filters</button>
+              <button onClick={() => { setSearch('') }} className="mt-3 text-xs text-[var(--color-accent)] hover:underline">Clear filters</button>
             </div>
           )}
 

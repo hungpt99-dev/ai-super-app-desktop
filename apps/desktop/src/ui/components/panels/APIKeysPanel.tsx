@@ -15,8 +15,8 @@ import {
   setDefaultKeyId,
   updateAPIKey,
   type ILocalAPIKey,
-} from '../../sdk/api-key-store.js'
-import { useAppStore } from '../store/app-store.js'
+} from '../../../sdk/api-key-store.js'
+import { useAppStore } from '../../store/app-store.js'
 
 const PROVIDERS = [
   { value: 'openai',    label: 'OpenAI',        icon: '🤖', placeholder: 'sk-…' },
@@ -391,7 +391,7 @@ export function APIKeysPanel({ onBack }: IAPIKeysPanelProps): React.JSX.Element 
 
   const handleChangeModel = async (id: string, model: string | undefined): Promise<void> => {
     try {
-      const updated = await updateAPIKey(id, { model })
+      const updated = await updateAPIKey(id, model !== undefined ? { model } : {})
       if (updated) setKeys((prev) => prev.map((k) => (k.id === id ? updated : k)))
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)

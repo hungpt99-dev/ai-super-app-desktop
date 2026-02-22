@@ -12,8 +12,8 @@ import { tokenStore } from './token-store.js'
 
 // ─── Device persistence ────────────────────────────────────────────────────────
 
-const DEVICE_ID_KEY = 'ai-superapp-device-id'
-const DEVICE_NAME_KEY = 'ai-superapp-device-name'
+const DEVICE_ID_KEY = 'agenthub-device-id'
+const DEVICE_NAME_KEY = 'agenthub-device-name'
 
 /** Returns the locally-cached backend device ID, or null if not yet registered. */
 export function getStoredDeviceId(): string | null {
@@ -119,7 +119,7 @@ export const agentDeviceApi = {
 // ─── Bot polling API ───────────────────────────────────────────────────────────
 
 /** Claim pending runs and report their progress/completion. */
-export const agentBotApi = {
+export const agentRunApi = {
   /**
    * Claim the next pending bot run (SKIP LOCKED).
    * Returns null when the queue is empty or on network error.

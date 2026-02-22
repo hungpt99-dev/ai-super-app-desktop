@@ -36,7 +36,7 @@ export interface IUsageSummary {
 }
 
 /** Response from GET /v1/bots/poll — the run claimed by this desktop agent. */
-export interface IBotPollResult {
+export interface IAgentPollResult {
   run_id: string
   bot_id: string
   /** Human-readable goal text passed to the executing module. */
@@ -49,7 +49,7 @@ export interface IBotPollResult {
 }
 
 /** Body sent to PATCH /v1/bots/runs/{runID} from the desktop agent. */
-export interface IBotRunUpdate {
+export interface IAgentRunUpdate {
   status: 'running' | 'completed' | 'failed' | 'cancelled'
   steps: number
   /** Structured output from the module tool — bot-type-specific shape. */
@@ -114,16 +114,16 @@ export interface IDesktopBridge {
   app: {
     version(): Promise<string>
   }
-  bots: {
+  agents: {
     /**
-     * Claim the next pending bot run from the server queue.
+     * Claim the next pending agent run from the server queue.
      * Returns null when the queue is empty.
      */
-    poll(): Promise<IBotPollResult | null>
+    poll(): Promise<IAgentPollResult | null>
     /**
      * Report progress or final status for a claimed run.
      * `result` is omitted for intermediate (running) updates.
      */
-    updateRun(runId: string, update: IBotRunUpdate): Promise<void>
+    updateRun(runId: string, update: IAgentRunUpdate): Promise<void>
   }
 }

@@ -1,8 +1,8 @@
 [package]
-name            = "ai-super-app"
+name            = "agenthub-desktop"
 version         = "1.0.0"
-description     = "AI SuperApp Desktop"
-authors         = ["AI SuperApp Team"]
+description     = "AgentHub Desktop"
+authors         = ["AgentHub Team"]
 edition         = "2021"
 rust-version    = "1.77"
 

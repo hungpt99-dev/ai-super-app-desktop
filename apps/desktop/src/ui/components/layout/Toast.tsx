@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { useAppStore, type IToastNotification } from '../store/app-store.js'
+import { useAppStore, type IToastNotification } from '../../store/app-store.js'
 
 // ─── Per-level styles ────────────────────────────────────────────────────────
 

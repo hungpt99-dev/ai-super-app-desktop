@@ -1,5 +1,5 @@
-import { GatewayError, RateLimitError, AuthError } from '@ai-super-app/shared'
-import { logger } from '@ai-super-app/shared'
+import { GatewayError, RateLimitError, AuthError } from '@agenthub/shared'
+import { logger } from '@agenthub/shared'
 
 const log = logger.child('GatewayClient')
 

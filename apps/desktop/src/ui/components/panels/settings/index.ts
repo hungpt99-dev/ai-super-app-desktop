@@ -1,0 +1,8 @@
+export * from './settings-shared.js'
+export { AppearanceTab } from './AppearanceTab.js'
+export { NotificationsTab } from './NotificationsTab.js'
+export { PrivacyTab } from './PrivacyTab.js'
+export { PermissionsTab } from './PermissionsTab.js'
+export { ShortcutsTab } from './ShortcutsTab.js'
+export { AboutTab } from './AboutTab.js'
+export { DeveloperTab } from './DeveloperTab.js'

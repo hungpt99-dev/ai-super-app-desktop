@@ -1,5 +1,6 @@
-import type { IDesktopBridge, IAiRequestOptions, IToastNotification, IBotPollResult, IBotRunUpdate } from '../../shared/bridge-types.js'
+import type { IDesktopBridge, IAiRequestOptions, IToastNotification, IAgentPollResult, IAgentRunUpdate } from '../../shared/bridge-types.js'
 import { getModuleManager } from '../../core/module-bootstrap.js'
+import { useDevSettingsStore } from '../store/dev/dev-settings-store.js'
 
 /** True when running inside the Tauri WebView runtime. */
 const IS_TAURI = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
@@ -10,6 +11,15 @@ const IS_TAURI = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in windo
  */
 const DEV_GATEWAY: string = import.meta.env.VITE_GATEWAY_URL ?? 'http://localhost:3000'
 const DEV_TOKEN: string = import.meta.env.VITE_DEV_TOKEN ?? 'dev-token'
+
+/** Returns the effective gateway base URL, honouring the developer-mode URL override. */
+function getGatewayBase(): string {
+  try {
+    const { enabled, gatewayUrlOverride } = useDevSettingsStore.getState()
+    if (enabled && gatewayUrlOverride.trim()) return gatewayUrlOverride.trim()
+  } catch { /* store not yet initialized */ }
+  return DEV_GATEWAY
+}
 
 // ─── Tauri bridge ─────────────────────────────────────────────────────────────
 // All IPC goes through Tauri `invoke()`. Streaming is done by listening to
@@ -58,8 +68,12 @@ const tauriBridge: IDesktopBridge = {
     install: (): Promise<void> => Promise.resolve(),
     uninstall: (): Promise<void> => Promise.resolve(),
 
-    invokeTool: (moduleId, toolName, input) =>
-      invoke<unknown>('modules_invoke_tool', { moduleId, toolName, input }),
+    // Module tools run entirely in the JS sandbox — no Rust/backend hop needed.
+    invokeTool: (moduleId: string, toolName: string, input?: Record<string, unknown>): Promise<unknown> => {
+      const mm = getModuleManager()
+      if (!mm) return Promise.reject(new Error(`Module manager not initialised — tool ${moduleId}/${toolName} cannot run.`))
+      return mm.runTool(moduleId, toolName, input ?? {})
+    },
   },
 
   // ── AI ───────────────────────────────────────────────────────────────────
@@ -134,10 +148,10 @@ const tauriBridge: IDesktopBridge = {
     version: () => invoke<string>('app_version'),
   },
 
-  // ── Bots ──────────────────────────────────────────────────────────────────
-  bots: {
-    poll: () => invoke<IBotPollResult | null>('bots_poll'),
-    updateRun: (runId: string, update: IBotRunUpdate) =>
+  // ── Agents ─────────────────────────────────────────────────────────────────
+  agents: {
+    poll: () => invoke<IAgentPollResult | null>('bots_poll'),
+    updateRun: (runId: string, update: IAgentRunUpdate) =>
       invoke<undefined>('bots_update_run', { runId, update }).then(() => undefined),
   },
 }
@@ -306,6 +320,17 @@ const devBridge: IDesktopBridge = {
   // ── Chat ─────────────────────────────────────────────────────────────────
   chat: {
     send: async (message: string, options?: IAiRequestOptions) => {
+      // Return a synthetic stub when mock AI is enabled in developer settings.
+      const devState = useDevSettingsStore.getState()
+      if (devState.enabled && devState.mockAiResponses) {
+        const reply = '[Mock] Synthetic AI response — disable "Mock AI responses" in Settings → Developer to use a real provider.'
+        for (const char of reply) {
+          _streamHandler?.(char)
+          await new Promise<void>((resolve) => { setTimeout(resolve, 10) })
+        }
+        return { output: reply }
+      }
+
       // If a BYOK key is configured, call the AI provider directly.
       if (options?.apiKey && options.provider) {
         const output = await callDevProvider(
@@ -350,15 +375,21 @@ const devBridge: IDesktopBridge = {
     install: (): Promise<void> => Promise.resolve(),
     uninstall: (): Promise<void> => Promise.resolve(),
 
-    invokeTool: (moduleId: string, toolName: string): Promise<unknown> => {
-      // Dev-mode stub — module tool invocation requires a live Tauri + backend session.
-      throw new Error(`[Dev mode] Module tool ${moduleId}/${toolName} is not available without the full app.`)
+    invokeTool: (moduleId: string, toolName: string, input?: Record<string, unknown>): Promise<unknown> => {
+      const mm = getModuleManager()
+      if (!mm) return Promise.reject(new Error(`[Dev mode] Module manager not initialised yet — tool ${moduleId}/${toolName} cannot run.`))
+      return mm.runTool(moduleId, toolName, input ?? {})
     },
   },
 
   // ── AI ───────────────────────────────────────────────────────────────────
   ai: {
     generate: async (capability: string, input: string, _context?: Record<string, unknown>, options?: IAiRequestOptions): Promise<{ output: string; tokensUsed: number }> => {
+      const devState = useDevSettingsStore.getState()
+      if (devState.enabled && devState.mockAiResponses) {
+        return { output: `[Mock] Synthetic ${capability} response — disable "Mock AI responses" in Settings → Developer to use a real provider.`, tokensUsed: 0 }
+      }
+
       if (options?.apiKey && options.provider) {
         const prompt = `[${capability}] ${input}`
         const output = await callDevProvider(options.provider, options.apiKey, prompt, undefined, options.model)
@@ -384,7 +415,7 @@ const devBridge: IDesktopBridge = {
   health: {
     check: async () => {
       try {
-        const res = await fetch(`${DEV_GATEWAY}/health/detailed`)
+        const res = await fetch(`${getGatewayBase()}/health/detailed`)
         if (!res.ok) return { status: 'degraded' as const, components: {}, timestamp: new Date().toISOString() }
         return res.json() as Promise<{ status: 'ok' | 'degraded' | 'down'; components: Record<string, string>; timestamp: string }>
       } catch {
@@ -403,7 +434,7 @@ const devBridge: IDesktopBridge = {
       }),
 
     login: async (clientId: string, clientSecret: string) => {
-      const res = await fetch(`${DEV_GATEWAY}/v1/auth/token`, {
+      const res = await fetch(`${getGatewayBase()}/v1/auth/token`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ client_id: clientId, client_secret: clientSecret }),
@@ -417,7 +448,7 @@ const devBridge: IDesktopBridge = {
   // ── Usage ─────────────────────────────────────────────────────────────────
   usage: {
     summary: async () => {
-      const res = await fetch(`${DEV_GATEWAY}/v1/usage`, {
+      const res = await fetch(`${getGatewayBase()}/v1/usage`, {
         headers: { Authorization: `Bearer ${DEV_TOKEN}` },
       })
       if (!res.ok) return { inputTokens: 0, outputTokens: 0, windowStartUnix: 0 }
@@ -439,23 +470,23 @@ const devBridge: IDesktopBridge = {
     version: (): Promise<string> => Promise.resolve('1.0.0-dev'),
   },
 
-  // ── Bots ──────────────────────────────────────────────────────────────────
-  bots: {
-    poll: async (): Promise<IBotPollResult | null> => {
+  // ── Agents ─────────────────────────────────────────────────────────────────
+  agents: {
+    poll: async (): Promise<IAgentPollResult | null> => {
       try {
-        const res = await fetch(`${DEV_GATEWAY}/v1/bots/poll`, {
+        const res = await fetch(`${getGatewayBase()}/v1/bots/poll`, {
           headers: { Authorization: `Bearer ${DEV_TOKEN}` },
         })
         if (res.status === 204) return null
         if (!res.ok) return null
-        return res.json() as Promise<IBotPollResult>
+        return res.json() as Promise<IAgentPollResult>
       } catch {
         return null
       }
     },
 
-    updateRun: async (runId: string, update: IBotRunUpdate): Promise<void> => {
-      const res = await fetch(`${DEV_GATEWAY}/v1/bots/runs/${runId}`, {
+    updateRun: async (runId: string, update: IAgentRunUpdate): Promise<void> => {
+      const res = await fetch(`${getGatewayBase()}/v1/bots/runs/${runId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

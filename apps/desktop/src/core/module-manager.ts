@@ -1,4 +1,4 @@
-import type { IAppPackage, IModuleDefinition, IModuleManager, INotifyOptions, IToolInput, Permission } from '@ai-super-app/sdk'
+import type { IAppPackage, IModuleDefinition, IModuleManager, INotifyOptions, IToolInput, Permission } from '@agenthub/sdk'
 import type { PermissionEngine } from './permission-engine.js'
 
 /** True when running inside the Tauri WebView runtime. */
@@ -11,8 +11,8 @@ import {
   PermissionDeniedError,
   SignatureVerificationError,
   logger,
-} from '@ai-super-app/shared'
-import { isSemverCompatible } from '@ai-super-app/shared'
+} from '@agenthub/shared'
+import { isSemverCompatible } from '@agenthub/shared'
 
 const log = logger.child('ModuleManager')
 
@@ -154,10 +154,20 @@ export class ModuleManager implements IModuleManager {
       const reloadedSandbox = this.sandboxes.get(moduleId)
       const freshCtx = reloadedSandbox?.getCtx() ?? null
       if (!freshCtx) throw new ModuleNotFoundError(`Failed to activate module: ${moduleId}`)
-      return tool.run(input, freshCtx)
+      try {
+        return await tool.run(input, freshCtx)
+      } catch (err) {
+        log.error('Tool execution failed', { moduleId, toolName, err: err instanceof Error ? err.message : String(err) })
+        throw err
+      }
     }
 
-    return tool.run(input, ctx)
+    try {
+      return await tool.run(input, ctx)
+    } catch (err) {
+      log.error('Tool execution failed', { moduleId, toolName, err: err instanceof Error ? err.message : String(err) })
+      throw err
+    }
   }
 
   // ─── Private helpers ──────────────────────────────────────────────────────

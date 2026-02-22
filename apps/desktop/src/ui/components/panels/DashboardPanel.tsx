@@ -9,20 +9,19 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react'
-import { useBotStore, type IDesktopBotRun } from '../store/bot-store.js'
-import { useAuthStore } from '../store/auth-store.js'
-import type { AppView } from '../store/app-store.js'
+import { useAgentsStore, type IDesktopAgentRun } from '../../store/agents-store.js'
+import { useAuthStore } from '../../store/auth-store.js'
+import type { AppView } from '../../store/app-store.js'
 import {
   listAPIKeys,
   getDefaultKeyId,
   setDefaultKeyId as persistDefaultKeyId,
   type ILocalAPIKey,
-} from '../../sdk/api-key-store.js'
+} from '../../../sdk/api-key-store.js'
 import {
-  BOT_TEMPLATES,
-  TEMPLATE_CATEGORY_COLORS,
-  type IBotTemplate,
-} from '../store/bot-templates.js'
+  AGENT_TEMPLATES,
+  type IAgentTemplate,
+} from '../../store/agent-templates.js'
 
 // ─── Provider meta ────────────────────────────────────────────────────────────
 
@@ -168,7 +167,7 @@ const STATUS_BADGE: Record<string, string> = {
 }
 
 interface IActivityRowProps {
-  run: IDesktopBotRun
+  run: IDesktopAgentRun
   botName: string
   onOpenBot: () => void
 }
@@ -199,13 +198,13 @@ function ActivityRow({ run, botName, onOpenBot }: IActivityRowProps): React.JSX.
 // ─── Template card ────────────────────────────────────────────────────────────
 
 interface ITemplateCardProps {
-  template: IBotTemplate
+  template: IAgentTemplate
   instanceCount: number
-  onCreate: (template: IBotTemplate) => void
+  onCreate: (template: IAgentTemplate) => void
 }
 
 function TemplateCard({ template, instanceCount, onCreate }: ITemplateCardProps): React.JSX.Element {
-  const colorClass = TEMPLATE_CATEGORY_COLORS[template.category]
+  const colorClass = template.colorClass
 
   return (
     <div
@@ -218,7 +217,7 @@ function TemplateCard({ template, instanceCount, onCreate }: ITemplateCardProps)
           {template.icon}
         </div>
         <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium ${colorClass}`}>
-          {template.category}
+          {template.name}
         </span>
       </div>
 
@@ -251,7 +250,7 @@ function TemplateCard({ template, instanceCount, onCreate }: ITemplateCardProps)
 // ─── Create from template modal ───────────────────────────────────────────────
 
 interface ICreateFromTemplateModalProps {
-  template: IBotTemplate
+  template: IAgentTemplate
   instanceCount: number
   onClose: () => void
   onCreated: (botId: string) => void
@@ -271,20 +270,20 @@ function CreateFromTemplateModal({
     setBusy(true)
     setError(null)
     try {
-      await useBotStore.getState().createBot({
+      await useAgentsStore.getState().createAgent({
         name: name.trim(),
         description: template.description,
         templateId: template.id,
       })
       // Find the newly-created bot (first in list after creation).
-      const newBot = useBotStore.getState().bots[0]
+      const newBot = useAgentsStore.getState().agents[0]
       if (newBot) onCreated(newBot.id)
       else onClose()
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       setError(msg)
       // Also push a persistent error toast so it's visible outside the modal.
-      void import('../store/app-store.js').then(({ useAppStore }) => {
+      void import('../../store/app-store.js').then(({ useAppStore }) => {
         useAppStore.getState().pushNotification({ level: 'error', title: 'Failed to create bot', body: msg })
       })
     } finally {
@@ -370,12 +369,12 @@ export interface IDashboardPanelProps {
  */
 export function DashboardPanel({ onNavigate }: IDashboardPanelProps): React.JSX.Element {
   const { user } = useAuthStore()
-  const bots       = useBotStore((s) => s.bots)
-  const runs       = useBotStore((s) => s.runs)
+  const bots       = useAgentsStore((s) => s.agents)
+  const runs       = useAgentsStore((s) => s.runs)
 
   const [apiKeys, setApiKeys]               = useState<ILocalAPIKey[]>([])
   const [defaultKeyId, setDefaultKeyId]     = useState<string | null>(null)
-  const [activeTemplate, setActiveTemplate] = useState<IBotTemplate | null>(null)
+  const [activeTemplate, setActiveTemplate] = useState<IAgentTemplate | null>(null)
 
   // Load API keys + default key on mount.
   useEffect(() => {
@@ -385,7 +384,7 @@ export function DashboardPanel({ onNavigate }: IDashboardPanelProps): React.JSX.
       setApiKeys(keys)
       setDefaultKeyId(def)
     })()
-    void useBotStore.getState().loadBots()
+    void useAgentsStore.getState().loadAgents()
   }, [])
 
   // ── Derived stats ────────────────────────────────────────────────────────────
@@ -406,14 +405,14 @@ export function DashboardPanel({ onNavigate }: IDashboardPanelProps): React.JSX.
   }, [])
 
   const handleOpenBot = useCallback((botId: string) => {
-    useBotStore.getState().selectBot(botId)
-    onNavigate('bot-run')
+    useAgentsStore.getState().selectAgent(botId)
+    onNavigate('agent-run')
   }, [onNavigate])
 
   const handleTemplateCreated = useCallback((botId: string) => {
     setActiveTemplate(null)
-    useBotStore.getState().selectBot(botId)
-    onNavigate('bot-run')
+    useAgentsStore.getState().selectAgent(botId)
+    onNavigate('agent-run')
   }, [onNavigate])
 
   const greeting = user
@@ -471,7 +470,7 @@ export function DashboardPanel({ onNavigate }: IDashboardPanelProps): React.JSX.
                   No runs yet — create a bot and hit Run to get started.
                 </p>
                 <button
-                  onClick={() => { onNavigate('bots') }}
+                  onClick={() => { onNavigate('agents') }}
                   className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-[var(--color-accent-dim)]
                              px-4 py-2 text-sm font-medium text-[var(--color-accent)]
                              transition-colors hover:bg-[var(--color-accent)] hover:text-white"
@@ -508,7 +507,7 @@ export function DashboardPanel({ onNavigate }: IDashboardPanelProps): React.JSX.
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {BOT_TEMPLATES.map((template) => {
+              {AGENT_TEMPLATES.map((template) => {
                 const instanceCount = bots.filter((b) => b.templateId === template.id).length
                 return (
                   <TemplateCard

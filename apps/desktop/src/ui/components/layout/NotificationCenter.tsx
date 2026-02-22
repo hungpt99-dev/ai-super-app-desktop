@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react'
-import { useAppStore, type INotificationEntry } from '../store/app-store.js'
+import { useAppStore, type INotificationEntry } from '../../store/app-store.js'
 
 // ─── Per-level dot colours ────────────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
 import React, { useCallback, useRef, useEffect, useState } from 'react'
-import { useChat } from '../hooks/use-chat.js'
-import type { IChatMessage } from '../hooks/use-chat.js'
+import { useChat } from '../../hooks/use-chat.js'
+import type { IChatMessage } from '../../hooks/use-chat.js'
 
 /** ChatWindow — chat-first interface, the core UX surface. */
 export function ChatWindow(): React.JSX.Element {

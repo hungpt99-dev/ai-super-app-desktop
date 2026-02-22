@@ -1,5 +1,5 @@
 {
-  "name": "@ai-super-app/desktop",
+  "name": "@agenthub/desktop",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -11,8 +11,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@ai-super-app/sdk": "*",
-    "@ai-super-app/shared": "*",
+    "@agenthub/sdk": "*",
+    "@agenthub/shared": "*",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-fs": "^2",
     "@tauri-apps/plugin-os": "^2.3.2",

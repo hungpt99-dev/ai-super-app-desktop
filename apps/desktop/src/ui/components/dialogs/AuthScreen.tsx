@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useAuthStore } from '../store/auth-store.js'
+import { useAuthStore } from '../../store/auth-store.js'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -198,11 +198,11 @@ function RegisterForm(): React.JSX.Element {
       <SubmitButton loading={authStore.isLoading}>Create account</SubmitButton>
       <p className="text-center text-[11px] leading-relaxed text-[var(--color-text-muted)]">
         By creating an account you agree to our{' '}
-        <a href="https://ai-superapp.com/terms" target="_blank" rel="noopener noreferrer" className="underline hover:text-[var(--color-accent)]">
+        <a href="https://agenthub.com/terms" target="_blank" rel="noopener noreferrer" className="underline hover:text-[var(--color-accent)]">
           Terms of Service
         </a>{' '}
         and{' '}
-        <a href="https://ai-superapp.com/privacy" target="_blank" rel="noopener noreferrer" className="underline hover:text-[var(--color-accent)]">
+        <a href="https://agenthub.com/privacy" target="_blank" rel="noopener noreferrer" className="underline hover:text-[var(--color-accent)]">
           Privacy Policy
         </a>.
       </p>
@@ -234,7 +234,7 @@ export function AuthScreen({ onClose }: IAuthScreenProps): React.JSX.Element {
           <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--color-accent)] to-purple-600 text-3xl font-bold text-white shadow-xl">
             ✦
           </div>
-          <h1 className="text-xl font-bold text-[var(--color-text-primary)]">AI SuperApp</h1>
+          <h1 className="text-xl font-bold text-[var(--color-text-primary)]">AgentHub</h1>
           <p className="mt-1 text-sm text-[var(--color-text-muted)]">Your real AI assistant, on your device</p>
         </div>
 

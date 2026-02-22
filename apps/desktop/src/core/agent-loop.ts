@@ -12,7 +12,7 @@
  * Call `stopAgentLoop()` on logout or app close.
  */
 
-import { logger } from '@ai-super-app/shared'
+import { logger } from '@agenthub/shared'
 import {
   agentDeviceApi,
   getStoredDeviceId,
@@ -142,7 +142,7 @@ async function executeNextRun(): Promise<void> {
   let runId: string | null = null
 
   try {
-    const run = await bridge.bots.poll()
+    const run = await bridge.agents.poll()
     if (!run) {
       // Empty queue — increase backoff.
       emptyPollStreak = Math.min(emptyPollStreak + 1, 6) // cap at 2^6 = 64× base
@@ -157,7 +157,7 @@ async function executeNextRun(): Promise<void> {
     useAgentStore.getState().setStatus('running')
     log.info(`Executing run ${run.run_id} | bot_type: ${run.bot_type} | goal: "${run.goal}"`)
 
-    await bridge.bots.updateRun(run.run_id, { status: 'running', steps: 0 })
+    await bridge.agents.updateRun(run.run_id, { status: 'running', steps: 0 })
 
     // Dispatch to the appropriate module tool.
     // The module is responsible for the shape of its own result object.
@@ -176,7 +176,7 @@ async function executeNextRun(): Promise<void> {
     } catch (toolErr) {
       // Tool failure is captured as a structured error in the result.
       output = { error: String(toolErr) }
-      await bridge.bots.updateRun(run.run_id, {
+      await bridge.agents.updateRun(run.run_id, {
         status: 'failed',
         steps,
         result: output,
@@ -186,7 +186,7 @@ async function executeNextRun(): Promise<void> {
       return
     }
 
-    await bridge.bots.updateRun(run.run_id, {
+    await bridge.agents.updateRun(run.run_id, {
       status: 'completed',
       steps,
       result: output,
@@ -197,7 +197,7 @@ async function executeNextRun(): Promise<void> {
     log.warn(`Run execution error: ${String(err)}`)
     if (runId !== null) {
       try {
-        await bridge.bots.updateRun(runId, {
+        await bridge.agents.updateRun(runId, {
           status: 'failed',
           steps: 0,
           result: { error: String(err) },

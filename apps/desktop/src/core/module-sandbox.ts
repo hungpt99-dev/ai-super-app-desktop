@@ -1,4 +1,4 @@
-import type { IModuleContext, IModuleDefinition, INotifyOptions } from '@ai-super-app/sdk'
+import type { IModuleContext, IModuleDefinition, INotifyOptions } from '@agenthub/sdk'
 import type { PermissionEngine } from './permission-engine.js'
 import { SandboxedAiClient } from '../sdk/sandboxed-ai-client.js'
 import { SandboxedStorage } from '../sdk/sandboxed-storage.js'
@@ -8,7 +8,7 @@ import { SandboxedComputer } from '../sdk/sandboxed-computer.js'
 import { SandboxedMemory } from '../sdk/sandboxed-memory.js'
 import { SandboxedHttp } from '../sdk/sandboxed-http.js'
 import { SandboxedLogger } from '../sdk/sandboxed-logger.js'
-import { logger } from '@ai-super-app/shared'
+import { logger } from '@agenthub/shared'
 
 const log = logger.child('ModuleSandbox')
 

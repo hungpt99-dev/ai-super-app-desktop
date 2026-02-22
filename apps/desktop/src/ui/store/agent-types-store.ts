@@ -7,7 +7,7 @@
 
 import { create } from 'zustand'
 
-const INSTALLED_TYPES_KEY = 'ai-superapp:installed-bot-types'
+const INSTALLED_TYPES_KEY = 'agenthub:installed-agent-types'
 
 function readInstalled(): string[] {
   try {
@@ -21,7 +21,7 @@ function writeInstalled(ids: string[]): void {
   try { localStorage.setItem(INSTALLED_TYPES_KEY, JSON.stringify(ids)) } catch { /* ignore */ }
 }
 
-interface IBotTypeStore {
+interface IAgentTypesStore {
   /** IDs of downloadable bot types that have been installed from the Store. */
   installedTypeIds: string[]
   /** Install a bot type by ID. Idempotent. */
@@ -32,7 +32,7 @@ interface IBotTypeStore {
   isInstalled(id: string): boolean
 }
 
-export const useBotTypeStore = create<IBotTypeStore>((set, get) => ({
+export const useAgentTypesStore = create<IAgentTypesStore>((set, get) => ({
   installedTypeIds: readInstalled(),
 
   installType: (id) => {

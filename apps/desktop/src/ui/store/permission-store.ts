@@ -1,6 +1,6 @@
 import { create } from 'zustand'
-import { Permission } from '@ai-super-app/sdk'
-import { logger } from '@ai-super-app/shared'
+import { Permission } from '@agenthub/sdk'
+import { logger } from '@agenthub/shared'
 
 const log = logger.child('PermissionStore')
 
@@ -43,7 +43,7 @@ export const PERMISSION_META: Record<Permission, IPermissionMeta> = {
 
 // ── localStorage persistence ─────────────────────────────────────────────────
 
-const STORAGE_KEY = 'ai-superapp-permission-grants'
+const STORAGE_KEY = 'agenthub-permission-grants'
 
 function loadStoredGrants(): Record<string, Permission[]> {
   try {
@@ -62,7 +62,7 @@ function saveStoredGrants(grants: Record<string, Permission[]>): void {
   }
 }
 
-const BLOCKED_KEY = 'ai-superapp-blocked-permissions'
+const BLOCKED_KEY = 'agenthub-blocked-permissions'
 
 function loadBlockedPermissions(): Set<Permission> {
   try {

@@ -1,7 +1,7 @@
-import type { IUIAPI, INotifyOptions } from '@ai-super-app/sdk'
-import { Permission } from '@ai-super-app/sdk'
+import type { IUIAPI, INotifyOptions } from '@agenthub/sdk'
+import { Permission } from '@agenthub/sdk'
 import type { PermissionEngine } from '../core/permission-engine.js'
-import { logger } from '@ai-super-app/shared'
+import { logger } from '@agenthub/shared'
 
 const log = logger.child('SandboxedUI')
 

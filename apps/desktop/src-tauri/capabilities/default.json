@@ -1,6 +1,6 @@
 {
   "identifier": "default",
-  "description": "Default capabilities for AI SuperApp desktop",
+  "description": "Default capabilities for AgentHub desktop",
   "platforms": ["linux", "macOS", "windows"],
   "windows": ["main"],
   "permissions": [

@@ -1,7 +1,7 @@
-import type { IAiClient, IAiGenerateRequest, IAiGenerateResponse } from '@ai-super-app/sdk'
-import { Permission } from '@ai-super-app/sdk'
+import type { IAiClient, IAiGenerateRequest, IAiGenerateResponse } from '@agenthub/sdk'
+import { Permission } from '@agenthub/sdk'
 import type { PermissionEngine } from '../core/permission-engine.js'
-import { logger } from '@ai-super-app/shared'
+import { logger } from '@agenthub/shared'
 import { AiSdkProxy } from './ai-sdk-proxy.js'
 
 const log = logger.child('SandboxedAiClient')

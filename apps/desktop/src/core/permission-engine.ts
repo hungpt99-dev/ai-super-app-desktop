@@ -1,6 +1,6 @@
-import type { IPermissionEngine, Permission } from '@ai-super-app/sdk'
-import { PermissionDeniedError } from '@ai-super-app/shared'
-import { logger } from '@ai-super-app/shared'
+import type { IPermissionEngine, Permission } from '@agenthub/sdk'
+import { PermissionDeniedError } from '@agenthub/shared'
+import { logger } from '@agenthub/shared'
 
 const log = logger.child('PermissionEngine')
 

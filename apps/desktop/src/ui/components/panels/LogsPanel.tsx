@@ -6,7 +6,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useLogStore, type ILogEntry, type LogLevel, type LogSource } from '../store/log-store.js'
+import { useLogStore, type ILogEntry, type LogLevel, type LogSource } from '../../store/log-store.js'
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -25,10 +25,11 @@ const SOURCE_META: Record<LogSource, { label: string; color: string }> = {
   agent:        { label: 'agent',      color: 'text-cyan-400' },
   auth:         { label: 'auth',       color: 'text-orange-400' },
   'group-chat': { label: 'group-chat', color: 'text-yellow-400' },
+  router:       { label: 'router',     color: 'text-sky-400' },
 }
 
 const ALL_LEVELS:  LogLevel[]  = ['debug', 'info', 'warn', 'error']
-const ALL_SOURCES: LogSource[] = ['system', 'chat', 'ai', 'bot', 'agent', 'auth', 'group-chat']
+const ALL_SOURCES: LogSource[] = ['system', 'chat', 'ai', 'bot', 'agent', 'auth', 'group-chat', 'router']
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

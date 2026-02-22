@@ -1,29 +1,24 @@
 /**
- * FeatureGrid.tsx — "Bots" tab
+ * FeatureGrid.tsx — "Bots" tab (thin shell)
  *
  * Layout
  * ──────
  * 1. All Bot Types  — one card per template; shows bot count and "+ Add Bot" CTA.
  * 2. My Bots        — flat list of all bot instances (newest-first).
  *
- * Creating a bot is a 2-step wizard:
- *   Step 1 — Pick a bot type (required; or choose "Custom").
- *   Step 2 — Customise name + description (pre-filled from the type).
+ * Modals live in components/dialogs/:
+ *   - CreateAgentModal  — 2-step wizard (pick type → configure)
+ *   - SideloadAgentModal — dev-mode package installer
  */
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { useBotStore, type IDesktopBot } from '../store/bot-store.js'
-import { useAuthStore } from '../store/auth-store.js'
-import {
-  BOT_TEMPLATES,
-  BOT_TYPE_CATALOG,
-  TEMPLATE_CATEGORY_COLORS,
-  type IBotTemplate,
-} from '../store/bot-templates.js'
-import { useBotTypeStore } from '../store/bot-type-store.js'
-
-
-const CUSTOM_TYPE_ID = '__custom__'
+import { useAgentsStore, type IDesktopAgent } from '../../store/agents-store.js'
+import { AGENT_TEMPLATES, type IAgentTemplate } from '../../store/agent-templates.js'
+import { useAgentTypesStore } from '../../store/agent-types-store.js'
+import { useDevSettingsStore } from '../../store/dev/dev-settings-store.js'
+import { useDevSideloadStore } from '../../store/dev/dev-sideload-store.js'
+import { CreateAgentModal } from '../dialogs/CreateAgentModal.js'
+import { SideloadAgentModal } from '../dialogs/SideloadAgentModal.js'
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -31,230 +26,10 @@ interface IFeatureGridProps {
   onOpenModule: (moduleId: string) => void
 }
 
-// ─── 2-step Create Bot Modal ──────────────────────────────────────────────────
-
-type CreateStep = 'pick-type' | 'configure'
-
-interface ICreateBotModalProps {
-  /** Pre-select this template and jump straight to step 2. */
-  initialTemplateId?: string
-  /** All available templates (built-in + installed from store). */
-  allTemplates: IBotTemplate[]
-  onClose: () => void
-}
-
-function CreateBotModal({ initialTemplateId, allTemplates, onClose }: ICreateBotModalProps): React.JSX.Element {
-  const startAtConfigure = initialTemplateId !== undefined
-  const [step, setStep]        = useState<CreateStep>(startAtConfigure ? 'configure' : 'pick-type')
-  const [typeId, setTypeId]    = useState<string>(initialTemplateId ?? '')
-  const [name, setName]        = useState('')
-  const [description, setDesc] = useState('')
-  const [loading, setLoading]  = useState(false)
-  const [error, setError]      = useState<string | null>(null)
-  const { user }               = useAuthStore()
-  const bots                   = useBotStore((s) => s.bots)
-
-  /** Pre-fill fields from a template. */
-  const applyType = (id: string): void => {
-    if (id === CUSTOM_TYPE_ID || id === '') {
-      setName(''); setDesc('')
-      return
-    }
-    const t = allTemplates.find((x) => x.id === id)
-    if (!t) return
-    const count = bots.filter((b) => b.templateId === id).length
-    setName(count === 0 ? t.name : `${t.name} #${String(count + 1)}`)
-    setDesc(t.description)
-  }
-
-  // Pre-fill when opened with an initial template (run once on mount).
-  useEffect(() => {
-    if (initialTemplateId !== undefined) applyType(initialTemplateId)
-  }, []) // run once on mount — applyType is stable
-
-  const handlePickType = (id: string): void => {
-    setTypeId(id)
-    applyType(id)
-    setStep('configure')
-  }
-
-  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
-    e.preventDefault()
-    if (!name.trim()) return
-    setLoading(true)
-    setError(null)
-    try {
-      await useBotStore.getState().createBot({
-        name: name.trim(),
-        description: description.trim(),
-        ...(typeId !== '' && typeId !== CUSTOM_TYPE_ID ? { templateId: typeId } : {}),
-      })
-      onClose()
-    } catch (err) {
-      setError((err as Error).message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const selectedTemplate = allTemplates.find((t) => t.id === typeId)
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl">
-
-        {/* Modal header */}
-        <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-6 py-4">
-          {step === 'configure' && !startAtConfigure && (
-            <button
-              type="button"
-              onClick={() => { setStep('pick-type') }}
-              className="rounded-lg p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
-            </button>
-          )}
-          <div className="flex-1">
-            <h2 className="text-base font-semibold text-[var(--color-text-primary)]">
-              {step === 'pick-type' ? 'Choose a bot type' : 'Configure your bot'}
-            </h2>
-            {step === 'configure' && (
-              <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
-                {selectedTemplate
-                  ? `${selectedTemplate.icon} ${selectedTemplate.name} type`
-                  : 'Custom bot — no template'}
-              </p>
-            )}
-          </div>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]"
-          >
-            ✕
-          </button>
-        </div>
-
-        {/* Step 1 — Pick type */}
-        {step === 'pick-type' && (
-          <div className="p-6">
-            {!user && (
-              <div className="mb-4 rounded-xl bg-blue-500/10 px-4 py-3 text-xs text-blue-300">
-                No sign-in needed — bots are saved locally on this device.
-              </div>
-            )}
-            <p className="mb-3 text-xs text-[var(--color-text-secondary)]">
-              Select a type. You can create as many bots of the same type as you need.
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              {allTemplates.map((t) => {
-                const count      = bots.filter((b) => b.templateId === t.id).length
-                const colorClass = TEMPLATE_CATEGORY_COLORS[t.category]
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => { handlePickType(t.id) }}
-                    className="flex flex-col items-start gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] p-4 text-left transition-all hover:border-[var(--color-accent)] hover:bg-[var(--color-surface)] hover:shadow-[0_0_0_1px_var(--color-accent-dim)]"
-                  >
-                    <div className="flex w-full items-start justify-between gap-1">
-                      <span className="text-2xl">{t.icon}</span>
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${colorClass}`}>
-                        {t.category}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-[var(--color-text-primary)]">{t.name}</p>
-                      <p className="mt-0.5 text-[11px] leading-snug text-[var(--color-text-secondary)]">
-                        {t.description}
-                      </p>
-                    </div>
-                    {count > 0 && (
-                      <p className="text-[10px] text-[var(--color-text-muted)]">
-                        {String(count)} bot{count !== 1 ? 's' : ''} created
-                      </p>
-                    )}
-                  </button>
-                )
-              })}
-
-              {/* Custom option */}
-              <button
-                type="button"
-                onClick={() => { handlePickType(CUSTOM_TYPE_ID) }}
-                className="flex flex-col items-start gap-2 rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface-2)] p-4 text-left transition-all hover:border-[var(--color-accent)] hover:bg-[var(--color-surface)]"
-              >
-                <span className="text-2xl">✏️</span>
-                <div>
-                  <p className="text-sm font-semibold text-[var(--color-text-primary)]">Custom</p>
-                  <p className="mt-0.5 text-[11px] leading-snug text-[var(--color-text-secondary)]">
-                    Start from scratch with your own setup.
-                  </p>
-                </div>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 2 — Configure */}
-        {step === 'configure' && (
-          <form onSubmit={(e) => { void handleSubmit(e) }} className="flex flex-col gap-4 p-6">
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-[var(--color-text-secondary)]">Bot name *</span>
-              <input
-                autoFocus
-                value={name}
-                onChange={(e) => { setName(e.target.value) }}
-                placeholder="e.g. Morning digest"
-                required
-                className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent)]"
-              />
-            </label>
-
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-[var(--color-text-secondary)]">Description</span>
-              <input
-                value={description}
-                onChange={(e) => { setDesc(e.target.value) }}
-                placeholder="Optional short description"
-                className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent)]"
-              />
-            </label>
-
-            {error && (
-              <p className="rounded-lg bg-[var(--color-danger)]/10 px-3 py-2 text-xs text-[var(--color-danger)]">
-                {error}
-              </p>
-            )}
-
-            <div className="flex justify-end gap-2 pt-1">
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={loading || !name.trim()}
-                className="rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
-              >
-                {loading ? 'Creating…' : 'Create Bot'}
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
-    </div>
-  )
-}
-
 // ─── Bot instance row ─────────────────────────────────────────────────────────
 
 interface IBotInstanceRowProps {
-  bot: IDesktopBot
+  bot: IDesktopAgent
   runningBotIds: string[]
   templateIcon?: string
   templateName?: string
@@ -306,7 +81,7 @@ function BotInstanceRow({ bot, runningBotIds, templateIcon, templateName, onOpen
   )
 }
 
-// ─── Unified bot-type card (same visual for agent types AND built-in bots) ─────────────
+// ─── Bot type card ────────────────────────────────────────────────────────────
 
 interface IBotTypeCardProps {
   icon: string
@@ -385,21 +160,26 @@ function BotTypeCard({
  * One bot type can power any number of bots with different names and configurations.
  */
 export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Element {
-  const bots              = useBotStore((s) => s.bots)
-  const runningBotIds     = useBotStore((s) => s.runningBotIds)
-  const installedTypeIds  = useBotTypeStore((s) => s.installedTypeIds)
+  const bots              = useAgentsStore((s) => s.agents)
+  const runningBotIds     = useAgentsStore((s) => s.runningBotIds)
+  const installedTypeIds  = useAgentTypesStore((s) => s.installedTypeIds)
+  const devEnabled         = useDevSettingsStore((s) => s.enabled)
+  const sideloadedModules  = useDevSideloadStore((s) => s.modules)
+  const removeSideloaded   = useDevSideloadStore((s) => s.removeModule)
 
-  // All bot types = built-in + installed downloadable types
-  const allTemplates = useMemo(() => [
-    ...BOT_TEMPLATES,
-    ...BOT_TYPE_CATALOG.filter((t) => installedTypeIds.includes(t.id)),
-  ], [installedTypeIds])
+  // All bot types = built-in + installed store types + dev-sideloaded modules
+  const allTemplates = useMemo<IAgentTemplate[]>(() => [
+    ...AGENT_TEMPLATES,
+    ...AGENT_TEMPLATES.filter((t) => installedTypeIds.includes(t.id)),
+    ...(devEnabled ? sideloadedModules : []),
+  ].filter((t, i, a) => a.findIndex((x) => x.id === t.id) === i), [installedTypeIds, devEnabled, sideloadedModules])
 
   const [search, setSearch]            = useState('')
   const [showCreate, setShowCreate]    = useState(false)
   const [createTemplate, setCreateTpl] = useState<string | undefined>(undefined)
+  const [showImport, setShowImport]    = useState(false)
 
-  useEffect(() => { void useBotStore.getState().loadBots() }, [])
+  useEffect(() => { void useAgentsStore.getState().loadAgents() }, [])
 
   const openCreate = (templateId?: string): void => {
     setCreateTpl(templateId)
@@ -407,8 +187,8 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
   }
 
   // Group bots by templateId — used for bot count on type cards.
-  const botsByTemplate = useMemo<Record<string, IDesktopBot[]>>(() => {
-    const map: Record<string, IDesktopBot[]> = {}
+  const botsByTemplate = useMemo<Record<string, IDesktopAgent[]>>(() => {
+    const map: Record<string, IDesktopAgent[]> = {}
     for (const t of allTemplates) map[t.id] = []
     for (const bot of bots) {
       if (bot.templateId !== undefined && bot.templateId in map) {
@@ -459,12 +239,28 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
               Create multiple bots from the same type, each with its own name.
             </p>
           </div>
-          <button
-            onClick={() => { openCreate() }}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)]"
-          >
-            + New Bot
-          </button>
+          <div className="flex items-center gap-2">
+            {devEnabled && (
+              <button
+                onClick={() => { setShowImport(true) }}
+                title="Sideload a compiled bot package (.js) — dev mode"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-amber-700/60 bg-amber-900/20 px-3 py-2 text-xs font-medium text-amber-400 transition-colors hover:bg-amber-900/40"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/>
+                  <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                Sideload Bot
+              </button>
+            )}
+            <button
+              onClick={() => { openCreate() }}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)]"
+            >
+              + New Bot
+            </button>
+          </div>
         </div>
       </div>
 
@@ -509,21 +305,31 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
                 {visibleTemplates.map((template) => {
                   const typeBots     = botsByTemplate[template.id] ?? []
                   const runningCount = typeBots.filter((b) => runningBotIds.includes(b.id)).length
+                  const isDevImported = devEnabled && sideloadedModules.some((d) => d.id === template.id)
                   return (
-                    <BotTypeCard
-                      key={template.id}
-                      icon={template.icon}
-                      label={template.name}
-                      description={template.description}
-                      badge={template.category}
-                      badgeClass={TEMPLATE_CATEGORY_COLORS[template.category]}
-                      botCount={typeBots.length}
-                      runningCount={runningCount}
-                      onAction={() => { openCreate(template.id) }}
-                    />
+                    <div key={template.id} className="relative">
+                      <BotTypeCard
+                        icon={template.icon}
+                        label={template.name}
+                        description={template.description}
+                        badge={isDevImported ? '📦 Sideloaded' : template.name}
+                        badgeClass={isDevImported ? 'bg-amber-900/40 text-amber-400' : template.colorClass}
+                        botCount={typeBots.length}
+                        runningCount={runningCount}
+                        onAction={() => { openCreate(template.id) }}
+                      />
+                      {isDevImported && (
+                        <button
+                          title="Remove sideloaded module"
+                          onClick={() => { void removeSideloaded(template.id) }}
+                          className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-surface-2)] text-[10px] text-[var(--color-text-muted)] opacity-0 transition-opacity hover:bg-red-900/40 hover:text-red-400 [.relative:hover_&]:opacity-100"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
                   )
                 })}
-
               </div>
             </section>
           )}
@@ -569,13 +375,29 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
         </div>
       </div>
 
+      {/* Dev mode: sideloaded module count banner */}
+      {devEnabled && sideloadedModules.length > 0 && (
+        <div className="shrink-0 border-t border-amber-900/30 bg-amber-950/20 px-8 py-2">
+          <p className="text-[11px] text-amber-400">
+            📦 {String(sideloadedModules.length)} sideloaded bot package{sideloadedModules.length !== 1 ? 's' : ''} active.
+            {' '}
+            <button onClick={() => { setShowImport(true) }} className="underline hover:no-underline">Manage</button>
+          </p>
+        </div>
+      )}
+
       {/* Create Bot wizard */}
       {showCreate && (
-        <CreateBotModal
+        <CreateAgentModal
           allTemplates={allTemplates}
           {...(createTemplate !== undefined ? { initialTemplateId: createTemplate } : {})}
           onClose={() => { setShowCreate(false); setCreateTpl(undefined) }}
         />
+      )}
+
+      {/* Dev mode: Sideload Bot Package modal */}
+      {showImport && (
+        <SideloadAgentModal onClose={() => { setShowImport(false) }} />
       )}
     </div>
   )

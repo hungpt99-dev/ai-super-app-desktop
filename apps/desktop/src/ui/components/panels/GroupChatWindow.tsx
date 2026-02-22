@@ -15,8 +15,8 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useGroupChatStore, type IGroupMessage, type IPendingPlan } from '../store/chat-group-store.js'
-import { useBotStore } from '../store/bot-store.js'
+import { useGroupChatStore, type IGroupMessage, type IPendingPlan } from '../../store/chat-group-store.js'
+import { useAgentsStore } from '../../store/agents-store.js'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -316,7 +316,7 @@ export function GroupChatWindow(): React.JSX.Element {
   const clear          = useGroupChatStore((s) => s.clear)
   const setError       = useGroupChatStore((s) => s.setError)
 
-  const bots           = useBotStore((s) => s.bots)
+  const bots           = useAgentsStore((s) => s.agents)
 
   const [input, setInput]       = useState('')
   const bottomRef               = useRef<HTMLDivElement>(null)

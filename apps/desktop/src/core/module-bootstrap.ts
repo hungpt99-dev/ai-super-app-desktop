@@ -1,8 +1,8 @@
-import type { INotifyOptions, Permission } from '@ai-super-app/sdk'
+import type { INotifyOptions, Permission } from '@agenthub/sdk'
 import { PermissionEngine } from './permission-engine.js'
 import { ModuleManager } from './module-manager.js'
 import { BUILTIN_MODULES } from './builtin-modules.js'
-import { logger } from '@ai-super-app/shared'
+import { logger } from '@agenthub/shared'
 
 const log = logger.child('ModuleBootstrap')
 

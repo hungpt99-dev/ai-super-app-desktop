@@ -31,8 +31,8 @@ import type {
   IAiClient,
   IMouseClickOptions,
   IScrollOptions,
-} from '@ai-super-app/sdk'
-import { logger } from '@ai-super-app/shared'
+} from '@agenthub/sdk'
+import { logger } from '@agenthub/shared'
 
 const log = logger.child('ComputerAgent')
 

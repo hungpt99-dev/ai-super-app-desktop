@@ -9,9 +9,9 @@
  * the module context, as it enforces permission checks.
  *
  * DB location:
- *   macOS   → ~/Library/Application Support/com.ai-super-app.desktop/memory.db
- *   Linux   → ~/.local/share/com.ai-super-app.desktop/memory.db
- *   Windows → %APPDATA%\com.ai-super-app.desktop\memory.db
+ *   macOS   → ~/Library/Application Support/com.agenthub.desktop/memory.db
+ *   Linux   → ~/.local/share/com.agenthub.desktop/memory.db
+ *   Windows → %APPDATA%\com.agenthub.desktop\memory.db
  */
 
 import { invoke } from '@tauri-apps/api/core'
@@ -21,7 +21,7 @@ import type {
   IMemoryStats,
   IMemoryUpsertInput,
   MemoryType,
-} from '@ai-super-app/sdk'
+} from '@agenthub/sdk'
 
 // ── Raw Tauri response shapes (snake_case from Rust) ──────────────────────────
 

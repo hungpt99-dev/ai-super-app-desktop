@@ -17,7 +17,7 @@
 
 import { create } from 'zustand'
 import { getDesktopBridge } from '../lib/bridge.js'
-import { useBotStore, type IDesktopBot } from './bot-store.js'
+import { useAgentsStore, type IDesktopAgent } from './agents-store.js'
 import { getDefaultKeyId, listAPIKeys } from '../../sdk/api-key-store.js'
 import { useAppStore } from './app-store.js'
 import { addLog } from './log-store.js'
@@ -95,7 +95,7 @@ interface IGroupChatState {
 
 // ─── Persistence ──────────────────────────────────────────────────────────────
 
-const STORAGE_KEY = 'ai-superapp-group-chat-v1'
+const STORAGE_KEY = 'agenthub-group-chat-v1'
 
 function persist(msgs: IGroupMessage[]): void {
   try {
@@ -136,7 +136,7 @@ async function resolveApiOptions(): Promise<{ apiKey?: string; provider?: string
   } catch { return {} }
 }
 
-function botAvatar(bot: IDesktopBot): string {
+function botAvatar(bot: IDesktopAgent): string {
   return bot.name.charAt(0).toUpperCase()
 }
 
@@ -147,10 +147,87 @@ function notifyError(title: string, err: unknown): void {
 
 // ─── Bot routing ──────────────────────────────────────────────────────────────
 
+/** Patterns that strongly suggest the user is asking about an in-progress task. */
+const STATUS_PATTERN = /\b(finished|done|completed|ready|progress|status|complete|yet|still|running)\b/i
+
+// ─── AI-powered bot router ────────────────────────────────────────────────────
+
+/** Result returned by the AI router. */
+interface IRouterDecision {
+  /** ID of the chosen bot, or null → fall back to generic AI. */
+  botId: string | null
+  /** 'action' → propose a plan card; 'conversational' → reply directly. */
+  intent: 'action' | 'conversational'
+}
+
 /**
- * ACTION_KEYWORDS: words that signal the user wants something *done*.
+ * Ask the AI to decide:
+ *   1. Which bot (by id) best fits the user's message.
+ *   2. Whether the message is an executable task or a conversational reply.
+ *
+ * The model receives a compact bot roster and must respond with a single JSON
+ * object — nothing else.  Falls back to keyword heuristics on any failure.
  */
-const ACTION_KEYWORDS = [
+async function aiPickBot(
+  text: string,
+  agents: IDesktopAgent[],
+): Promise<IRouterDecision> {
+  const active = agents.filter((b) => b.status === 'active')
+  if (active.length === 0) return { botId: null, intent: 'conversational' }
+
+  const botList = active
+    .map((b) => `- id: "${b.id}", name: "${b.name}", purpose: "${b.description}"`)
+    .join('\n')
+
+  const prompt =
+    `You are a bot router. Respond with ONLY one line of JSON — no markdown, no explanation.\n\n` +
+    `Available bots:\n${botList}\n\n` +
+    `User message: "${text.replace(/"/g, "'")}"\n\n` +
+    `Rules:\n` +
+    `- "botId": the id of the bot whose purpose best fits the message, or null if none fits well.\n` +
+    `- "intent": "action" when the user wants something DONE (run, create, analyze, write, fix, deploy, fetch, generate, etc.), ` +
+    `"conversational" for questions or chat.\n\n` +
+    `Respond with exactly: {"botId": "<id or null>", "intent": "<action or conversational>"}`
+
+  try {
+    const bridge = getDesktopBridge()
+    const aiOptions = await resolveApiOptions()
+    const res = await bridge.ai.generate(
+      'chat',
+      prompt,
+      undefined,
+      Object.keys(aiOptions).length > 0 ? aiOptions : undefined,
+    )
+
+    // Strip any accidental markdown fences then parse the JSON object.
+    const match = res.output.match(/\{[\s\S]*?\}/)
+    if (!match) throw new Error('Router returned no JSON')
+
+    const parsed = JSON.parse(match[0]) as { botId?: string | null; intent?: string }
+    const chosenId = typeof parsed.botId === 'string' ? parsed.botId : null
+    const chosenBot = chosenId ? active.find((b) => b.id === chosenId) : null
+
+    addLog({
+      level: 'info',
+      source: 'router',
+      message: `AI routed → bot: ${chosenBot?.name ?? 'none'}, intent: ${parsed.intent ?? '?'}`,
+      detail: text.length > 120 ? `${text.slice(0, 120)}…` : text,
+    })
+
+    return {
+      botId: chosenBot?.id ?? null,
+      intent: parsed.intent === 'action' ? 'action' : 'conversational',
+    }
+  } catch {
+    // AI unavailable or parse error — fall back silently to keyword heuristics.
+    addLog({ level: 'warn', source: 'router', message: 'AI router failed — using keyword fallback' })
+    return _keywordFallback(text, active)
+  }
+}
+
+// ─── Keyword fallback (used when the AI router is unavailable) ─────────────────
+
+const _ACTION_KW = [
   'run', 'execute', 'do', 'start', 'check', 'analyze', 'analyse', 'search',
   'generate', 'create', 'write', 'fetch', 'monitor', 'scan', 'review',
   'update', 'send', 'find', 'get', 'make', 'build', 'show me', 'give me',
@@ -158,50 +235,34 @@ const ACTION_KEYWORDS = [
   'track', 'watch', 'go ahead', 'proceed', 'document', 'list', 'export',
   'deploy', 'test', 'fix', 'debug', 'refactor', 'migrate', 'install',
 ]
-const INFO_PATTERN = /^(what is|what's|who is|who's|why |when |how does|how do|explain|describe|is it|are you|can you|could you tell)/i
-/** Patterns that strongly suggest the user is asking about an in-progress task. */
-const STATUS_PATTERN = /\b(finished|done|completed|ready|progress|status|complete|yet|still|running)\b/i
+const _INFO_PATTERN = /^(what is|what's|who is|who's|why |when |how does|how do|explain|describe|is it|are you|can you|could you tell)/i
 
-/**
- * Score how well a bot description matches the user's text.
- * Returns a float in [0, 1].
- */
-function scoreBotMatch(bot: IDesktopBot, text: string): number {
+function _scoreBotMatch(bot: IDesktopAgent, text: string): number {
   const lower = text.toLowerCase()
   const desc  = bot.description.toLowerCase()
   const name  = bot.name.toLowerCase()
-
-  // Collect significant words from the user message (len >= 4).
   const userWords = lower.split(/\W+/).filter((w) => w.length >= 4)
   const descWords = desc.split(/\W+/).filter((w) => w.length >= 4)
   const nameWords = name.split(/\W+/).filter((w) => w.length >= 3)
-
   let hits = 0
   for (const uw of userWords) {
     if (descWords.some((dw) => dw.includes(uw) || uw.includes(dw))) hits += 1
     if (nameWords.some((nw) => nw.includes(uw) || uw.includes(nw))) hits += 1.5
   }
-
-  const maxPossible = Math.max(userWords.length * 2.5, 1)
-  return Math.min(hits / maxPossible, 1)
+  return Math.min(hits / Math.max(userWords.length * 2.5, 1), 1)
 }
 
-/**
- * Pick the most relevant active bot for the given message.
- * Returns undefined when no bot has a meaningful relevance score (< 0.1).
- */
-function pickBot(bots: IDesktopBot[], text: string): IDesktopBot | undefined {
-  const active = bots.filter((b) => b.status === 'active')
-  if (active.length === 0) return undefined
-
-  let best: IDesktopBot | undefined
+function _keywordFallback(text: string, active: IDesktopAgent[]): IRouterDecision {
+  const lower = text.toLowerCase()
+  const isAction = !_INFO_PATTERN.test(lower) && _ACTION_KW.some((w) => lower.includes(w))
+  let best: IDesktopAgent | undefined
   let bestScore = 0
   for (const b of active) {
-    const s = scoreBotMatch(b, text)
+    const s = _scoreBotMatch(b, text)
     if (s > bestScore) { bestScore = s; best = b }
   }
-
-  return bestScore >= 0.1 ? best : active[0]
+  const chosen = bestScore >= 0.1 ? best : active[0]
+  return { botId: chosen?.id ?? null, intent: isAction ? 'action' : 'conversational' }
 }
 
 /**
@@ -212,8 +273,8 @@ function pickBot(bots: IDesktopBot[], text: string): IDesktopBot | undefined {
 function findOwnerBot(
   text: string,
   ownership: TaskOwnership,
-  bots: IDesktopBot[],
-): IDesktopBot | undefined {
+  agents: IDesktopAgent[],
+): IDesktopAgent | undefined {
   if (!STATUS_PATTERN.test(text)) return undefined
 
   // Look for a bot whose owned topic has keywords that appear in the message.
@@ -221,7 +282,7 @@ function findOwnerBot(
   for (const [botId, topic] of Object.entries(ownership)) {
     const topicWords = topic.toLowerCase().split(/\W+/).filter((w) => w.length >= 4)
     if (topicWords.some((tw) => lower.includes(tw))) {
-      return bots.find((b) => b.id === botId)
+      return agents.find((b) => b.id === botId)
     }
   }
   return undefined
@@ -243,7 +304,7 @@ const TEMPLATE_STEPS: Record<string, string[]> = {
 }
 const DEFAULT_STEPS = ['Initialise task', 'Process request', 'Execute with AI', 'Review output', 'Complete & save']
 
-function buildPlanSteps(bot: IDesktopBot): string[] {
+function buildPlanSteps(bot: IDesktopAgent): string[] {
   return TEMPLATE_STEPS[bot.templateId ?? ''] ?? DEFAULT_STEPS
 }
 
@@ -270,35 +331,34 @@ export const useGroupChatStore = create<IGroupChatState>((set, get) => ({
     persist(next)
     set({ messages: next, error: null })
 
-    const { bots } = useBotStore.getState()
-    const lower = text.toLowerCase()
-    const isAction = !INFO_PATTERN.test(lower) && ACTION_KEYWORDS.some((w) => lower.includes(w))
+    const { agents } = useAgentsStore.getState()
 
-    // ── Status query: check if a bot owns the topic ───────────────────────────
-    const ownerBot = findOwnerBot(text, get().taskOwnership, bots)
+    // ── Status query: check if an agent already owns this topic ───────────────
+    const ownerBot = findOwnerBot(text, get().taskOwnership, agents)
     if (ownerBot) {
       await _botStatusReply(ownerBot, text, get, set)
       return
     }
 
-    // ── Action intent: pick the best bot and propose a plan ───────────────────
-    if (isAction) {
-      const bot = pickBot(bots, text)
-      if (!bot) {
+    // ── AI-powered routing: decide which agent + action vs conversation ───────
+    const decision = await aiPickBot(text, agents)
+    const chosenBot = decision.botId ? agents.find((b) => b.id === decision.botId) : undefined
+
+    if (decision.intent === 'action') {
+      if (!chosenBot) {
         _postSystem(set, get, '⚠️ No active bots available. Create a bot in the **Bots** tab first.')
         return
       }
-      await _botProposePlan(bot, text, get, set)
+      await _botProposePlan(chosenBot, text, get, set)
       return
     }
 
-    // ── Conversational: best-fit bot answers directly ─────────────────────────
-    const bot = pickBot(bots, text)
-    if (!bot) {
+    // Conversational — chosen bot replies directly, or fall back to generic AI.
+    if (!chosenBot) {
       await _genericAiReply(text, get, set)
       return
     }
-    await _botConversationalReply(bot, text, get, set)
+    await _botConversationalReply(chosenBot, text, get, set)
   },
 
   confirmPlan: async (planId: string) => {
@@ -331,8 +391,8 @@ export const useGroupChatStore = create<IGroupChatState>((set, get) => ({
     // Register task ownership so follow-up questions route back here.
     set({ taskOwnership: { ...get().taskOwnership, [plan.botId]: plan.title } })
 
-    const { bots } = useBotStore.getState()
-    const bot = bots.find((b) => b.id === plan.botId)
+    const { agents } = useAgentsStore.getState()
+    const bot = agents.find((b) => b.id === plan.botId)
 
     try {
       // Animate each step as done.
@@ -426,7 +486,7 @@ function _postSystem(
 function _postBotMsg(
   set: (partial: Partial<IGroupChatState> | ((s: IGroupChatState) => Partial<IGroupChatState>)) => void,
   get: GetFn,
-  bot: IDesktopBot,
+  bot: IDesktopAgent,
   content: string,
   extra?: Partial<IGroupMessage>,
 ): void {
@@ -445,7 +505,7 @@ function _postBotMsg(
   set({ messages: next })
 }
 
-async function _botAiOptions(bot: IDesktopBot | undefined): Promise<{ apiKey?: string; provider?: string; model?: string } | undefined> {
+async function _botAiOptions(bot: IDesktopAgent | undefined): Promise<{ apiKey?: string; provider?: string; model?: string } | undefined> {
   if (bot?.apiKey) {
     return { apiKey: bot.apiKey, ...(bot.aiProvider ? { provider: bot.aiProvider } : {}) }
   }
@@ -455,7 +515,7 @@ async function _botAiOptions(bot: IDesktopBot | undefined): Promise<{ apiKey?: s
 
 /** Let a bot propose a plan card for an action-intent message. */
 async function _botProposePlan(
-  bot: IDesktopBot,
+  bot: IDesktopAgent,
   userText: string,
   get: GetFn,
   set: (partial: Partial<IGroupChatState> | ((s: IGroupChatState) => Partial<IGroupChatState>)) => void,
@@ -503,7 +563,7 @@ async function _botProposePlan(
 
 /** Let a bot answer a conversational (non-action) message. */
 async function _botConversationalReply(
-  bot: IDesktopBot,
+  bot: IDesktopAgent,
   userText: string,
   get: GetFn,
   set: (partial: Partial<IGroupChatState> | ((s: IGroupChatState) => Partial<IGroupChatState>)) => void,
@@ -583,7 +643,7 @@ async function _botConversationalReply(
 
 /** Let the task-owner bot answer a status follow-up question. */
 async function _botStatusReply(
-  bot: IDesktopBot,
+  bot: IDesktopAgent,
   userText: string,
   get: GetFn,
   set: (partial: Partial<IGroupChatState> | ((s: IGroupChatState) => Partial<IGroupChatState>)) => void,

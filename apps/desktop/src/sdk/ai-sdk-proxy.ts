@@ -1,5 +1,5 @@
-import type { IAiClient, IAiGenerateRequest, IAiGenerateResponse } from '@ai-super-app/sdk'
-import { logger } from '@ai-super-app/shared'
+import type { IAiClient, IAiGenerateRequest, IAiGenerateResponse } from '@agenthub/sdk'
+import { logger } from '@agenthub/shared'
 
 const log = logger.child('AiSdkProxy')
 
@@ -38,13 +38,19 @@ export class AiSdkProxy implements IAiClient {
       return { output: res.output, model: '', tokensUsed: res.tokens_used }
     }
 
-    // Dev-mode stub — the AI generate endpoint is not available without the full app.
-    log.warn('ai.generate called in browser dev mode — returning stub')
-    return {
-      output: '[Dev mode] AI generation is not available without the full app.',
-      model: '',
-      tokensUsed: 0,
-    }
+    // Dev-mode: delegate to the desktop bridge which uses BYOK keys directly.
+    log.debug('ai.generate — dev mode, delegating to desktop bridge')
+    const { getDesktopBridge } = await import('../ui/lib/bridge.js')
+    const bridge = getDesktopBridge()
+    const res = await bridge.ai.generate(
+      request.capability,
+      request.input,
+      request.context as Record<string, unknown> | undefined,
+      request.apiKey && request.provider
+        ? { apiKey: request.apiKey, provider: request.provider }
+        : undefined,
+    )
+    return { output: res.output, model: '', tokensUsed: res.tokensUsed ?? 0 }
   }
 
   async *stream(request: IAiGenerateRequest): AsyncIterable<string> {
@@ -55,9 +61,26 @@ export class AiSdkProxy implements IAiClient {
       return
     }
 
-    // Dev-mode stub — the AI stream endpoint is not available without the full app.
-    log.warn('ai.stream called in browser dev mode — returning stub')
-    yield '[Dev mode] AI streaming is not available without the full app.'
+    // Dev-mode: delegate to the desktop bridge (BYOK streaming).
+    log.debug('ai.stream — dev mode, delegating to desktop bridge')
+    const { getDesktopBridge } = await import('../ui/lib/bridge.js')
+    const bridge = getDesktopBridge()
+    const opts = request.apiKey && request.provider
+      ? { apiKey: request.apiKey, provider: request.provider }
+      : undefined
+    const chunks: string[] = []
+    let resolve: (() => void) | null = null
+    let finished = false
+    const unsub = bridge.chat.onStream((chunk) => { chunks.push(chunk); resolve?.(); resolve = null })
+    try {
+      void bridge.chat.send(`[${request.capability}] ${request.input}`, opts).then(() => { finished = true; resolve?.(); resolve = null })
+      while (!finished || chunks.length > 0) {
+        if (chunks.length === 0) await new Promise<void>((r) => { resolve = r })
+        while (chunks.length > 0) yield chunks.shift()!
+      }
+    } finally {
+      unsub()
+    }
   }
 
   /**

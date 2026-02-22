@@ -10,23 +10,55 @@
  * • Run history — stored in localStorage for local bots; fetched from server for
  *                 cloud bots and merged with any local records.
  *
- * The store exposes a unified IDesktopBot[] regardless of auth state.
+ * The store exposes a unified IDesktopAgent[] regardless of auth state.
  * Components read `bot.synced` to decide which capabilities to offer.
  */
 
 import { create } from 'zustand'
 import { tokenStore } from '../../sdk/token-store.js'
-import { botApi, type ICreateBotInput } from '../../sdk/bot-api.js'
+import { cloudAgentsApi, type ICreateAgentInput } from '../../sdk/cloud-agents-api.js'
 import { getDesktopBridge } from '../lib/bridge.js'
 import * as LM from '../../sdk/local-memory.js'
+import { AGENT_TEMPLATES, findTemplate } from './agent-templates.js'
+import { getDefaultKeyId, listAPIKeys } from '../../sdk/api-key-store.js'
 
 /** True when running inside the full Tauri app (memory commands are available). */
 const IS_TAURI = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
 /** Build the private memory scope key for a bot. */
-const botScope = (botId: string): string => `bot:${botId}`
+const agentScope = (botId: string): string => `bot:${botId}`
 /** Build the ephemeral task scope key for a single run. */
 const taskScope = (runId: string): string => `task:${runId}`
+
+/**
+ * Resolves AI call options for a bot:
+ *   1. Per-bot key if set.
+ *   2. Global default BYOK key from api-key-store.
+ *   3. undefined (gateway / offline fallback).
+ */
+async function resolveAiOptions(
+  bot: { apiKey?: string; aiProvider?: string },
+): Promise<{ apiKey: string; provider: string; model?: string } | undefined> {
+  // 1. Bot's own key is always primary.
+  if (bot.apiKey) {
+    return {
+      apiKey: bot.apiKey,
+      provider: bot.aiProvider ?? 'openai',
+    }
+  }
+  // 2. No per-bot key — fall back to the user's global default BYOK key.
+  try {
+    const defaultId = await getDefaultKeyId()
+    if (defaultId) {
+      const keys = await listAPIKeys()
+      const entry = keys.find((k) => k.id === defaultId && k.isActive)
+      if (entry) {
+        return { apiKey: entry.rawKey, provider: entry.provider, ...(entry.model ? { model: entry.model } : {}) }
+      }
+    }
+  } catch { /* ignore — fall through to gateway */ }
+  return undefined
+}
 
 /** Push an error toast via the global app-store. Lazy import avoids circular dep. */
 function notifyError(title: string, err: unknown): void {
@@ -39,87 +71,58 @@ function notifyError(title: string, err: unknown): void {
 
 // ─── Local persistence ─────────────────────────────────────────────────────────
 
-const BOTS_KEY = 'ai-superapp-bots'
-const RUNS_KEY = 'ai-superapp-bot-runs'
-const SEEDED_KEY = 'ai-superapp:bots-seeded-v3'
+const BOTS_KEY = 'agenthub-agents'
+const RUNS_KEY = 'agenthub-agent-runs'
+/** Bump this key whenever the seed set changes to force a re-seed. */
+const SEEDED_KEY = 'agenthub:agents-seeded-v1'
 
-/** Pre-loaded bots shown on first launch so the Bots tab is never empty. */
-const DEFAULT_BOTS: IDesktopBot[] = [
-  {
-    id: 'seed-morning-digest',
-    name: 'Morning Digest',
-    description: "Summarises today's top news headlines into a quick read.",
-    status: 'active',
-    created_at: '2026-01-01T00:00:00.000Z',
+/**
+ * Generate the first-launch seed bots from the registered module templates.
+ * One bot is created per built-in module template so the Bots tab is
+ * never empty on first install — without any hardcoded bot list.
+ */
+function buildDefaultAgents(): IDesktopAgent[] {
+  const seededAt = new Date(0).toISOString() // fixed timestamp so IDs are stable across re-seeds
+  return AGENT_TEMPLATES.map((t) => ({
+    id: `seed-${t.id}`,
+    name: t.name,
+    description: t.description,
+    status: 'active' as const,
+    created_at: seededAt,
     synced: false,
-    templateId: 'daily-digest',
-  },
-  {
-    id: 'seed-btc-watch',
-    name: 'BTC Price Watch',
-    description: 'Monitors BTC/USD price and reports 5 %+ movements.',
-    status: 'active',
-    created_at: '2026-01-01T00:00:00.000Z',
-    synced: false,
-    templateId: 'price-alert',
-  },
-  {
-    id: 'seed-code-reviewer',
-    name: 'Code Reviewer',
-    description: 'Reviews the latest git commits for bugs and improvements.',
-    status: 'active',
-    created_at: '2026-01-01T00:00:00.000Z',
-    synced: false,
-    templateId: 'code-reviewer',
-  },
-  {
-    id: 'seed-crypto-analysis',
-    name: 'Crypto Analysis',
-    description: 'Live market data + AI analysis for BTC, ETH, SOL and BNB.',
-    status: 'active',
-    created_at: '2026-01-01T00:00:00.000Z',
-    synced: false,
-    templateId: 'crypto-analysis',
-  },
-  {
-    id: 'seed-writing-helper',
-    name: 'Writing Helper',
-    description: 'Improve, summarize, expand, translate, or fix grammar in any text.',
-    status: 'active',
-    created_at: '2026-01-01T00:00:00.000Z',
-    synced: false,
-    templateId: 'writing-helper',
-  },
-]
+    templateId: t.id,
+  }))
+}
 
-function readBots(): IDesktopBot[] {
+function readAgents(): IDesktopAgent[] {
   try {
     const raw = localStorage.getItem(BOTS_KEY)
-    if (raw !== null) return JSON.parse(raw) as IDesktopBot[]
-    // First launch: seed defaults so the Bots tab is never empty.
+    if (raw !== null) return JSON.parse(raw) as IDesktopAgent[]
+    // First launch: seed one bot per built-in module so the tab is never empty.
     if (!localStorage.getItem(SEEDED_KEY)) {
       localStorage.setItem(SEEDED_KEY, '1')
-      writeBots(DEFAULT_BOTS)
-      return DEFAULT_BOTS
+      const defaults = buildDefaultAgents()
+      writeAgents(defaults)
+      return defaults
     }
     return []
   } catch { return [] }
 }
 
-function writeBots(bots: IDesktopBot[]): void {
+function writeAgents(bots: IDesktopAgent[]): void {
   try { localStorage.setItem(BOTS_KEY, JSON.stringify(bots)) } catch { /* ignore */ }
 }
 
-function readRuns(): Record<string, IDesktopBotRun[]> {
-  try { return JSON.parse(localStorage.getItem(RUNS_KEY) ?? '{}') as Record<string, IDesktopBotRun[]> }
+function readRuns(): Record<string, IDesktopAgentRun[]> {
+  try { return JSON.parse(localStorage.getItem(RUNS_KEY) ?? '{}') as Record<string, IDesktopAgentRun[]> }
   catch { return {} }
 }
 
-function writeRuns(runs: Record<string, IDesktopBotRun[]>): void {
+function writeRuns(runs: Record<string, IDesktopAgentRun[]>): void {
   try { localStorage.setItem(RUNS_KEY, JSON.stringify(runs)) } catch { /* ignore */ }
 }
 
-const CHAT_KEY = 'ai-superapp-bot-chat'
+const CHAT_KEY = 'agenthub-agent-chat'
 
 function readChat(): Record<string, IChatMessage[]> {
   try { return JSON.parse(localStorage.getItem(CHAT_KEY) ?? '{}') as Record<string, IChatMessage[]> }
@@ -160,7 +163,7 @@ export interface IChatMessage {
  * `{ key: 'password', value: 's3cr3t', masked: true }`.
  * Stored in localStorage only — never sent to the server.
  */
-export interface IBotCredential {
+export interface IAgentCredential {
   /** Human-readable key name, e.g. "email", "password", "auth_token". */
   key: string
   /** The credential value. */
@@ -170,7 +173,7 @@ export interface IBotCredential {
 }
 
 /** A bot as presented by the desktop UI — may be local-only or cloud-backed. */
-export interface IDesktopBot {
+export interface IDesktopAgent {
   id: string
   name: string
   description: string
@@ -194,11 +197,11 @@ export interface IDesktopBot {
    * Named credentials (e.g. login email/password, API tokens) the bot needs to
    * interact with external services. Stored locally only — never sent to the server.
    */
-  credentials?: IBotCredential[]
+  credentials?: IAgentCredential[]
 }
 
 /** A run record — may live in localStorage or be fetched from the server. */
-export interface IDesktopBotRun {
+export interface IDesktopAgentRun {
   id: string
   bot_id: string
   status: RunStatus
@@ -215,9 +218,9 @@ export interface IDesktopBotRun {
   logs?: string[]
 }
 
-interface IBotStore {
-  bots: IDesktopBot[]
-  runs: Record<string, IDesktopBotRun[]>
+interface IAgentsStore {
+  agents: IDesktopAgent[]
+  runs: Record<string, IDesktopAgentRun[]>
   /** Per-bot conversation history, persisted in localStorage. */
   chatHistory: Record<string, IChatMessage[]>
   selectedBotId: string | null
@@ -229,11 +232,11 @@ interface IBotStore {
   error: string | null
 
   /** Load bots: local always; merged with cloud when authenticated. */
-  loadBots(): Promise<void>
+  loadAgents(): Promise<void>
   /** Create a bot. On server when authenticated, otherwise local-only. */
-  createBot(input: ICreateBotInput & { templateId?: string }): Promise<void>
+  createAgent(input: ICreateAgentInput & { templateId?: string }): Promise<void>
   /** Delete a bot. Removes from server when synced. */
-  deleteBot(id: string): Promise<void>
+  deleteAgent(id: string): Promise<void>
   /** Toggle active ↔ paused. Updates server when synced. */
   toggleStatus(id: string): Promise<void>
   /**
@@ -241,7 +244,7 @@ interface IBotStore {
    * • Cloud bot (synced + authenticated): queues on server; agent-loop executes it.
    * • Local bot: executes step-by-step via bridge and posts result to chat history.
    */
-  runBot(id: string): Promise<void>
+  runAgent(id: string): Promise<void>
   /** Send a chat message to a bot and receive an AI reply. */
   sendMessage(botId: string, content: string): Promise<void>
   /**
@@ -259,31 +262,31 @@ interface IBotStore {
   /** Clear ALL bot conversation histories — used by the Privacy settings. */
   clearAllChats(): void
   /** Remove the per-bot API key override and persist the change. */
-  clearBotApiKey(id: string): void
+  clearAgentApiKey(id: string): void
   /** Remove the per-bot AI provider override and persist the change. */
-  clearBotAiProvider(id: string): void
+  clearAgentAiProvider(id: string): void
   /** Load run history for a bot (local + server when synced). */
   loadRuns(botId: string): Promise<void>
   /** Update editable fields of a bot (name, description, apiKey). Local-only for now. */
-  updateBot(id: string, patch: Partial<Pick<IDesktopBot, 'name' | 'description' | 'apiKey' | 'aiProvider'>>): Promise<void>
+  updateAgent(id: string, patch: Partial<Pick<IDesktopAgent, 'name' | 'description' | 'apiKey' | 'aiProvider'>>): Promise<void>
   /** Replace all credentials for a bot and persist locally. */
-  updateBotCredentials(id: string, credentials: IBotCredential[]): void
+  updateAgentCredentials(id: string, credentials: IAgentCredential[]): void
   /**
    * Clear the private memory scope for a bot (`bot:{id}`).
    * Soft-deletes all memory entries in that scope.
    */
-  clearBotMemory(botId: string): Promise<void>
+  clearAgentMemory(botId: string): Promise<void>
   /**
    * Return a context string built from the bot's private memory.
    * Returns an empty string when running in browser dev mode (no Tauri).
    */
-  buildBotMemoryContext(botId: string): Promise<string>
+  buildAgentMemoryContext(botId: string): Promise<string>
   /**
    * Cancel any active run for the bot — sets its status to 'cancelled' and
    * removes the bot from the running set so the UI unlocks immediately.
    */
-  stopBot(id: string): void
-  selectBot(id: string | null): void
+  stopAgent(id: string): void
+  selectAgent(id: string | null): void
   clearError(): void
 }
 
@@ -291,36 +294,19 @@ interface IBotStore {
 
 const sleep = (ms: number): Promise<void> => new Promise((res) => { setTimeout(res, ms) })
 
-/**
- * Step labels shown in the live run progress panel, keyed by templateId.
- * Each list must have exactly 5 entries.
- */
-const EXEC_STEPS: Readonly<Record<string, readonly [string, string, string, string, string]>> = {
-  'daily-digest':          ['Fetching top headlines…',       'Parsing article content…',    'Summarising each story…',         'Formatting digest…',              'Saving output…'],
-  'research-assistant':    ['Parsing research query…',       'Searching knowledge sources…', 'Extracting key facts…',           'Synthesising findings…',          'Formatting report…'],
-  'price-alert':           ['Connecting to market feed…',    'Fetching current price…',       'Comparing with 24h baseline…',    'Evaluating alert threshold…',     'Generating price report…'],
-  'crypto-analysis':       ['Connecting to market feed…',    'Fetching multi-asset data…',    'Running technical analysis…',     'Generating AI market outlook…',   'Saving analysis…'],
-  'code-reviewer':         ['Reading latest git diff…',      'Parsing code changes…',         'Detecting issues & smells…',     'Generating suggestions…',         'Formatting review…'],
-  'meeting-notes':         ['Reading transcript…',           'Identifying speakers…',         'Extracting action items…',        'Summarising discussion…',         'Saving notes…'],
-  'social-scheduler':      ['Analysing trending topics…',    'Drafting post variants…',       'Applying tone & style…',         'Reviewing drafts…',               'Saving to schedule…'],
-  'writing-helper':        ['Parsing input text…',           'Detecting language & tone…',    'Applying transformation…',        'Reviewing result quality…',       'Saving output…'],
-  'seo-analyzer':          ['Crawling target URL…',          'Parsing metadata & headings…', 'Scoring SEO factors…',            'Generating recommendations…',    'Formatting audit…'],
-  'email-drip':            ['Analysing audience segment…',   'Drafting email sequence…',      'Refining subject lines & CTAs…', 'Reviewing for tone…',             'Saving campaign drafts…'],
-  'stock-screener':        ['Connecting to market data…',    'Screening by criteria…',        'Ranking top results…',            'Analysing top picks…',            'Generating watchlist…'],
-  'competitor-tracker':    ['Loading competitor URLs…',      'Fetching page changes…',        'Detecting new content…',         'Summarising changes…',            'Saving tracker report…'],
-  'social-listener':       ['Searching social platforms…',   'Gathering brand mentions…',     'Analysing sentiment…',            'Identifying key threads…',        'Saving listener report…'],
-  'release-notes-writer':  ['Parsing git log since last tag…','Grouping commits by type…',    'Drafting release notes…',         'Polishing language…',             'Saving release notes…'],
-  'ad-copywriter':         ['Parsing product description…',  'Generating headline variants…', 'Drafting ad body copy…',          'Optimising CTAs…',                'Saving ad copy…'],
-  'bug-triage':            ['Loading open issues…',          'Classifying by severity…',      'Suggesting owners…',              'Generating triage report…',      'Saving report…'],
-}
-
-const DEFAULT_EXEC_STEPS = [
+const DEFAULT_EXEC_STEPS: readonly [string, string, string, string, string] = [
   'Initialising task…',
   'Processing task…',
   'Executing with AI…',
   'Reviewing output…',
   'Completing run…',
-] as const
+]
+
+/** Resolve execution step labels for a bot from the module registry. */
+function getExecSteps(templateId?: string): readonly [string, string, string, string, string] {
+  if (!templateId) return DEFAULT_EXEC_STEPS
+  return findTemplate(templateId)?.execSteps ?? DEFAULT_EXEC_STEPS
+}
 
 function formatResult(raw: unknown): string {
   if (raw === null || raw === undefined) return ''
@@ -337,8 +323,8 @@ function formatResult(raw: unknown): string {
 
 // ─── Store ────────────────────────────────────────────────────────────────────
 
-export const useBotStore = create<IBotStore>((set, get) => ({
-  bots: readBots(),
+export const useAgentsStore = create<IAgentsStore>((set, get) => ({
+  agents: readAgents(),
   runs: readRuns(),
   chatHistory: readChat(),
   selectedBotId: null,
@@ -347,21 +333,21 @@ export const useBotStore = create<IBotStore>((set, get) => ({
   thinkingBotIds: [],
   error: null,
 
-  loadBots: async () => {
+  loadAgents: async () => {
     set({ loading: true, error: null })
     try {
-      const local = readBots()
+      const local = readAgents()
 
       if (!tokenStore.getToken()) {
-        set({ bots: local, loading: false })
+        set({ agents: local, loading: false })
         return
       }
 
       // Authenticated: fetch cloud bots and merge with local-only bots.
-      const cloud = await botApi.list()
+      const cloud = await cloudAgentsApi.list()
       const cloudIds = new Set(cloud.map((b) => b.id))
 
-      const synced: IDesktopBot[] = cloud.map((b) => ({
+      const synced: IDesktopAgent[] = cloud.map((b) => ({
         id: b.id,
         name: b.name,
         description: b.description,
@@ -373,31 +359,31 @@ export const useBotStore = create<IBotStore>((set, get) => ({
       // Retain local-only bots that are not already on the server.
       const localOnly = local.filter((b) => !b.synced && !cloudIds.has(b.id))
       const merged = [...synced, ...localOnly]
-      writeBots(merged)
-      set({ bots: merged, loading: false })
+      writeAgents(merged)
+      set({ agents: merged, loading: false })
     } catch (err) {
       // Network failure — fall back to cached local bots.
       const msg = err instanceof Error ? err.message : String(err)
       notifyError('Failed to load bots', err)
-      set({ bots: readBots(), loading: false, error: msg })
+      set({ agents: readAgents(), loading: false, error: msg })
     }
   },
 
-  createBot: async (input) => {
+  createAgent: async (input) => {
     set({ loading: true, error: null })
     try {
       if (tokenStore.getToken()) {
-        const cloud = await botApi.create(input)
-        const bot: IDesktopBot = {
+        const cloud = await cloudAgentsApi.create(input)
+        const bot: IDesktopAgent = {
           ...cloud,
           synced: true,
           ...(input.templateId !== undefined ? { templateId: input.templateId } : {}),
         }
-        const bots = [bot, ...get().bots]
-        writeBots(bots)
-        set({ bots, loading: false })
+        const agents = [bot, ...get().agents]
+        writeAgents(agents)
+        set({ agents, loading: false })
       } else {
-        const bot: IDesktopBot = {
+        const bot: IDesktopAgent = {
           id: generateId(),
           name: input.name,
           description: input.description,
@@ -406,9 +392,9 @@ export const useBotStore = create<IBotStore>((set, get) => ({
           synced: false,
           ...(input.templateId !== undefined ? { templateId: input.templateId } : {}),
         }
-        const bots = [bot, ...get().bots]
-        writeBots(bots)
-        set({ bots, loading: false })
+        const agents = [bot, ...get().agents]
+        writeAgents(agents)
+        set({ agents, loading: false })
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -418,37 +404,36 @@ export const useBotStore = create<IBotStore>((set, get) => ({
     }
   },
 
-  deleteBot: async (id) => {
-    const bot = get().bots.find((b) => b.id === id)
+  deleteAgent: async (id) => {
+    const bot = get().agents.find((b) => b.id === id)
     if (!bot) return
+    // Best-effort cloud delete — never block local deletion on API failure.
     if (bot.synced && tokenStore.getToken()) {
       try {
-        await botApi.delete(id)
+        await cloudAgentsApi.delete(id)
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        notifyError('Failed to delete bot', err)
-        set({ error: msg })
-        return
+        notifyError('Cloud sync: failed to delete bot remotely', err)
+        // Fall through — still delete locally.
       }
     }
-    const bots = get().bots.filter((b) => b.id !== id)
+    const agents = get().agents.filter((b) => b.id !== id)
     const { [id]: _removed, ...remainingRuns } = get().runs
-    writeBots(bots)
+    writeAgents(agents)
     writeRuns(remainingRuns)
     set({
-      bots,
+      agents,
       runs: remainingRuns,
       selectedBotId: get().selectedBotId === id ? null : get().selectedBotId,
     })
   },
 
   toggleStatus: async (id) => {
-    const bot = get().bots.find((b) => b.id === id)
+    const bot = get().agents.find((b) => b.id === id)
     if (!bot) return
     const next: 'active' | 'paused' = bot.status === 'active' ? 'paused' : 'active'
     if (bot.synced && tokenStore.getToken()) {
       try {
-        await botApi.update(id, {
+        await cloudAgentsApi.update(id, {
           name: bot.name,
           description: bot.description,
           status: next,
@@ -460,15 +445,26 @@ export const useBotStore = create<IBotStore>((set, get) => ({
         return
       }
     }
-    const bots = get().bots.map((b) => (b.id === id ? { ...b, status: next } : b))
-    writeBots(bots)
-    set({ bots })
+    const agents = get().agents.map((b) => (b.id === id ? { ...b, status: next } : b))
+    writeAgents(agents)
+    set({ agents })
   },
 
-  runBot: async (id) => {
-    const bot = get().bots.find((b) => b.id === id)
+  runAgent: async (id) => {
+    const bot = get().agents.find((b) => b.id === id)
     // Per-bot lock — the same bot can't be queued twice, but different bots run freely.
     if (!bot || get().runningBotIds.includes(id)) return
+    // Reject commands when the bot has been stopped / paused.
+    if (bot.status === 'paused') {
+      void import('./app-store.js').then(({ useAppStore }) => {
+        useAppStore.getState().pushNotification({
+          level: 'warning',
+          title: `${bot.name} is paused`,
+          body: 'Activate the bot first — use the Activate button in the header or Settings tab.',
+        })
+      })
+      return
+    }
 
     set({ runningBotIds: [...get().runningBotIds, id], error: null })
 
@@ -479,7 +475,7 @@ export const useBotStore = create<IBotStore>((set, get) => ({
     // ── Cloud bot: queue on server; agent-loop handles execution ──────────────
     if (bot.synced && tokenStore.getToken()) {
       try {
-        await botApi.start(id)
+        await cloudAgentsApi.start(id)
         await get().loadRuns(id)
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
@@ -494,9 +490,9 @@ export const useBotStore = create<IBotStore>((set, get) => ({
     // ── Local bot: execute step-by-step via bridge ────────────────────────────
     const runId     = generateId()
     const startedAt = new Date().toISOString()
-    const execSteps: readonly string[] = EXEC_STEPS[bot.templateId ?? ''] ?? DEFAULT_EXEC_STEPS
+    const execSteps: readonly string[] = getExecSteps(bot.templateId)
 
-    const patchRuns = (patch: Partial<IDesktopBotRun>): void => {
+    const patchRuns = (patch: Partial<IDesktopAgentRun>): void => {
       const updated = { ...get().runs }
       updated[id] = (updated[id] ?? []).map((r) =>
         r.id === runId ? { ...r, ...patch } : r,
@@ -506,7 +502,7 @@ export const useBotStore = create<IBotStore>((set, get) => ({
     }
 
     // Insert a 'running' record immediately so the UI reacts.
-    const initialRun: IDesktopBotRun = {
+    const initialRun: IDesktopAgentRun = {
       id: runId,
       bot_id: id,
       status: 'running',
@@ -546,12 +542,10 @@ export const useBotStore = create<IBotStore>((set, get) => ({
             // Build private memory context for this bot (Tauri only).
             let memoryContext = ''
             if (IS_TAURI) {
-              try { memoryContext = await LM.memoryBuildContext({ scope: botScope(id) }) } catch { /* ignore */ }
+              try { memoryContext = await LM.memoryBuildContext({ scope: agentScope(id) }) } catch { /* ignore */ }
             }
 
-            const aiOptions = bot.apiKey
-              ? { apiKey: bot.apiKey, ...(bot.aiProvider ? { provider: bot.aiProvider } : {}) }
-              : undefined
+            const aiOptions = await resolveAiOptions(bot)
             const taskPrompt = memoryContext
               ? `${memoryContext}\n\nTask: ${bot.description}`
               : `Complete this task: ${bot.description}`
@@ -614,7 +608,7 @@ ${preview}`,
   },
 
   sendMessage: async (botId, content) => {
-    const bot = get().bots.find((b) => b.id === botId)
+    const bot = get().agents.find((b) => b.id === botId)
     if (!bot) return
 
     const pushMsg = (msg: IChatMessage): void => {
@@ -679,7 +673,7 @@ ${preview}`,
       // Pull private memory context for this bot (Tauri only).
       let memCtx = ''
       if (IS_TAURI) {
-        try { memCtx = await LM.memoryBuildContext({ scope: botScope(botId) }) } catch { /* ignore */ }
+        try { memCtx = await LM.memoryBuildContext({ scope: agentScope(botId) }) } catch { /* ignore */ }
       }
 
       const prompt = [
@@ -689,9 +683,7 @@ ${preview}`,
         `\nUser: ${content}\nBot:`,
       ].filter(Boolean).join('\n')
 
-      const aiOptions = bot.apiKey
-        ? { apiKey: bot.apiKey, ...(bot.aiProvider ? { provider: bot.aiProvider } : {}) }
-        : undefined
+      const aiOptions = await resolveAiOptions(bot)
       const ai = await bridge.ai.generate('chat', prompt, undefined, aiOptions)
 
       const reply = ai.output.startsWith('[Dev mode]')
@@ -700,9 +692,17 @@ ${preview}`,
 
       pushMsg({ id: generateId(), role: 'assistant', content: reply, ts: Date.now() })
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      notifyError(`${bot.name} encountered an error`, err)
-      pushMsg({ id: generateId(), role: 'assistant', content: `Error: ${msg}`, ts: Date.now() })
+      const raw = err instanceof Error ? err.message : String(err)
+      const isConnectionError =
+        raw.includes('error sending request') ||
+        raw.includes('Connection refused') ||
+        raw.includes('ECONNREFUSED') ||
+        raw.includes('Failed to fetch')
+      const userMsg = isConnectionError
+        ? 'Cannot reach the AI gateway. Make sure the backend is running, or add a BYOK API key in Settings.'
+        : raw
+      notifyError(`${bot.name} encountered an error`, new Error(userMsg))
+      pushMsg({ id: generateId(), role: 'assistant', content: `Error: ${userMsg}`, ts: Date.now() })
     } finally {
       set({ thinkingBotIds: get().thinkingBotIds.filter((x) => x !== botId) })
     }
@@ -721,7 +721,7 @@ ${preview}`,
       set({ chatHistory: chat })
     }
     patch('confirmed')
-    await get().runBot(botId)
+    await get().runAgent(botId)
   },
 
   dismissRun: (botId, msgId) => {
@@ -746,28 +746,28 @@ ${preview}`,
     set({ chatHistory: {} })
   },
 
-  clearBotApiKey: (id) => {
-    const bots = get().bots.map((b) => {
+  clearAgentApiKey: (id) => {
+    const agents = get().agents.map((b) => {
       if (b.id !== id) return b
       const { apiKey: _k, ...rest } = b
-      return rest as IDesktopBot
+      return rest as IDesktopAgent
     })
-    writeBots(bots)
-    set({ bots })
+    writeAgents(agents)
+    set({ agents })
   },
 
-  clearBotAiProvider: (id) => {
-    const bots = get().bots.map((b) => {
+  clearAgentAiProvider: (id) => {
+    const agents = get().agents.map((b) => {
       if (b.id !== id) return b
       const { aiProvider: _p, ...rest } = b
-      return rest as IDesktopBot
+      return rest as IDesktopAgent
     })
-    writeBots(bots)
-    set({ bots })
+    writeAgents(agents)
+    set({ agents })
   },
 
   loadRuns: async (botId) => {
-    const bot = get().bots.find((b) => b.id === botId)
+    const bot = get().agents.find((b) => b.id === botId)
     const localAll = readRuns()
     const localRuns = localAll[botId] ?? []
 
@@ -777,8 +777,8 @@ ${preview}`,
     }
 
     try {
-      const cloud = await botApi.getRuns(botId)
-      const converted: IDesktopBotRun[] = cloud.map((r) => ({
+      const cloud = await cloudAgentsApi.getRuns(botId)
+      const converted: IDesktopAgentRun[] = cloud.map((r) => ({
         id: r.id,
         bot_id: r.bot_id,
         status: r.status,
@@ -805,41 +805,45 @@ ${preview}`,
     }
   },
 
-  updateBot: (id, patch) => {
-    const bots = get().bots.map((b) => (b.id === id ? { ...b, ...patch } : b))
-    writeBots(bots)
-    set({ bots })
+  updateAgent: (id, patch) => {
+    const agents = get().agents.map((b) => (b.id === id ? { ...b, ...patch } : b))
+    writeAgents(agents)
+    set({ agents })
     return Promise.resolve()
   },
 
-  updateBotCredentials: (id, credentials) => {
-    const bots = get().bots.map((b) => (b.id === id ? { ...b, credentials } : b))
-    writeBots(bots)
-    set({ bots })
+  updateAgentCredentials: (id, credentials) => {
+    const agents = get().agents.map((b) => (b.id === id ? { ...b, credentials } : b))
+    writeAgents(agents)
+    set({ agents })
   },
 
-  clearBotMemory: async (botId) => {
+  clearAgentMemory: async (botId) => {
     if (!IS_TAURI) return
     try {
-      const entries = await LM.memoryList({ scope: botScope(botId) })
+      const entries = await LM.memoryList({ scope: agentScope(botId) })
       await Promise.all(entries.map((e) => LM.memoryDelete(e.id)))
     } catch (err) {
       notifyError('Failed to clear bot memory', err)
     }
   },
 
-  buildBotMemoryContext: async (botId) => {
+  buildAgentMemoryContext: async (botId) => {
     if (!IS_TAURI) return ''
     try {
-      return await LM.memoryBuildContext({ scope: botScope(botId) })
+      return await LM.memoryBuildContext({ scope: agentScope(botId) })
     } catch {
       return ''
     }
   },
 
-  stopBot: (id) => {
+  stopAgent: (id) => {
     // Immediately unblock the running lock so the UI responds.
     set({ runningBotIds: get().runningBotIds.filter((x) => x !== id) })
+    // Set status to paused so bot rejects all future runAgent / sendMessage calls.
+    const agents = get().agents.map((b) => b.id === id ? { ...b, status: 'paused' as const } : b)
+    writeAgents(agents)
+    set({ agents })
     // Mark any pending/running run records as cancelled.
     const allRuns = { ...get().runs }
     if (allRuns[id]) {
@@ -853,7 +857,7 @@ ${preview}`,
     }
   },
 
-  selectBot: (id) => {
+  selectAgent: (id) => {
     set({ selectedBotId: id })
     if (id !== null) void get().loadRuns(id)
   },

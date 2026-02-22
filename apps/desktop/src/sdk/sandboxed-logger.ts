@@ -10,7 +10,7 @@
  * No permission is required — logging is always available to any module.
  */
 
-import type { ILogAPI } from '@ai-super-app/sdk'
+import type { ILogAPI } from '@agenthub/sdk'
 import { addLog } from '../ui/store/log-store.js'
 
 export class SandboxedLogger implements ILogAPI {

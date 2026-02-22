@@ -1,10 +1,10 @@
 import React from 'react'
-import type { AppView } from '../store/app-store.js'
-import { useAuthStore } from '../store/auth-store.js'
-import { useAgentStore } from '../store/agent-store.js'
+import type { AppView } from '../../store/app-store.js'
+import { useAuthStore } from '../../store/auth-store.js'
+import { useAgentStore } from '../../store/agent-store.js'
 
 /** Views that map directly to a top-level nav item (excludes sub-views like crypto/writing-helper). */
-type INavView = 'dashboard' | 'chat' | 'bots' | 'activity' | 'logs' | 'api-keys' | 'settings'
+type INavView = 'dashboard' | 'chat' | 'agents' | 'store' | 'activity' | 'logs' | 'api-keys' | 'settings'
 
 interface ISidebarProps {
   activeView: AppView
@@ -29,7 +29,7 @@ const NAV_ITEMS: { id: INavView; label: string; icon: React.ReactNode }[] = [
   },
   {
     id: 'chat',
-    label: 'Chat',
+    label: 'Agent Workspace',
     icon: (
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -37,14 +37,25 @@ const NAV_ITEMS: { id: INavView; label: string; icon: React.ReactNode }[] = [
     ),
   },
   {
-    id: 'bots',
-    label: 'Bots',
+    id: 'agents',
+    label: 'Agents',
     icon: (
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="3" width="7" height="7" rx="1" />
         <rect x="14" y="3" width="7" height="7" rx="1" />
         <rect x="3" y="14" width="7" height="7" rx="1" />
         <rect x="14" y="14" width="7" height="7" rx="1" />
+      </svg>
+    ),
+  },
+  {
+    id: 'store',
+    label: 'Store',
+    icon: (
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+        <line x1="3" y1="6" x2="21" y2="6" />
+        <path d="M16 10a4 4 0 0 1-8 0" />
       </svg>
     ),
   },
@@ -93,7 +104,7 @@ const NAV_ITEMS: { id: INavView; label: string; icon: React.ReactNode }[] = [
 
 /** Returns the matching top-level nav id for a given AppView (module sub-views map to 'bots'). */
 function toNavView(view: AppView): INavView {
-  if (view === 'bot-run') return 'bots'
+  if (view === 'agent-run') return 'agents'
   return view as INavView
 }
 
@@ -123,7 +134,7 @@ export function Sidebar({ activeView, onNavigate, unreadCount, onNotifications, 
         </div>
         <div className="flex-1">
           <p className="text-sm font-semibold leading-none text-[var(--color-text-primary)]">
-            AI SuperApp
+            AgentHub
           </p>
           <p className="mt-0.5 text-[10px] text-[var(--color-text-secondary)]">Your AI OS</p>
         </div>

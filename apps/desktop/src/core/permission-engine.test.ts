@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { PermissionEngine } from './permission-engine.js'
-import { Permission } from '@ai-super-app/sdk'
-import { PermissionDeniedError } from '@ai-super-app/shared'
+import { Permission } from '@agenthub/sdk'
+import { PermissionDeniedError } from '@agenthub/shared'
 
 describe('PermissionEngine', () => {
   let engine: PermissionEngine
