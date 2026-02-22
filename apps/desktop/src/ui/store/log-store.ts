@@ -8,7 +8,7 @@
 import { create } from 'zustand'
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
-export type LogSource = 'system' | 'chat' | 'ai' | 'bot' | 'agent' | 'auth'
+export type LogSource = 'system' | 'chat' | 'ai' | 'bot' | 'agent' | 'auth' | 'group-chat'
 
 export interface ILogEntry {
   id: string

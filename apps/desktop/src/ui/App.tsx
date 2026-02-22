@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { ChatWindow } from './components/ChatWindow.js'
+import { GroupChatWindow } from './components/GroupChatWindow.js'
 import { FeatureGrid } from './components/FeatureGrid.js'
 import { Sidebar } from './components/Sidebar.js'
 import { ToastContainer } from './components/Toast.js'
@@ -140,7 +140,7 @@ export function App(): React.JSX.Element {
 
       <main className="flex h-full flex-1 flex-col overflow-hidden">
         {activeView === 'dashboard' && <DashboardPanel onNavigate={setView} />}
-        {activeView === 'chat' && <ChatWindow />}
+        {activeView === 'chat' && <GroupChatWindow />}
         {activeView === 'bots' && <FeatureGrid onOpenModule={handleOpenModule} />}
         {activeView === 'activity' && <ActivityPanel onNavigate={setView} />}
         {activeView === 'logs' && <LogsPanel />}

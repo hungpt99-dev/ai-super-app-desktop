@@ -18,16 +18,17 @@ const LEVEL_META: Record<LogLevel, { label: string; bg: string; text: string }> 
 }
 
 const SOURCE_META: Record<LogSource, { label: string; color: string }> = {
-  system: { label: 'system', color: 'text-[var(--color-text-muted)]' },
-  chat:   { label: 'chat',   color: 'text-purple-400' },
-  ai:     { label: 'ai',     color: 'text-[var(--color-accent)]' },
-  bot:    { label: 'bot',    color: 'text-green-400' },
-  agent:  { label: 'agent',  color: 'text-cyan-400' },
-  auth:   { label: 'auth',   color: 'text-orange-400' },
+  system:       { label: 'system',     color: 'text-[var(--color-text-muted)]' },
+  chat:         { label: 'chat',       color: 'text-purple-400' },
+  ai:           { label: 'ai',         color: 'text-[var(--color-accent)]' },
+  bot:          { label: 'bot',        color: 'text-green-400' },
+  agent:        { label: 'agent',      color: 'text-cyan-400' },
+  auth:         { label: 'auth',       color: 'text-orange-400' },
+  'group-chat': { label: 'group-chat', color: 'text-yellow-400' },
 }
 
 const ALL_LEVELS:  LogLevel[]  = ['debug', 'info', 'warn', 'error']
-const ALL_SOURCES: LogSource[] = ['system', 'chat', 'ai', 'bot', 'agent', 'auth']
+const ALL_SOURCES: LogSource[] = ['system', 'chat', 'ai', 'bot', 'agent', 'auth', 'group-chat']
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
