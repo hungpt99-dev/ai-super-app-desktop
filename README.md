@@ -1,62 +1,54 @@
-# AgentHub
+ # AgentHub
 
----
+ ---
 
-## Overview
+ ## One-line
 
-AgentHub is a cross-platform AI Agent Operating System, SDK, and Marketplace. It enables developers to build, publish, and distribute modular AI agents with custom logic, UI, and permission control, running on desktop and web clients.
+ AgentHub is an operating system for AI agents: a deterministic, permissioned runtime, SDK, and marketplace for building, distributing, and operating modular AI agents.
 
----
+ ---
 
-## Key Features
+ ## Why AgentHub
 
-- Modular agent runtime engine
-- SDK for agent development (Rust & TypeScript)
-- Schema-driven UI rendering
-- Permission and sandbox enforcement
-- Memory abstraction (local & shared)
-- Remote control via HTTP/WebSocket
-- Agent marketplace for distribution
-- Deterministic, persistent orchestration
+ - Standardize how agents are defined, controlled and distributed
+ - Enable developers to build digital employees (agents) and monetize them
+ - Provide users a trusted place to install and manage agent teams
 
----
+ ---
 
-## Architecture
+ ## What it includes
 
-```
-Marketplace
-   │
-Agent Package (.ahpkg)
-   │
-Agent Runtime Engine
-   │
-Transport Layer (HTTP/WS)
-   │
-Desktop Client (Tauri) / Web Client (SPA)
-```
+ - Runtime: deterministic, graph-based agent execution with snapshots and replay
+ - SDK & packages: core, execution, memory, storage, provider, sandbox, tools, network
+ - Desktop client: Tauri-based app with bridges to native storage and secrets
+ - Marketplace: agent packages (.ahpkg), signing and verification
 
----
+ ---
 
-## Getting Started
+ ## Quick start
 
-1. Build agents using the SDK
-2. Define manifest, logic, UI, and permissions
-3. Package and publish to marketplace
-4. Install and manage agents via desktop/web client
+ 1. Read the docs in `docs/` to learn the architecture and conventions
+ 2. Use the SDK in `packages/` to author an agent manifest, graph, and tools
+ 3. Package as `.ahpkg` and publish to the marketplace
+ 4. Install via the desktop or web client and manage permissions
 
----
+ ---
 
-## Documentation
+ ## Important docs
 
-- docs/vision.md — Project vision & philosophy
-- docs/technical-design.md — Technical architecture
-- docs/codebase.md — Codebase structure & rules
-- docs/agents.md — Agent specification & lifecycle
+ - `docs/vision.md` — Vision, strategy and ecosystem
+ - `docs/technical-design.md` — Architecture, runtime, memory, and security
+ - `docs/codebase.md` — Monorepo layout, import rules, and package guidelines
 
----
+ ---
 
-## License
+ ## Contribution
 
-AgentHub is open-source and welcomes community contributions.
+ Contributions welcome — follow the repository guidelines and tests in `packages/`.
 
----
+ ---
+
+ ## License
+
+ Open-source. See the repository license for details.
+
