@@ -1,4 +1,9 @@
-import type { IExecutionContext, IAgentRuntimeConfig } from '@agenthub/core'
+/**
+ * Worker Manager — dispatches and manages agent execution jobs.
+ *
+ * Uses locally defined types — NO @agenthub/core import.
+ */
+
 import type { IExecutionLifecycle } from '../lifecycle/index.js'
 import { logger } from '@agenthub/shared'
 
@@ -8,17 +13,17 @@ export interface IWorkerJob {
     executionId: string
     agentId: string
     input: Record<string, unknown>
-    config: IAgentRuntimeConfig
+    config: Record<string, unknown>
 }
 
 export interface IWorkerResult {
     executionId: string
     success: boolean
-    finalState?: IExecutionContext
+    finalState?: Record<string, unknown>
     error?: Error
 }
 
-export interface IWorkerManager {
+export interface IWorkerManagerPort {
     dispatch(job: IWorkerJob, lifecycle: IExecutionLifecycle): Promise<IWorkerResult>
     terminate(executionId: string): Promise<void>
     getStats(): { activeWorkers: number; queuedJobs: number; capacity: number }
@@ -29,7 +34,7 @@ export interface IWorkerManager {
  * Runs agent graphs asynchronously in the same Node/Renderer process.
  * Real production implementation would use worker_threads or isolated v8 contexts.
  */
-export class WorkerManager implements IWorkerManager {
+export class WorkerManager implements IWorkerManagerPort {
     private readonly capacity: number = 4
     private activeExecutionIds = new Set<string>()
 
@@ -49,7 +54,7 @@ export class WorkerManager implements IWorkerManager {
             log.info(`Starting execution job ${job.executionId} in WorkerManager`)
 
             // Wait for abort signal if triggered during execution
-            lifecycle.abortSignal.addEventListener('abort', () => {
+            lifecycle.signal.addEventListener('abort', () => {
                 log.info(`Execution job ${job.executionId} aborted`)
                 this.terminate(job.executionId)
             })
@@ -60,7 +65,7 @@ export class WorkerManager implements IWorkerManager {
 
             return {
                 executionId: job.executionId,
-                success: !lifecycle.abortSignal.aborted
+                success: !lifecycle.signal.aborted
             }
         } catch (error) {
             log.error(`Execution job ${job.executionId} failed`, { error })
@@ -77,7 +82,6 @@ export class WorkerManager implements IWorkerManager {
     async terminate(executionId: string): Promise<void> {
         if (this.activeExecutionIds.has(executionId)) {
             log.info(`Terminating execution ${executionId} from WorkerManager`)
-            // Clean up resources if necessary. The abort signal handles mostly everything.
             this.activeExecutionIds.delete(executionId)
         }
     }

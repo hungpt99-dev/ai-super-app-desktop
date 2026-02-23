@@ -4,14 +4,41 @@
     "outDir": "dist",
     "rootDir": "src",
     "jsx": "react-jsx",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["vite/client"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "types": [
+      "vite/client"
+    ],
     "module": "ESNext",
     "moduleResolution": "Bundler"
   },
-  "include": ["src/**/*"],
+  "include": [
+    "src/**/*"
+  ],
   "references": [
-    { "path": "../../packages/sdk" },
-    { "path": "../../packages/shared" }
+    {
+      "path": "../../packages/shared"
+    },
+    {
+      "path": "../../packages/sdk"
+    },
+    {
+      "path": "../../packages/core"
+    },
+    {
+      "path": "../../packages/platform"
+    },
+    {
+      "path": "../../packages/provider"
+    },
+    {
+      "path": "../../packages/sandbox"
+    },
+    {
+      "path": "../../packages/storage"
+    }
   ]
 }

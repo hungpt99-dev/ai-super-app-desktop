@@ -116,9 +116,15 @@ export class WebWorkerSandbox implements IWorkerSandbox {
     }
 }
 
-import type { ICoreSandbox } from '@agenthub/core'
+// ─── Core Sandbox Port ──────────────────────────────────────────────────────
+// Locally defined port interface — no @agenthub/core import needed.
 
-export class CoreSandboxAdapter implements ICoreSandbox {
+export interface ICoreSandboxPort {
+    execute(code: string, context: Record<string, unknown>): Promise<unknown>
+    destroy(): Promise<void>
+}
+
+export class CoreSandboxAdapter implements ICoreSandboxPort {
     private sandbox = new WebWorkerSandbox()
 
     async execute(code: string, context: Record<string, unknown>): Promise<unknown> {

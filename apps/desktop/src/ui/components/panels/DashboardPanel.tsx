@@ -19,9 +19,9 @@ import {
   type ILocalAPIKey,
 } from '../../../bridges/api-key-store.js'
 import {
-  AGENT_TEMPLATES,
+  useTemplateRegistry,
   type IAgentTemplate,
-} from '../../store/agent-templates.js'
+} from '../../store/template-registry.js'
 
 // ─── Provider meta ────────────────────────────────────────────────────────────
 
@@ -507,7 +507,7 @@ export function DashboardPanel({ onNavigate }: IDashboardPanelProps): React.JSX.
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {AGENT_TEMPLATES.map((template) => {
+              {useTemplateRegistry.getState().templates.map((template) => {
                 const instanceCount = agents.filter((b) => b.templateId === template.id).length
                 return (
                   <TemplateCard

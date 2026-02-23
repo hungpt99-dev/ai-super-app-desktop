@@ -1,8 +1,5 @@
-import { AgentRuntime, PermissionEngine, ModuleManager } from '@agenthub/core'
-// import { StorageSqliteAdapter } from '@agenthub/storage' // Node-only
-import { SqliteMemoryStore } from '@agenthub/storage'
+import { createRuntime, type IRuntimeBundle } from '@agenthub/platform'
 import { OpenaiProviderAdapter } from '@agenthub/provider'
-import { WorkerManager, GraphScheduler } from '@agenthub/execution'
 import { CoreSandboxAdapter } from '@agenthub/sandbox'
 import { AgentRuntimeTauriStorage } from '../bridges/tauri-storage.js'
 import { TauriVectorStore } from '../bridges/tauri-vector-store.js'
@@ -10,6 +7,7 @@ import { TauriMemoryStore } from '../bridges/tauri-memory-store.js'
 import { TauriSecretVault } from '../bridges/tauri-secret-vault.js'
 import { BUILTIN_MODULES } from './builtin-modules.js'
 import { logger } from '@agenthub/shared'
+import type { AgentRuntime, ModuleManager } from '@agenthub/core'
 
 class StubSandboxHandle {
   constructor(private readonly sandbox: any) { }
@@ -20,49 +18,39 @@ class StubSandboxHandle {
 
 const log = logger.child('ModuleBootstrap')
 
-let _runtime: AgentRuntime | null = null
-let _workerManager: WorkerManager | null = null
-let _scheduler: GraphScheduler | null = null
+let _bundle: IRuntimeBundle | null = null
 let _memoryManager: TauriMemoryStore | null = null
-let _moduleManager: ModuleManager | null = null
 
 export async function initAgentRuntime(): Promise<AgentRuntime> {
-  if (_runtime) return _runtime
+  if (_bundle) return _bundle.runtime
 
-  // 1. Foundation
+  // 1. Foundation — desktop-specific adapters
   const storage = new AgentRuntimeTauriStorage('agent-runtime.json')
   const provider = new OpenaiProviderAdapter('dummy-key') // Will be populated from UI vault later
   _memoryManager = new TauriMemoryStore('agent-memory.json') as any
   const vectorStore = new TauriVectorStore('agent-vectors.json')
 
-  // 3. Sandbox
+  // 2. Sandbox
   const sandbox = new CoreSandboxAdapter()
-  const permissionEngine = new PermissionEngine()
-  _moduleManager = new ModuleManager(permissionEngine as any, '1.0.0', {
-    create: () => new StubSandboxHandle(sandbox) as any
-  })
 
-  // 2. Engine Core
-  _scheduler = new GraphScheduler()
-  _workerManager = new WorkerManager()
-
-  _runtime = new AgentRuntime({
+  // 3. Create runtime via platform factory (single approved path)
+  _bundle = createRuntime({
     storage,
     provider,
     sandbox,
-    permissionEngine,
-    moduleManager: _moduleManager,
-    secretVault: new TauriSecretVault(),
     vectorStore,
-    scheduler: _scheduler
+    secretVault: new TauriSecretVault(),
+    sandboxFactory: {
+      create: () => new StubSandboxHandle(sandbox) as any
+    },
   })
 
-  log.info('AgentRuntime initialized and ready.')
-  return _runtime
+  log.info('AgentRuntime initialized via platform factory and ready.')
+  return _bundle.runtime
 }
 
 export function getAgentRuntime(): AgentRuntime | null {
-  return _runtime
+  return _bundle?.runtime ?? null
 }
 
 export function getMemoryStore(): any | null {
@@ -70,7 +58,7 @@ export function getMemoryStore(): any | null {
 }
 
 export function getModuleManager(): ModuleManager | null {
-  return _moduleManager
+  return _bundle?.moduleManager ?? null
 }
 
 // Temporary shim to support UI module listing until UI is decoupled

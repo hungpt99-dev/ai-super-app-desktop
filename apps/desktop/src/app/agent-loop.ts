@@ -22,6 +22,7 @@ import {
 import { useAgentStore } from '../ui/store/agent-store.js'
 import { tokenStore } from '../bridges/token-store.js'
 import { getDesktopBridge } from '../ui/lib/bridge.js'
+import { IS_TAURI } from '../bridges/runtime.js'
 
 const log = logger.child('AgentLoop')
 
@@ -46,9 +47,6 @@ let isExecuting = false
 let emptyPollStreak = 0
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/** True when running inside the Tauri WebView runtime. */
-const IS_TAURI = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
 /**
  * Detect the host OS.

@@ -31,7 +31,7 @@
 
 import { create } from 'zustand'
 import { getActiveModules, getModuleManager } from '../../../app/module-bootstrap.js'
-import type { IAgentTemplate } from '../agent-templates.js'
+import type { IAgentTemplate } from '../template-registry.js'
 import type { IModuleDefinition } from '@agenthub/sdk'
 
 const STORAGE_KEY = 'agenthub:dev-sideloaded-modules'
@@ -139,6 +139,10 @@ export async function sideloadFile(file: File): Promise<ISideloadResult> {
     author,
     icon: '📦',
     colorClass: 'bg-amber-900/30 text-amber-300',
+    category: 'sideloaded',
+    source: 'imported',
+    config: {},
+    tools: definition.tools.map((t) => ({ name: t.name, description: t.description })),
     execSteps: ['Initialise', 'Run tools', 'Process', 'Format output', 'Complete'],
     loadedAt: new Date().toISOString(),
     codeLoaded: true,

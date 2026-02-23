@@ -19,11 +19,19 @@ import { tokenStore } from '../../bridges/token-store.js'
 import { cloudAgentsApi, type ICreateAgentInput } from '../../bridges/cloud-agents-api.js'
 import { getDesktopBridge } from '../lib/bridge.js'
 import * as LM from '../../bridges/local-memory.js'
-import { AGENT_TEMPLATES, findTemplate } from './agent-templates.js'
+import { useTemplateRegistry, findTemplate } from './template-registry.js'
+import type { IAgentDefaultConfig } from './template-registry.js'
 import { getDefaultKeyId, listAPIKeys } from '../../bridges/api-key-store.js'
-
-/** True when running inside the full Tauri app (memory commands are available). */
-const IS_TAURI = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+import {
+  IS_TAURI,
+  generateId as runtimeGenerateId,
+  safeJsonParse,
+  migrateAgents,
+  debouncedWrite,
+  immediateWrite,
+  truncateChatHistory,
+  AGENT_SCHEMA_VERSION,
+} from '../../bridges/runtime.js'
 
 /** Build the private memory scope key for an agent. */
 const agentScope = (agentId: string): string => `agent:${agentId}`
@@ -83,7 +91,8 @@ const SEEDED_KEY = 'agenthub:agents-seeded-v1'
  */
 function buildDefaultAgents(): IDesktopAgent[] {
   const seededAt = new Date(0).toISOString() // fixed timestamp so IDs are stable across re-seeds
-  return AGENT_TEMPLATES.map((t) => ({
+  const templates = useTemplateRegistry.getState().templates
+  return templates.filter((t) => t.source === 'builtin').map((t) => ({
     id: `seed-${t.id}`,
     name: t.name,
     description: t.description,
@@ -91,50 +100,59 @@ function buildDefaultAgents(): IDesktopAgent[] {
     created_at: seededAt,
     synced: false,
     templateId: t.id,
+    config: { ...t.config },
   }))
 }
 
 function readAgents(): IDesktopAgent[] {
-  try {
-    const raw = localStorage.getItem(AGENTS_KEY)
-    if (raw !== null) return JSON.parse(raw) as IDesktopAgent[]
-    // First launch: seed one agent per built-in module so the tab is never empty.
-    if (!localStorage.getItem(SEEDED_KEY)) {
-      localStorage.setItem(SEEDED_KEY, '1')
-      const defaults = buildDefaultAgents()
-      writeAgents(defaults)
-      return defaults
-    }
-    return []
-  } catch { return [] }
+  const raw = localStorage.getItem(AGENTS_KEY)
+  if (raw !== null) {
+    return safeJsonParse<IDesktopAgent[]>(raw, [], migrateAgents)
+  }
+  // First launch: seed one agent per built-in module so the tab is never empty.
+  if (!localStorage.getItem(SEEDED_KEY)) {
+    localStorage.setItem(SEEDED_KEY, '1')
+    const defaults = buildDefaultAgents()
+    writeAgents(defaults)
+    return defaults
+  }
+  return []
 }
 
+/** Persist agents immediately (used after creation/deletion). */
 function writeAgents(agents: IDesktopAgent[]): void {
-  try { localStorage.setItem(AGENTS_KEY, JSON.stringify(agents)) } catch { /* ignore */ }
+  // Stamp schema version on every write.
+  const stamped = agents.map((a) => ({ ...a, _schemaVersion: AGENT_SCHEMA_VERSION }))
+  immediateWrite(AGENTS_KEY, stamped)
+}
+
+/** Persist agents with debounce (used for frequent updates like status toggle). */
+function writeAgentsDebounced(agents: IDesktopAgent[]): void {
+  const stamped = agents.map((a) => ({ ...a, _schemaVersion: AGENT_SCHEMA_VERSION }))
+  debouncedWrite(AGENTS_KEY, stamped)
 }
 
 function readRuns(): Record<string, IDesktopAgentRun[]> {
-  try { return JSON.parse(localStorage.getItem(RUNS_KEY) ?? '{}') as Record<string, IDesktopAgentRun[]> }
-  catch { return {} }
+  return safeJsonParse<Record<string, IDesktopAgentRun[]>>(localStorage.getItem(RUNS_KEY), {})
 }
 
 function writeRuns(runs: Record<string, IDesktopAgentRun[]>): void {
-  try { localStorage.setItem(RUNS_KEY, JSON.stringify(runs)) } catch { /* ignore */ }
+  debouncedWrite(RUNS_KEY, runs)
 }
 
 const CHAT_KEY = 'agenthub-agent-chat'
 
 function readChat(): Record<string, IChatMessage[]> {
-  try { return JSON.parse(localStorage.getItem(CHAT_KEY) ?? '{}') as Record<string, IChatMessage[]> }
-  catch { return {} }
+  const raw = safeJsonParse<Record<string, IChatMessage[]>>(localStorage.getItem(CHAT_KEY), {})
+  return truncateChatHistory(raw)
 }
 
 function writeChat(chat: Record<string, IChatMessage[]>): void {
-  try { localStorage.setItem(CHAT_KEY, JSON.stringify(chat)) } catch { /* ignore */ }
+  debouncedWrite(CHAT_KEY, truncateChatHistory(chat))
 }
 
 function generateId(): string {
-  return `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+  return runtimeGenerateId('local')
 }
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -183,6 +201,9 @@ export interface IDesktopAgent {
   synced: boolean
   /** The template this agent was created from, if any (local concept — not sent to server). */
   templateId?: string
+  // ─── Config overrides (per-instance) ──────────────────────
+  /** AI configuration overrides — merged over template defaults at runtime. */
+  config: IAgentDefaultConfig
   /**
    * Per-agent API key override — stored locally only, never sent to the server.
    * When set, this key is passed to the AI provider instead of the global app key.
@@ -198,6 +219,8 @@ export interface IDesktopAgent {
    * interact with external services. Stored locally only — never sent to the server.
    */
   credentials?: IAgentCredential[]
+  /** Tool names toggled off by the user for this instance. */
+  disabledTools?: string[]
 }
 
 /** A run record — may live in localStorage or be fetched from the server. */
@@ -268,7 +291,7 @@ interface IAgentsStore {
   /** Load run history for an agent (local + server when synced). */
   loadRuns(agentId: string): Promise<void>
   /** Update editable fields of an agent (name, description, apiKey). Local-only for now. */
-  updateAgent(id: string, patch: Partial<Pick<IDesktopAgent, 'name' | 'description' | 'apiKey' | 'aiProvider'>>): Promise<void>
+  updateAgent(id: string, patch: Partial<Pick<IDesktopAgent, 'name' | 'description' | 'apiKey' | 'aiProvider' | 'config' | 'disabledTools'>>): Promise<void>
   /** Replace all credentials for an agent and persist locally. */
   updateAgentCredentials(id: string, credentials: IAgentCredential[]): void
   /**
@@ -303,9 +326,10 @@ const DEFAULT_EXEC_STEPS: readonly [string, string, string, string, string] = [
 ]
 
 /** Resolve execution step labels for an agent from the module registry. */
-function getExecSteps(templateId?: string): readonly [string, string, string, string, string] {
+function getExecSteps(templateId?: string): readonly string[] {
   if (!templateId) return DEFAULT_EXEC_STEPS
-  return findTemplate(templateId)?.execSteps ?? DEFAULT_EXEC_STEPS
+  const t = findTemplate(templateId)
+  return t?.execSteps ?? DEFAULT_EXEC_STEPS
 }
 
 function formatResult(raw: unknown): string {
@@ -354,6 +378,7 @@ export const useAgentsStore = create<IAgentsStore>((set, get) => ({
         status: b.status,
         created_at: b.created_at,
         synced: true,
+        config: {},
       }))
 
       // Retain local-only agents that are not already on the server.
@@ -377,6 +402,7 @@ export const useAgentsStore = create<IAgentsStore>((set, get) => ({
         const agent: IDesktopAgent = {
           ...cloud,
           synced: true,
+          config: {},
           ...(input.templateId !== undefined ? { templateId: input.templateId } : {}),
         }
         const agents = [agent, ...get().agents]
@@ -390,6 +416,7 @@ export const useAgentsStore = create<IAgentsStore>((set, get) => ({
           status: 'active',
           created_at: new Date().toISOString(),
           synced: false,
+          config: {},
           ...(input.templateId !== undefined ? { templateId: input.templateId } : {}),
         }
         const agents = [agent, ...get().agents]

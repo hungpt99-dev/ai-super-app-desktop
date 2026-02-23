@@ -125,3 +125,4 @@ export interface IProviderFallback {
 
 export { OpenaiProviderAdapter } from './openai/index.js'
 export { ProviderFallback } from './fallback/index.js'
+export { OpenAiEmbeddingService } from './embedding/index.js'

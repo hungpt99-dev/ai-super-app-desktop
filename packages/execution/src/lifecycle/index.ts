@@ -1,46 +1,65 @@
 /**
- * lifecycle/index.ts
+ * Execution lifecycle — state machine for agent execution.
  *
- * Manages the lifecycle of an agent execution:
- * - State transitions (pending -> running -> completed/failed/paused)
- * - Cancellation via AbortController
- * - Timeout enforcement
+ * Execution defines its own port interfaces (matching core's contracts)
+ * so it depends only on @agenthub/shared, NOT on @agenthub/core.
+ *
+ * See: docs/technical-design.md §9 EXECUTION ENGINE
  */
 
-import type { ICoreLLMProvider, ICoreSandbox, IPermissionEngine, ICoreStorageAdapter } from '@agenthub/core'
+// ─── Execution State ────────────────────────────────────────────────────────
 
-export type ExecutionState = 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled'
+export type ExecutionState =
+    | 'idle'
+    | 'running'
+    | 'paused'
+    | 'completed'
+    | 'failed'
+    | 'aborted'
 
+// ─── Execution Port Interfaces ──────────────────────────────────────────────
+// Locally defined — execution does NOT import from @agenthub/core.
+
+export interface IExecStoragePort {
+    get<T>(key: string): Promise<T | null>
+    set<T>(key: string, value: T): Promise<void>
+}
+
+export interface IExecProviderPort {
+    generate(request: unknown): Promise<unknown>
+    generateStream(request: unknown): AsyncIterable<unknown>
+}
+
+export interface IExecSandboxPort {
+    execute(code: string, context: Record<string, unknown>): Promise<unknown>
+}
+
+export interface IExecPermissionPort {
+    check(moduleId: string, permission: string): void
+    hasPermission(moduleId: string, permission: string): boolean
+}
+
+// ─── Execution Environment ──────────────────────────────────────────────────
+
+export interface IExecutionEnvironment {
+    storage: IExecStoragePort
+    provider: IExecProviderPort
+    sandbox: IExecSandboxPort
+    permissionEngine: IExecPermissionPort
+}
+
+// ─── Execution Lifecycle ────────────────────────────────────────────────────
+
+/**
+ * IExecutionLifecycle — state machine for one agent run.
+ * The platform layer maps core adapters to these execution ports.
+ */
 export interface IExecutionLifecycle {
     readonly executionId: string
     readonly state: ExecutionState
-    readonly abortSignal: AbortSignal
+    readonly signal: AbortSignal
+    readonly env: IExecutionEnvironment
 
-    /** Execution environment dependencies. */
-    readonly env: {
-        readonly provider: ICoreLLMProvider
-        readonly sandbox: ICoreSandbox
-        readonly permissionEngine: IPermissionEngine
-        readonly storage?: ICoreStorageAdapter
-        readonly vectorStore?: any
-    }
-
-    /** Start or resume the execution. Transitions state to 'running'. */
-    start(): void
-    /** Pause execution. Save state and transition to 'paused'. */
-    pause(): void
-    /** Abort execution immediately. Triggers abortSignal and transitions to 'cancelled'. */
-    cancel(reason?: string): void
-    /** Mark execution as successfully completed. Transition to 'completed'. */
-    complete(): void
-    /** Mark execution as failed with an error. Transition to 'failed'. */
-    fail(error?: unknown): void
-}
-
-/** Configuration for execution timeouts and limits. */
-export interface ILifecycleConfig {
-    /** Global timeout for the entire execution (ms). */
-    maxDurationMs?: number
-    /** Maximum number of node transitions allowed (cycle protection). */
-    maxSteps?: number
+    transition(to: ExecutionState): void
+    snapshot(): Promise<void>
 }

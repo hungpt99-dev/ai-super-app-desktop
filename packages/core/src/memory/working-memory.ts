@@ -1,10 +1,10 @@
 /**
- * short-term/index.ts
+ * Working memory interfaces — context window and session memory.
  *
- * Working memory (context window) and Session memory (execution history).
+ * See: docs/technical-design.md §5.1 Memory Layers
  */
 
-import type { IAgentMessage } from '@agenthub/core'
+import type { IAgentMessage } from '../orchestrator/interfaces.js'
 
 /**
  * Represents the immediate context window and agent scratchpad for

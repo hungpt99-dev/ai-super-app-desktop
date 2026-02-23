@@ -1,5 +1,5 @@
 {
-    "name": "@agenthub/marketplace",
+    "name": "@agenthub/platform",
     "version": "1.0.0",
     "private": true,
     "type": "module",
@@ -12,7 +12,10 @@
         }
     },
     "dependencies": {
-        "@agenthub/shared": "*"
+        "@agenthub/shared": "*",
+        "@agenthub/core": "*",
+        "@agenthub/execution": "*",
+        "@agenthub/security": "*"
     },
     "scripts": {
         "build": "tsc -p tsconfig.json",

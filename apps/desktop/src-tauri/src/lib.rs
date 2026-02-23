@@ -2,4 +2,3 @@
 // Required by Cargo.toml's [lib] section (used by tauri-build for mobile targets).
 
 pub mod computer;
-pub mod memory;

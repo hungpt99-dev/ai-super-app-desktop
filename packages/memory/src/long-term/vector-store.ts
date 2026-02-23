@@ -1,4 +1,4 @@
-import type { IVectorStore, IMemoryResult } from '../index.js'
+import type { IVectorStore, IMemoryResult, IMemoryItem } from '@agenthub/core'
 
 export class CosineVectorStore implements IVectorStore {
     private items: Array<{ id: string, vector: number[], metadata: Record<string, unknown> }> = []
@@ -23,7 +23,7 @@ export class CosineVectorStore implements IVectorStore {
                     id: item.id,
                     agentId: String(item.metadata.agentId || ''),
                     scope: String(item.metadata.scope || 'long-term'),
-                    type: String(item.metadata.type || 'semantic') as any,
+                    type: String(item.metadata.type || 'semantic') as IMemoryItem['type'],
                     importance: Number(item.metadata.importance || 0),
                     embedding: item.vector,
                     content: String(item.metadata.content || ''),

@@ -1,10 +1,8 @@
 import type { IAiClient, IAiGenerateRequest, IAiGenerateResponse } from '@agenthub/sdk'
 import { logger } from '@agenthub/shared'
+import { IS_TAURI } from './runtime.js'
 
 const log = logger.child('AiSdkProxy')
-
-/** True when running inside the Tauri WebView runtime. */
-const IS_TAURI = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
 interface IRustGenerateResponse {
   output: string
@@ -31,8 +29,8 @@ export class AiSdkProxy implements IAiClient {
       const res = await invoke<IRustGenerateResponse>('ai_generate', {
         capability: request.capability,
         input: request.input,
-        ...(request.context  ? { context:  request.context  } : {}),
-        ...(request.apiKey   ? { apiKey:   request.apiKey   } : {}),
+        ...(request.context ? { context: request.context } : {}),
+        ...(request.apiKey ? { apiKey: request.apiKey } : {}),
         ...(request.provider ? { provider: request.provider } : {}),
       })
       return { output: res.output, model: '', tokensUsed: res.tokens_used }
@@ -114,8 +112,8 @@ export class AiSdkProxy implements IAiClient {
     const invokePromise = invoke('ai_stream', {
       capability: request.capability,
       input: request.input,
-      ...(request.context  ? { context:  request.context  } : {}),
-      ...(request.apiKey   ? { apiKey:   request.apiKey   } : {}),
+      ...(request.context ? { context: request.context } : {}),
+      ...(request.apiKey ? { apiKey: request.apiKey } : {}),
       ...(request.provider ? { provider: request.provider } : {}),
     }).catch((err: unknown) => {
       streamError = err instanceof Error ? err : new Error(String(err))

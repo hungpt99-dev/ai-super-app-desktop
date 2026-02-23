@@ -1,18 +1,12 @@
 import React, { useState } from 'react'
-import { useAgentTypesStore } from '../../store/agent-types-store.js'
-import {
-  AGENT_TEMPLATES,
-} from '../../store/agent-templates.js'
+import { useTemplateRegistry, type IAgentTemplate } from '../../store/template-registry.js'
 
 // ─── Store ────────────────────────────────────────────────────────────────────
-
-/** All agent types available — built-in only (downloadable types come from the marketplace API). */
-const ALL_AGENT_TYPES = [...AGENT_TEMPLATES]
 
 // ─── AgentTypeCard ──────────────────────────────────────────────────────────────
 
 interface IAgentTypeCardProps {
-  agentType: (typeof ALL_AGENT_TYPES)[number]
+  agentType: IAgentTemplate
   isInstalled: boolean
   isBuiltIn: boolean
   onInstall?: () => void
@@ -77,15 +71,15 @@ function AgentTypeCard({ agentType, isInstalled, isBuiltIn, onInstall, onRemove 
  * Built-in types are always available; catalog types must be installed.
  */
 export function AgentHub(): React.JSX.Element {
-  const agentTypeStore = useAgentTypesStore()
-  const { installedTypeIds } = agentTypeStore
+  const templates = useTemplateRegistry((s) => s.templates)
+  const removeTemplate = useTemplateRegistry((s) => s.removeTemplate)
 
   const [search, setSearch] = useState('')
 
-  const BUILT_IN_IDS = new Set(AGENT_TEMPLATES.map((t) => t.id))
+  const BUILT_IN_IDS = new Set(templates.filter((t) => t.source === 'builtin').map((t) => t.id))
 
   const q = search.toLowerCase()
-  const visibleAgentTypes = ALL_AGENT_TYPES.filter((t) => {
+  const visibleAgentTypes = templates.filter((t) => {
     return (
       q.length === 0 ||
       t.name.toLowerCase().includes(q) ||
@@ -108,7 +102,7 @@ export function AgentHub(): React.JSX.Element {
           <div className="flex items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-1.5">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
             <span className="text-xs text-[var(--color-text-secondary)]">
-              {String(installedTypeIds.length)} installed
+              {String(templates.filter((t) => t.source !== 'builtin').length)} imported
             </span>
           </div>
         </div>
@@ -170,15 +164,13 @@ export function AgentHub(): React.JSX.Element {
               ) : (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   {visibleAgentTypes.filter((t) => !BUILT_IN_IDS.has(t.id)).map((agentType) => {
-                    const isInstalled = installedTypeIds.includes(agentType.id)
                     return (
                       <AgentTypeCard
                         key={agentType.id}
                         agentType={agentType}
-                        isInstalled={isInstalled}
+                        isInstalled={true}
                         isBuiltIn={false}
-                        onInstall={() => { agentTypeStore.installType(agentType.id) }}
-                        onRemove={() => { agentTypeStore.uninstallType(agentType.id) }}
+                        onRemove={() => { removeTemplate(agentType.id) }}
                       />
                     )
                   })}

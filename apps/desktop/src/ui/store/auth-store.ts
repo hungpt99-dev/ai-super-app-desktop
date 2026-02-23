@@ -9,6 +9,7 @@ import {
 import { tokenStore } from '../../bridges/token-store.js'
 import { logger } from '@agenthub/shared'
 import { useAppStore } from './app-store.js'
+import { IS_TAURI } from '../../bridges/runtime.js'
 
 function notifyError(title: string, err: unknown): void {
   const msg = err instanceof Error ? err.message : String(err)
@@ -26,15 +27,43 @@ const REFRESH_TOKEN_KEY = 'agenthub-refresh-token'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function saveRefreshToken(token: string): void {
+/**
+ * Save refresh token to Tauri secure store (OS keychain) when available,
+ * falls back to localStorage only in browser dev mode.
+ */
+async function saveRefreshToken(token: string): Promise<void> {
+  if (IS_TAURI) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      await invoke('set_token', { token: `refresh:${token}` })
+      // Also remove from localStorage if it was there from a previous version
+      try { localStorage.removeItem(REFRESH_TOKEN_KEY) } catch { /* ignore */ }
+      return
+    } catch { /* fall through to localStorage in dev */ }
+  }
   try { localStorage.setItem(REFRESH_TOKEN_KEY, token) } catch { /* ignore */ }
 }
 
-function loadRefreshToken(): string | null {
+async function loadRefreshToken(): Promise<string | null> {
+  if (IS_TAURI) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const raw = await invoke<string | null>('get_token', {})
+      if (raw !== null && raw.startsWith('refresh:')) {
+        return raw.slice('refresh:'.length)
+      }
+    } catch { /* fall through */ }
+  }
   try { return localStorage.getItem(REFRESH_TOKEN_KEY) } catch { return null }
 }
 
-function clearRefreshToken(): void {
+async function clearRefreshToken(): Promise<void> {
+  if (IS_TAURI) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      await invoke('clear_token', {})
+    } catch { /* fall through */ }
+  }
   try { localStorage.removeItem(REFRESH_TOKEN_KEY) } catch { /* ignore */ }
 }
 
@@ -108,7 +137,7 @@ export const useAuthStore = create<IAuthState>((set, get) => ({
     try {
       const tokens = await authLogin(email, password)
       tokenStore.setToken(tokens.access_token)
-      saveRefreshToken(tokens.refresh_token)
+      await saveRefreshToken(tokens.refresh_token)
       const profile = await authMe()
       set({
         isAuthenticated: true,
@@ -135,7 +164,7 @@ export const useAuthStore = create<IAuthState>((set, get) => ({
     try {
       const tokens = await authRegister(email, password, name)
       tokenStore.setToken(tokens.access_token)
-      saveRefreshToken(tokens.refresh_token)
+      await saveRefreshToken(tokens.refresh_token)
       const profile = await authMe()
       set({
         isAuthenticated: true,
@@ -201,7 +230,7 @@ export const useAuthStore = create<IAuthState>((set, get) => ({
   handleOAuthCallback: async (accessToken, refreshToken) => {
     set({ isLoading: true, error: null })
     tokenStore.setToken(accessToken)
-    saveRefreshToken(refreshToken)
+    await saveRefreshToken(refreshToken)
     try {
       const profile = await authMe()
       set({
@@ -219,7 +248,7 @@ export const useAuthStore = create<IAuthState>((set, get) => ({
       // Device registration is handled by startAgentLoop() triggered by the auth state change.
     } catch (err) {
       tokenStore.clearToken()
-      clearRefreshToken()
+      await clearRefreshToken()
       const message = err instanceof Error ? err.message : 'OAuth authentication failed.'
       notifyError('OAuth authentication failed', err)
       set({ isAuthenticated: false, isLoading: false, error: message })
@@ -229,7 +258,7 @@ export const useAuthStore = create<IAuthState>((set, get) => ({
   logout: async () => {
     set({ isLoading: true })
     try {
-      const refreshToken = loadRefreshToken()
+      const refreshToken = await loadRefreshToken()
       if (refreshToken) {
         await authLogout(refreshToken)
       }
@@ -238,7 +267,7 @@ export const useAuthStore = create<IAuthState>((set, get) => ({
       log.warn('Server logout failed (proceeding with local clear)', { err })
     } finally {
       tokenStore.clearToken()
-      clearRefreshToken()
+      await clearRefreshToken()
       set({ isAuthenticated: false, isLoading: false, user: null, error: null })
     }
   },
@@ -265,11 +294,11 @@ export const useAuthStore = create<IAuthState>((set, get) => ({
       }
 
       // Fall back to refresh token rotation
-      const refreshToken = loadRefreshToken()
+      const refreshToken = await loadRefreshToken()
       if (refreshToken) {
         const tokens = await authRefresh(refreshToken)
         tokenStore.setToken(tokens.access_token)
-        saveRefreshToken(tokens.refresh_token)
+        await saveRefreshToken(tokens.refresh_token)
         const profile = await authMe()
         set({
           isAuthenticated: true,
@@ -289,7 +318,7 @@ export const useAuthStore = create<IAuthState>((set, get) => ({
       // Expired / revoked token — clear everything silently
       log.info('Session restore failed, user must sign in', { err })
       tokenStore.clearToken()
-      clearRefreshToken()
+      await clearRefreshToken()
     }
 
     set({ isAuthenticated: false, isCheckingAuth: false })

@@ -724,7 +724,7 @@ pub struct IAgentPollResult {
     pub goal: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct IAgentRunUpdate {
     pub status: String,
     pub steps: i32,

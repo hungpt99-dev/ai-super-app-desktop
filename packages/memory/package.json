@@ -12,7 +12,8 @@
         }
     },
     "dependencies": {
-        "@agenthub/shared": "*"
+        "@agenthub/shared": "*",
+        "@agenthub/core": "*"
     },
     "scripts": {
         "build": "tsc -p tsconfig.json",

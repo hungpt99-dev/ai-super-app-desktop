@@ -13,12 +13,11 @@
 
 import React, { useEffect, useMemo, useState } from 'react'
 import { useAgentsStore, type IDesktopAgent } from '../../store/agents-store.js'
-import { AGENT_TEMPLATES, type IAgentTemplate } from '../../store/agent-templates.js'
-import { useAgentTypesStore } from '../../store/agent-types-store.js'
+import { useTemplateRegistry, type IAgentTemplate } from '../../store/template-registry.js'
 import { useDevSettingsStore } from '../../store/dev/dev-settings-store.js'
 import { useDevSideloadStore } from '../../store/dev/dev-sideload-store.js'
 import { CreateAgentModal } from '../dialogs/CreateAgentModal.js'
-import { SideloadAgentModal } from '../dialogs/SideloadAgentModal.js'
+import { ImportTemplateModal } from '../dialogs/ImportTemplateModal.js'
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -43,10 +42,10 @@ function AgentInstanceRow({ agent, runningAgentIds, templateIcon, templateName, 
     <div className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-3 transition-colors hover:border-[var(--color-accent)]/40">
       <span
         className={`h-2 w-2 shrink-0 rounded-full ${isRunning
-            ? 'animate-pulse bg-blue-400'
-            : agent.status === 'active'
-              ? 'bg-[var(--color-success)]'
-              : 'bg-yellow-400'
+          ? 'animate-pulse bg-blue-400'
+          : agent.status === 'active'
+            ? 'bg-[var(--color-success)]'
+            : 'bg-yellow-400'
           }`}
       />
       {templateIcon && <span className="shrink-0 text-base">{templateIcon}</span>}
@@ -63,8 +62,8 @@ function AgentInstanceRow({ agent, runningAgentIds, templateIcon, templateName, 
       )}
       <span
         className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${agent.status === 'active'
-            ? 'bg-[var(--color-success)]/15 text-[var(--color-success)]'
-            : 'bg-yellow-400/15 text-yellow-400'
+          ? 'bg-[var(--color-success)]/15 text-[var(--color-success)]'
+          : 'bg-yellow-400/15 text-yellow-400'
           }`}
       >
         {agent.status}
@@ -103,8 +102,8 @@ function AgentTypeCard({
   return (
     <div
       className={`flex flex-col rounded-2xl border bg-[var(--color-surface)] p-5 transition-all ${isActive
-          ? 'border-[var(--color-accent)] shadow-[0_0_0_1px_var(--color-accent-dim)]'
-          : 'border-[var(--color-border)] hover:border-[var(--color-accent)] hover:shadow-[0_0_0_1px_var(--color-accent-dim)]'
+        ? 'border-[var(--color-accent)] shadow-[0_0_0_1px_var(--color-accent-dim)]'
+        : 'border-[var(--color-border)] hover:border-[var(--color-accent)] hover:shadow-[0_0_0_1px_var(--color-accent-dim)]'
         }`}
     >
       <div className="mb-3 flex items-start justify-between gap-2">
@@ -135,8 +134,8 @@ function AgentTypeCard({
       <button
         onClick={onAction}
         className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${isActive
-            ? 'bg-emerald-950/50 text-emerald-400 hover:bg-emerald-900/50'
-            : 'bg-[var(--color-accent-dim)] text-[var(--color-accent)] hover:bg-[var(--color-accent)] hover:text-white'
+          ? 'bg-emerald-950/50 text-emerald-400 hover:bg-emerald-900/50'
+          : 'bg-[var(--color-accent-dim)] text-[var(--color-accent)] hover:bg-[var(--color-accent)] hover:text-white'
           }`}
       >
         {isTool
@@ -158,17 +157,16 @@ function AgentTypeCard({
 export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Element {
   const agents = useAgentsStore((s) => s.agents)
   const runningAgentIds = useAgentsStore((s) => s.runningAgentIds)
-  const installedTypeIds = useAgentTypesStore((s) => s.installedTypeIds)
+  const registryTemplates = useTemplateRegistry((s) => s.templates)
   const devEnabled = useDevSettingsStore((s) => s.enabled)
   const sideloadedModules = useDevSideloadStore((s) => s.modules)
   const removeSideloaded = useDevSideloadStore((s) => s.removeModule)
 
   // All agent types = built-in + installed hub types + dev-sideloaded modules
   const allTemplates = useMemo<IAgentTemplate[]>(() => [
-    ...AGENT_TEMPLATES,
-    ...AGENT_TEMPLATES.filter((t) => installedTypeIds.includes(t.id)),
+    ...registryTemplates,
     ...(devEnabled ? sideloadedModules : []),
-  ].filter((t, i, a) => a.findIndex((x) => x.id === t.id) === i), [installedTypeIds, devEnabled, sideloadedModules])
+  ].filter((t, i, a) => a.findIndex((x) => x.id === t.id) === i), [registryTemplates, devEnabled, sideloadedModules])
 
   const [search, setSearch] = useState('')
   const [showCreate, setShowCreate] = useState(false)
@@ -239,7 +237,7 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
             {devEnabled && (
               <button
                 onClick={() => { setShowImport(true) }}
-                title="Sideload a compiled agent package (.js) — dev mode"
+                title="Import an agent template (.agenthub.json)"
                 className="inline-flex items-center gap-1.5 rounded-xl border border-amber-700/60 bg-amber-900/20 px-3 py-2 text-xs font-medium text-amber-400 transition-colors hover:bg-amber-900/40"
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -247,7 +245,7 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
                   <polyline points="17 8 12 3 7 8" />
                   <line x1="12" y1="3" x2="12" y2="15" />
                 </svg>
-                Sideload Agent
+                Import Template
               </button>
             )}
             <button
@@ -391,9 +389,9 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
         />
       )}
 
-      {/* Dev mode: Sideload Agent Package modal */}
+      {/* Import Template modal */}
       {showImport && (
-        <SideloadAgentModal onClose={() => { setShowImport(false) }} />
+        <ImportTemplateModal onClose={() => { setShowImport(false) }} />
       )}
     </div>
   )

@@ -1,7 +1,7 @@
 import { GatewayClient } from './gateway-client.js'
 
 /** True when running inside the Tauri WebView runtime. */
-const IS_TAURI = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+import { IS_TAURI } from './runtime.js'
 
 /**
  * ITokenStore — Strategy Pattern.

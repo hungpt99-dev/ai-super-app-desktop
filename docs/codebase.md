@@ -1,292 +1,414 @@
-# AgentHub Codebase Structure & Rules
+# Clean Architecture Specification v4.1
 
 ---
 
-## Directory Structure
+# I. ARCHITECTURAL PHILOSOPHY
+
+AgentHub được thiết kế dựa trên:
+
+- Clean Architecture
+- Dependency Inversion
+- Hexagonal Architecture
+- Adapter Pattern
+- Capability-Based Security
+- Deterministic Execution
+- Strict Layer Isolation
+- Runtime-Agnostic Core
+- Multi-Environment Support
+
+Mục tiêu:
+
+Xây dựng một Agent Operating System có thể chạy ở nhiều môi trường khác nhau mà không thay đổi domain logic.
+
+---
+
+# II. SYSTEM LAYER MODEL
+
+```
+Layer 1  → shared
+Layer 2  → core (domain OS)
+Layer 3  → execution (runtime mechanics)
+Layer 4  → infrastructure (adapters)
+Layer 5  → security
+Layer 6  → platform (composition root)
+Layer 7  → sdk (authoring + client)
+Layer 8  → apps (desktop, web, other hosts)
+```
+
+---
+
+# III. DEPENDENCY RULES
+
+Allowed:
+
+```
+apps → sdk
+apps → platform
+
+sdk → core
+sdk → shared
+
+platform → core
+platform → execution
+platform → infrastructure
+platform → security
+
+execution → shared
+infrastructure → shared
+core → shared
+```
+
+Forbidden:
+
+```
+core → infrastructure
+core → execution
+core → sdk
+core → apps
+core → platform
+
+execution → infrastructure
+web → runtime internals
+```
+
+Core là trung tâm, không phụ thuộc implementation.
+
+---
+
+# IV. DIRECTORY STRUCTURE
 
 ```
 agenthub/
 │
 ├── apps/
-│   ├── desktop/                 # Tauri app
-│   │   ├── src/
-│   │   │   ├── ui/              # React UI
-│   │   │   ├── app/             # App wiring / bootstrap
-│   │   │   ├── bridges/         # Tauri bridge adapters
-│   │   │   └── main.tsx
-│   │   ├── src-tauri/           # Rust (if used)
-│   │   └── package.json
-│   │
-│   └── web/                     # Viewer only
-│       ├── src/
-│       │   ├── ui/
-│       │   ├── viewer/
-│       │   ├── parser/
-│       │   └── main.tsx
-│       └── package.json
+│   ├── desktop/
+│   └── web/
 │
 ├── packages/
-│   ├── core/                    # Pure runtime engine (NO UI, NO tauri)
+│
+│   ├── shared/
+│   │   ├── types/
+│   │   ├── dto/
+│   │   ├── schemas/
+│   │   ├── constants/
+│   │   └── index.ts
+│
+│   ├── core/
 │   │   ├── runtime/
-│   │   ├── graph/
 │   │   ├── orchestrator/
+│   │   ├── graph/
 │   │   ├── agents/
+│   │   ├── memory/
+│   │   ├── identity/
+│   │   ├── policy/
+│   │   ├── capability/
 │   │   ├── events/
 │   │   └── index.ts
-│   │
+│
 │   ├── execution/
 │   │   ├── scheduler/
 │   │   ├── worker/
-│   │   └── lifecycle/
-│   │
-│   ├── memory/
-│   │   ├── short-term/
-│   │   ├── long-term/
-│   │   ├── embedding/
+│   │   ├── concurrency/
+│   │   ├── lifecycle/
 │   │   └── index.ts
-│   │
-│   ├── storage/
-│   │   ├── interface.ts
-│   │   ├── sqlite/              # Desktop impl
-│   │   └── index.ts
-│   │
-│   ├── provider/
-│   │   ├── interface.ts
-│   │   ├── openai/
-│   │   └── index.ts
-│   │
-│   ├── tools/
-│   │   ├── interface.ts
-│   │   ├── http/
-│   │   ├── file/
-│   │   └── custom-js/
-│   │
-│   ├── sandbox/
-│   │   ├── worker-sandbox/
-│   │   └── permission/
-│   │
-│   ├── network/
-│   │   ├── transport/
-│   │   └── protocol/
-│   │
-│   ├── marketplace/
-│   │   ├── package-spec/
-│   │   ├── validator/
-│   │   └── installer/
-│   │
-│   └── shared/
-│       ├── types/
-│       ├── dto/
-│       └── schemas/
 │
+│   ├── infrastructure/
+│   │   ├── provider/
+│   │   ├── storage/
+│   │   ├── vector-store/
+│   │   ├── embedding/
+│   │   ├── tools/
+│   │   ├── sandbox/
+│   │   ├── network/
+│   │   └── observability/
+│
+│   ├── security/
+│   │   ├── signature/
+│   │   ├── key-management/
+│   │   ├── verification/
+│   │   └── index.ts
+│
+│   ├── platform/
+│   │   ├── bootstrap/
+│   │   ├── container/
+│   │   ├── factories/
+│   │   └── index.ts
+│
+│   ├── sdk/
+│   │   ├── authoring/
+│   │   ├── client/
+│   │   └── index.ts
+│
+├── turbo.json
 ├── tsconfig.base.json
-├── turbo.json (optional)
 └── package.json
 ```
 
 ---
 
-## Import Rules (Critical)
+# V. CORE (Agent Operating System)
 
-- Dependency direction must be:
-  - apps → packages
-  - packages/* → shared
-  - core → (must not import from apps)
-  - web → must not import core runtime
+Core chứa domain logic thuần:
+
+- AgentRuntime
+- Graph Engine
+- Orchestrator
+- Memory domain logic
+- Identity model
+- Capability enforcement
+- Policy engine
+- Event system
+
+Core:
+
+- Không side-effect
+- Không environment access
+- Không file system
+- Không network
+- Không provider implementation
+- Không biết đang chạy ở desktop hay cloud
+
+Core chỉ làm việc thông qua **Ports (interfaces)**.
 
 ---
 
-## Forbidden Patterns
+# VI. MEMORY (Domain Layer)
 
-### 1. core MUST NOT:
-- import React
-- import tauri
-- import fs
-- import window
-- import sqlite directly
-- import openai directly
+Memory là business capability, thuộc core.
 
-Core only uses interfaces.
+Bao gồm:
 
-### 2. web MUST NOT:
-- import runtime engine
-- import execution
-- import provider
-- import sandbox
+- Retrieval strategy
+- Injection logic
+- Importance scoring
+- Scope resolution
+- Memory lifecycle
+- Pruning strategy
 
-Web may only import:
-- shared/
-- dto/
-- schemas/
+Infrastructure cung cấp:
 
-### 3. storage MUST NOT:
-- Expose sqlite logic to core
+- Vector store adapter
+- Embedding adapter
+- Storage adapter
 
-Must use:
-```tsx
-StorageAdapter interface
+Core định nghĩa interface, không implement chi tiết kỹ thuật.
+
+---
+
+# VII. EXECUTION LAYER
+
+Execution xử lý cơ chế runtime:
+
+- Scheduler
+- Worker management
+- Timeout
+- Abort handling
+- Concurrency control
+
+Execution:
+
+- Không biết graph semantics
+- Không biết policy logic
+- Không biết identity
+- Không biết provider
+
+Core quyết định “WHAT”.
+Execution quyết định “HOW”.
+
+---
+
+# VIII. INFRASTRUCTURE (Adapters)
+
+Chỉ implement các ports từ core:
+
+- ProviderAdapter
+- StorageAdapter
+- VectorStoreAdapter
+- EmbeddingAdapter
+- SandboxAdapter
+- TransportAdapter
+- ObservabilityAdapter
+
+Infrastructure có thể dùng Node APIs hoặc external libs.
+
+Core không import implementation cụ thể.
+
+---
+
+# IX. SECURITY
+
+Security tách riêng:
+
+- Signature verification
+- Hash validation
+- Key management
+- Integrity checking
+
+Security không chứa marketplace logic.
+
+Marketplace consume security.
+
+---
+
+# X. PLATFORM (Composition Root)
+
+Platform là nơi duy nhất:
+
+- Instantiate adapters
+- Đọc environment
+- Cấu hình DI container
+- Wire execution + core
+
+Ví dụ:
+
 ```
-
----
-
-## Layer Rules
-
-### Layer 1 — shared
-- Types, DTO, Zod schema, constants
-- No business logic
-
-### Layer 2 — core
-- Runtime, orchestration, graph execution, event system
-- No environment side-effects
-
-### Layer 3 — execution
-- Scheduler, worker management, abort controller, timeout
-- No UI
-
-### Layer 4 — infrastructure packages
-- storage, provider, tools, sandbox, network
-- These are adapters
-
-### Layer 5 — apps
-- UI, bootstrapping, wiring dependencies
-
----
-
-## Dependency Injection Rule
-
-Runtime is initialized as:
-```tsx
-new AgentRuntime({
-  storage,
-  provider,
-  vectorStore,
-  transport,
-  sandbox
+createRuntime({
+  providerAdapter,
+  storageAdapter,
+  vectorStoreAdapter,
+  sandboxAdapter,
+  observabilityAdapter
 })
 ```
-Core never instantiates any adapter directly.
+
+Apps không tự new runtime thủ công.
 
 ---
 
-## Package Isolation Rules
+# XI. SDK
 
-- Each package has its own tsconfig
-- No circular dependencies
-- No relative path imports across packages
-- Only import via package name
+## 1️⃣ Authoring SDK
 
-Example:
-```tsx
-import { AgentRuntime } from "@agenthub/core"
+Dành cho developer xây agent.
+
+Ví dụ:
+
 ```
-NOT:
-```tsx
-import "../../../core/runtime"
+defineAgent({
+  name,
+  tools,
+  memory,
+  policy
+})
 ```
 
----
+Tạo AgentDefinition object.
 
-## File Organization Rules
-
-Within each module:
-```
-module/
-  index.ts        ← public exports only
-  internal/
-  types.ts
-  service.ts
-```
-Do not export entire folders.
-Only export public API via `index.ts`.
+Không chạy runtime.
 
 ---
 
-## Sandbox Rule
+## 2️⃣ Client SDK
 
-- Tool execution always goes through sandbox layer
-- Never call tool directly from runtime
-- All custom JS must be isolated
+Dùng để:
 
----
+- Invoke runtime từ bên ngoài
+- Stream execution
+- Inject memory
+- Approve checkpoint
 
-## Memory Rule
-
-- Memory package must not import provider or storage implementation directly
-- Only accept interfaces
+Client SDK không chứa runtime logic.
 
 ---
 
-## Network Rule
+# XII. APPS
 
-- Network layer does not know runtime logic
-- Only transmits messages
-- No business logic
+## Desktop
 
----
+- Host runtime
+- Inject adapters qua platform
+- Single-user mode
 
-## Desktop App Rule
+## Web
 
-apps/desktop:
-- Responsible for injecting SQLite storage, OpenAI provider, Worker sandbox, WebSocket transport
-- No business logic here
+- Snapshot viewer
+- Trace inspector
+- Graph visualizer
 
----
+Web không import:
 
-## Web App Rule
-
-apps/web:
-- Only parses snapshot JSON, validates via schema, renders UI
-- No provider, runtime, or execution engine
-
----
-
-## Anti-Patterns to Avoid
-
-❌ Runtime logic in React component
-❌ Hardcoded provider in core
-❌ Direct DB call in runtime
-❌ Tool directly calls fs
-❌ Agent calls agent via function call
-
----
-
-## Naming Convention
-
-- Interface: `XxxAdapter`
-- Implementation: `XxxSqliteAdapter`
-- Service: `XxxService`
-- DTO: `XxxDTO`
-- Schema: `XxxSchema`
-
----
-
-## Build Rule
-
-- core builds to ESM
-- No Node-only API
-- No dynamic require
-- No process.env in core
-
----
-
-## Final Checklist
-
-Desktop includes:
-- runtime
 - execution
-- memory
 - provider
-- tools
 - sandbox
-- network
-- storage
-
-Web includes:
-- shared types
-- schema
-- viewer
-
-Core does not know web exists.
-Web does not know runtime exists.
+- runtime internals
 
 ---
+
+# XIII. SANDBOX RULE
+
+Tất cả tool execution đi qua sandbox:
+
+```
+core → execution → sandbox → tool
+```
+
+Không bao giờ:
+
+```
+core → tool trực tiếp
+```
+
+Sandbox enforce:
+
+- CPU limit
+- Memory limit
+- Timeout
+- Network restriction
+
+---
+
+# XIV. ISOLATION GUARANTEE
+
+Core:
+
+- Không biết môi trường chạy
+- Không biết provider cụ thể
+- Không biết storage cụ thể
+
+Execution:
+
+- Không biết business logic
+
+Web:
+
+- Không biết runtime tồn tại
+
+Mỗi layer độc lập, thay thế được.
+
+---
+
+# XV. ARCHITECTURAL GUARANTEES
+
+✔ Deterministic execution
+
+✔ Policy-driven runtime
+
+✔ Capability-based security
+
+✔ Provider-agnostic
+
+✔ Environment-agnostic
+
+✔ Clean dependency direction
+
+✔ Replaceable infrastructure
+
+✔ Multi-agent ready
+
+---
+
+# FINAL SYSTEM MODEL
+
+Core = Agent Operating System
+
+Execution = Runtime Engine
+
+Infrastructure = Hardware Drivers
+
+Platform = Composition Layer
+
+SDK = Agent Programming Interface
+
+Security = Integrity Layer
+
+Apps = Host Environment

@@ -1,4 +1,12 @@
-import type { IMemoryItem, IMemoryStore, IVectorStore, IEmbeddingService } from '../index.js'
+/**
+ * LongTermMemoryManager — domain logic for storing, retrieving, and pruning
+ * long-term semantic memories.
+ *
+ * See: docs/technical-design.md §5 LONG-TERM MEMORY SYSTEM
+ */
+
+import type { IMemoryItem } from './types.js'
+import type { IMemoryStore, IVectorStore, IEmbeddingService } from './ports.js'
 
 export interface ILongTermMemoryManager {
     store(item: Omit<IMemoryItem, 'id' | 'createdAt' | 'embedding'>): Promise<IMemoryItem>

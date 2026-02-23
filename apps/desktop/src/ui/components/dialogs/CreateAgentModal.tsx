@@ -9,7 +9,7 @@
 import React, { useEffect, useState } from 'react'
 import { useAgentsStore } from '../../store/agents-store.js'
 import { useAuthStore } from '../../store/auth-store.js'
-import { type IAgentTemplate } from '../../store/agent-templates.js'
+import { type IAgentTemplate } from '../../store/template-registry.js'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 

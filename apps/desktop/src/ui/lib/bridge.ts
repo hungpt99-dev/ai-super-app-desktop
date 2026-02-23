@@ -3,7 +3,7 @@ import { getAgentRuntime, getActiveModules } from '../../app/module-bootstrap.js
 import { useDevSettingsStore } from '../store/dev/dev-settings-store.js'
 
 /** True when running inside the Tauri WebView runtime. */
-const IS_TAURI = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+import { IS_TAURI } from '../../bridges/runtime.js'
 
 /**
  * Cloud Gateway base URL used by the browser dev bridge only.

@@ -26,13 +26,16 @@
       "path": "packages/execution"
     },
     {
-      "path": "packages/marketplace"
-    },
-    {
       "path": "packages/core"
     },
     {
       "path": "packages/sandbox"
+    },
+    {
+      "path": "packages/security"
+    },
+    {
+      "path": "packages/platform"
     },
     {
       "path": "apps/desktop"

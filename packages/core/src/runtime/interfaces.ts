@@ -177,3 +177,78 @@ export interface IAgentRuntime {
     /** Abort a running execution. */
     abort(executionId: string): Promise<void>
 }
+
+// ─── Module System Port Interfaces ──────────────────────────────────────────
+// These replace direct imports from @agenthub/sdk.
+// Core defines the contracts; SDK provides the concrete types.
+
+export interface IModuleManifestPort {
+    readonly name: string
+    readonly version: string
+    readonly minCoreVersion: string
+    readonly maxCoreVersion: string
+    readonly permissions: readonly string[]
+    readonly description?: string
+    readonly author?: string
+    readonly icon?: string
+    readonly category?: string
+    readonly tags?: readonly string[]
+    readonly homepage?: string
+    readonly graph?: any
+}
+
+export interface IModuleContextPort {
+    readonly moduleId: string
+    readonly ai: unknown
+    readonly storage: unknown
+    readonly ui: unknown
+    readonly events: unknown
+}
+
+export interface IToolPort {
+    readonly name: string
+    readonly description: string
+    readonly inputSchema?: Record<string, unknown>
+    run(input: Record<string, unknown>, ctx: IModuleContextPort): Promise<unknown>
+}
+
+export interface IModuleDefinitionPort {
+    manifest: IModuleManifestPort
+    tools: IToolPort[]
+    onActivate(ctx: IModuleContextPort): void | Promise<void>
+    onDeactivate?(ctx: IModuleContextPort): void | Promise<void>
+}
+
+export interface IAppPackagePort {
+    manifest: IModuleManifestPort
+    checksum: string
+    signature: string
+    entryPath: string
+}
+
+export interface IModuleManagerPort {
+    install(pkg: IAppPackagePort): Promise<void>
+    activate(moduleId: string): Promise<void>
+    deactivate(moduleId: string): Promise<void>
+    uninstall(moduleId: string): Promise<void>
+    getActive(): ReadonlyMap<string, IModuleDefinitionPort>
+}
+
+export interface IPermissionEnginePort {
+    grant(moduleId: string, permissions: readonly string[]): void
+    revoke(moduleId: string): void
+    check(moduleId: string, permission: string): void
+    hasPermission(moduleId: string, permission: string): boolean
+}
+
+// ─── Sandbox Factory Port ───────────────────────────────────────────────────
+
+export interface IModuleSandboxHandlePort {
+    activate(): Promise<void>
+    deactivate(): Promise<void>
+    getCtx(): IModuleContextPort | null
+}
+
+export interface ISandboxFactoryPort {
+    create(moduleId: string, definition: IModuleDefinitionPort): IModuleSandboxHandlePort
+}

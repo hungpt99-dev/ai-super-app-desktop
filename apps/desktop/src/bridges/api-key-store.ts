@@ -10,7 +10,7 @@
  * Only the local desktop agent reads stored keys when making provider calls.
  */
 
-const IS_TAURI = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+import { IS_TAURI } from './runtime.js'
 
 /** Namespaced localStorage key to avoid collisions. */
 const LS_KEY = 'agenthub:api-keys'

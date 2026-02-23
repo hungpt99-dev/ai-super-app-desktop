@@ -3,42 +3,77 @@
  *
  * Implements the core graph execution loop algorithm (docs §4.3 Execution Flow).
  * Resolves the next node, executes it, saves snapshots, and handles transitions.
+ *
+ * Uses locally defined port types — NO @agenthub/core import.
  */
 
-import type { IExecutionContext, IGraphDefinition, IGraphNode } from '@agenthub/core'
 import type { IExecutionLifecycle } from '../lifecycle/index.js'
 import { logger } from '@agenthub/shared'
 
 const log = logger.child('GraphScheduler')
 
-/**
- * The Graph Scheduler is responsible for running the step-by-step
- * execution loop of an agent graph.
- */
+// ─── Local Graph Types ──────────────────────────────────────────────────────
+// Mirrors core's graph types without importing from @agenthub/core.
+
+export type ExecNodeType = 'LLM_NODE' | 'TOOL_NODE' | 'AGENT_CALL_NODE' | 'CONDITION_NODE' | 'START_NODE' | 'END_NODE'
+
+export interface IExecGraphNode {
+    readonly id: string
+    readonly type: ExecNodeType | string
+    readonly config?: Record<string, unknown>
+}
+
+export interface IExecGraphEdge {
+    readonly from: string
+    readonly to: string
+    readonly condition?: string
+}
+
+export interface IExecGraphDefinition {
+    readonly id: string
+    readonly nodes: readonly IExecGraphNode[]
+    readonly edges: readonly IExecGraphEdge[]
+}
+
+export interface IExecContext {
+    executionId: string
+    agentId: string
+    currentNodeId: string | null
+    variables: Record<string, unknown>
+    tokenUsage: {
+        promptTokens: number
+        completionTokens: number
+        estimatedCost: number
+    }
+    budgetRemaining: number
+}
+
+// ─── Graph Scheduler ────────────────────────────────────────────────────────
+
 export interface IGraphScheduler {
     executeGraph(
-        graph: IGraphDefinition,
-        context: IExecutionContext,
+        graph: IExecGraphDefinition,
+        context: IExecContext,
         lifecycle: IExecutionLifecycle
-    ): Promise<IExecutionContext>
+    ): Promise<IExecContext>
 
     step(
-        node: IGraphNode,
-        context: IExecutionContext,
+        node: IExecGraphNode,
+        context: IExecContext,
         lifecycle: IExecutionLifecycle
     ): Promise<void>
 }
 
 export class GraphScheduler implements IGraphScheduler {
     async executeGraph(
-        graph: IGraphDefinition,
-        context: IExecutionContext,
+        graph: IExecGraphDefinition,
+        context: IExecContext,
         lifecycle: IExecutionLifecycle
-    ): Promise<IExecutionContext> {
+    ): Promise<IExecContext> {
         let iterations = 0
         const maxIterations = 1000 // A safe upper bound for runaway graph loops
 
-        while (!lifecycle.abortSignal.aborted && iterations < maxIterations) {
+        while (!lifecycle.signal.aborted && iterations < maxIterations) {
             const nodeId = context.currentNodeId
             if (!nodeId) break
 
@@ -56,7 +91,6 @@ export class GraphScheduler implements IGraphScheduler {
             // Step 1: Budget Check
             if (context.budgetRemaining <= 0) {
                 log.error(`Execution ${context.executionId} aborted: Budget exceeded.`)
-                lifecycle.fail(new Error('Budget exceeded'))
                 break
             }
 
@@ -64,11 +98,10 @@ export class GraphScheduler implements IGraphScheduler {
             await this.step(node, context, lifecycle)
 
             // Step 3: Persistence (Snapshot)
-            // Save context after node execution to ensure fault tolerance.
             await lifecycle.env.storage?.set(`execution_${context.executionId}`, context)
 
             // Step 4: Check Abort/Error
-            if (lifecycle.abortSignal.aborted) break
+            if (lifecycle.signal.aborted) break
 
             // Step 5: Resolve Next Edge
             const nextNodeId = this.resolveNextNodeId(graph, node.id, context.variables)
@@ -89,8 +122,8 @@ export class GraphScheduler implements IGraphScheduler {
     }
 
     async step(
-        node: IGraphNode,
-        context: IExecutionContext,
+        node: IExecGraphNode,
+        context: IExecContext,
         lifecycle: IExecutionLifecycle
     ): Promise<void> {
         log.info(`Executing node [${node.id}] / type: ${node.type}`)
@@ -102,11 +135,12 @@ export class GraphScheduler implements IGraphScheduler {
 
                 // 2. Fetch Semantic Memory (Docs §5.4 Retrieval Pipeline)
                 let semanticContext = ''
-                if (lifecycle.env.provider.embed && context.variables.input) {
+                const provider = lifecycle.env.provider as any
+                if (provider.embed && context.variables.input) {
                     try {
                         const vectorStore = (lifecycle.env as any).vectorStore
                         if (vectorStore) {
-                            const embedding = await lifecycle.env.provider.embed(context.variables.input as string)
+                            const embedding = await provider.embed(context.variables.input as string)
                             const memories = await vectorStore.search(embedding, 3)
                             semanticContext = memories.map((m: any) => m.content).join('\n---\n')
                             log.info(`Injected ${memories.length} semantic memories.`)
@@ -116,15 +150,15 @@ export class GraphScheduler implements IGraphScheduler {
 
                 log.info(`Calling LLM provider for node ${node.id}`)
                 const response = await lifecycle.env.provider.generate({
-                    model: (node as any).config?.model ?? 'gpt-4o-mini',
-                    systemPrompt: ((node as any).config?.systemPrompt ?? '') + (semanticContext ? `\n\nContext:\n${semanticContext}` : ''),
+                    model: node.config?.model ?? 'gpt-4o-mini',
+                    systemPrompt: (node.config?.systemPrompt ?? '') + (semanticContext ? `\n\nContext:\n${semanticContext}` : ''),
                     messages: [{ role: 'user', content: context.variables.input as string ?? '' }],
-                    temperature: (node as any).config?.temperature ?? 0.7,
-                    maxTokens: (node as any).config?.maxTokens ?? 2048,
-                })
-                context.tokenUsage.promptTokens += response.usage.promptTokens
-                context.tokenUsage.completionTokens += response.usage.completionTokens
-                context.variables[(node as any).config?.outputVar ?? 'last_response'] = response.content
+                    temperature: node.config?.temperature ?? 0.7,
+                    maxTokens: node.config?.maxTokens ?? 2048,
+                }) as any
+                context.tokenUsage.promptTokens += response.usage?.promptTokens ?? 0
+                context.tokenUsage.completionTokens += response.usage?.completionTokens ?? 0
+                context.variables[String(node.config?.outputVar ?? 'last_response')] = response.content
                 break
             }
             case 'TOOL_NODE': {
@@ -132,12 +166,12 @@ export class GraphScheduler implements IGraphScheduler {
                 lifecycle.env.permissionEngine.check(context.agentId, 'tool:execute')
 
                 log.info(`Executing tool ${node.id} in sandbox`)
-                const result = await lifecycle.env.sandbox.execute((node as any).config?.code ?? '', context.variables as any)
-                context.variables[(node as any).config?.outputVar ?? 'last_tool_result'] = result
+                const result = await lifecycle.env.sandbox.execute(String(node.config?.code ?? ''), context.variables as any)
+                context.variables[String(node.config?.outputVar ?? 'last_tool_result')] = result
                 break
             }
             case 'AGENT_CALL_NODE': {
-                log.info(`Nesting execution for agent [${(node as any).config?.agentId}]`)
+                log.info(`Nesting execution for agent [${node.config?.agentId}]`)
                 lifecycle.env.permissionEngine.check(context.agentId, 'agent_call')
                 // This would recursively call AgentRuntime.execute once we have the runtime in env
                 break
@@ -156,7 +190,7 @@ export class GraphScheduler implements IGraphScheduler {
         await new Promise(resolve => setTimeout(resolve, 10))
     }
 
-    private resolveNextNodeId(graph: IGraphDefinition, currentNodeId: string, variables: Record<string, unknown>): string | null {
+    private resolveNextNodeId(graph: IExecGraphDefinition, currentNodeId: string, variables: Record<string, unknown>): string | null {
         const outboundEdges = graph.edges.filter(e => e.from === currentNodeId)
         if (outboundEdges.length === 0) return null
 
@@ -168,8 +202,6 @@ export class GraphScheduler implements IGraphScheduler {
         for (const edge of outboundEdges) {
             if (!edge.condition) continue
             try {
-                // A very naive variable resolver for string equality expressions "var.foo==bar"
-                // A robust engine would use a sandboxed expression evaluator (e.g. JSONPath or AST engine)
                 const [left, right] = edge.condition.split('==').map(s => s.trim())
                 if (left && right) {
                     const varName = left.replace('var.', '')

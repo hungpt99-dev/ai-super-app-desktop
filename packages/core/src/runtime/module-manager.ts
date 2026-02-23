@@ -1,6 +1,14 @@
-import type { IAppPackage, IModuleDefinition, IModuleManager, IToolInput, Permission } from '@agenthub/sdk'
+import type {
+    IAppPackagePort,
+    IModuleDefinitionPort,
+    IModuleManagerPort,
+    IModuleSandboxHandlePort,
+    ISandboxFactoryPort,
+    IModuleManifestPort,
+    IModuleContextPort,
+    IToolPort,
+} from './interfaces.js'
 import type { PermissionEngine } from './permission-engine.js'
-import type { ISandboxFactory } from './types.js'
 import {
     ModuleInstallError,
     ModuleNotFoundError,
@@ -14,14 +22,9 @@ import { isSemverCompatible } from '@agenthub/shared'
 const log = logger.child('ModuleManager')
 
 /**
- * IModuleContext provider — the sandbox factory creates sandboxed contexts.
- * This abstraction keeps the ModuleManager free of Tauri/desktop-specific imports.
+ * IModuleSandboxHandle — re-export the port for backward compatibility.
  */
-export interface IModuleSandboxHandle {
-    activate(): Promise<void>
-    deactivate(): Promise<void>
-    getCtx(): import('@agenthub/sdk').IModuleContext | null
-}
+export type IModuleSandboxHandle = IModuleSandboxHandlePort
 
 /**
  * ModuleManager — Façade + Registry Pattern.
@@ -30,15 +33,15 @@ export interface IModuleSandboxHandle {
  * Delegates sandbox creation, permission granting, and signature checks.
  *
  * Core never directly imports Tauri/browser/platform APIs:
- * - Sandbox creation → ISandboxFactory (injected)
+ * - Sandbox creation → ISandboxFactoryPort (injected)
  * - Signature verification → callback (injected)
- * - Module loading → IModuleLoader on ISandboxFactory (injected)
+ * - Module loading → dynamic import (runtime)
  */
-export class ModuleManager implements IModuleManager {
+export class ModuleManager implements IModuleManagerPort {
     /** moduleId → loaded definition */
-    private readonly registry = new Map<string, IModuleDefinition>()
+    private readonly registry = new Map<string, IModuleDefinitionPort>()
     /** moduleId → sandbox handle */
-    private readonly sandboxes = new Map<string, IModuleSandboxHandle>()
+    private readonly sandboxes = new Map<string, IModuleSandboxHandlePort>()
 
     /**
      * Optional async callback invoked before permissions are granted.
@@ -46,17 +49,17 @@ export class ModuleManager implements IModuleManager {
      */
     private permissionRequestHandler?: (
         moduleId: string,
-        permissions: readonly Permission[],
+        permissions: readonly string[],
     ) => Promise<boolean>
 
     constructor(
         private readonly permissionEngine: PermissionEngine,
         private readonly coreVersion: string,
-        private readonly sandboxFactory: ISandboxFactory,
-        private readonly signatureVerifier?: (pkg: IAppPackage) => Promise<void>,
+        private readonly sandboxFactory: ISandboxFactoryPort,
+        private readonly signatureVerifier?: (pkg: IAppPackagePort) => Promise<void>,
     ) { }
 
-    async install(pkg: IAppPackage): Promise<void> {
+    async install(pkg: IAppPackagePort): Promise<void> {
         if (this.signatureVerifier) {
             await this.signatureVerifier(pkg)
         }
@@ -71,7 +74,7 @@ export class ModuleManager implements IModuleManager {
 
     /** Wire the UI-layer handler that is called before permissions are granted on activate(). */
     setPermissionRequestHandler(
-        handler: (moduleId: string, permissions: readonly Permission[]) => Promise<boolean>,
+        handler: (moduleId: string, permissions: readonly string[]) => Promise<boolean>,
     ): void {
         this.permissionRequestHandler = handler
     }
@@ -141,8 +144,8 @@ export class ModuleManager implements IModuleManager {
      * Returns a map of all currently active (sandboxed) module definitions.
      * A module is active after activate() succeeds and before deactivate() is called.
      */
-    getActive(): ReadonlyMap<string, IModuleDefinition> {
-        const result = new Map<string, IModuleDefinition>()
+    getActive(): ReadonlyMap<string, IModuleDefinitionPort> {
+        const result = new Map<string, IModuleDefinitionPort>()
         for (const [id] of this.sandboxes) {
             const def = this.registry.get(id)
             if (def) result.set(id, def)
@@ -151,11 +154,11 @@ export class ModuleManager implements IModuleManager {
     }
 
     /**
-     * Register a first-party built-in module directly — bypasses IAppPackage
+     * Register a first-party built-in module directly — bypasses IAppPackagePort
      * signature + checksum verification (not needed for bundled modules).
      * Must call activate(moduleId) separately.
      */
-    registerBuiltin(moduleId: string, definition: IModuleDefinition): void {
+    registerBuiltin(moduleId: string, definition: IModuleDefinitionPort): void {
         this.validateId(moduleId, 'moduleId')
         this.registry.set(moduleId, definition)
         log.info('Built-in module registered', { moduleId, version: definition.manifest.version })
@@ -169,7 +172,7 @@ export class ModuleManager implements IModuleManager {
     async runTool(
         moduleId: string,
         toolName: string,
-        input: IToolInput,
+        input: Record<string, unknown>,
     ): Promise<unknown> {
         this.validateId(moduleId, 'moduleId')
         this.validateId(toolName, 'toolName')
@@ -187,7 +190,7 @@ export class ModuleManager implements IModuleManager {
     // ─── Private helpers ──────────────────────────────────────────────────────
 
     /** Ensure a module has an active sandbox context, activating on demand if needed. */
-    private async ensureActiveContext(moduleId: string): Promise<import('@agenthub/sdk').IModuleContext> {
+    private async ensureActiveContext(moduleId: string): Promise<IModuleContextPort> {
         const sandbox = this.sandboxes.get(moduleId)
         const ctx = sandbox?.getCtx() ?? null
 
@@ -203,9 +206,9 @@ export class ModuleManager implements IModuleManager {
 
     /** Execute a tool with structured error logging. */
     private async executeTool(
-        tool: import('@agenthub/sdk').ITool,
-        input: IToolInput,
-        ctx: import('@agenthub/sdk').IModuleContext,
+        tool: IToolPort,
+        input: Record<string, unknown>,
+        ctx: IModuleContextPort,
         moduleId: string,
         toolName: string,
     ): Promise<unknown> {
@@ -221,7 +224,7 @@ export class ModuleManager implements IModuleManager {
         }
     }
 
-    private verifyVersion(pkg: IAppPackage): void {
+    private verifyVersion(pkg: IAppPackagePort): void {
         const { minCoreVersion, maxCoreVersion, name } = pkg.manifest
         if (!isSemverCompatible(this.coreVersion, minCoreVersion, maxCoreVersion)) {
             throw new ModuleVersionIncompatibleError(
@@ -231,12 +234,12 @@ export class ModuleManager implements IModuleManager {
         }
     }
 
-    private async loadDefinition(pkg: IAppPackage): Promise<IModuleDefinition> {
+    private async loadDefinition(pkg: IAppPackagePort): Promise<IModuleDefinitionPort> {
         try {
             // Dynamic import — the entry path resolution is handled
             // by the app-level bootstrap (e.g. Tauri file: → asset: conversion).
             // @vite-ignore suppresses the Vite static-analysis warning for the dynamic path.
-            const mod = await import(/* @vite-ignore */ pkg.entryPath) as { default?: IModuleDefinition }
+            const mod = await import(/* @vite-ignore */ pkg.entryPath) as { default?: IModuleDefinitionPort }
             if (!mod.default) {
                 throw new ModuleInstallError(`Module "${pkg.manifest.name}" has no default export`)
             }

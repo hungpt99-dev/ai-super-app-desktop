@@ -1,16 +1,9 @@
 /**
  * Types for the runtime module — factories and handles that allow
  * the core package to create sandboxes without importing app-level code.
+ *
+ * NOTE: ISandboxFactory is now defined as ISandboxFactoryPort in interfaces.ts.
+ * This file re-exports it for backward compatibility.
  */
 
-import type { IModuleDefinition } from '@agenthub/sdk'
-import type { IModuleSandboxHandle } from './module-manager.js'
-
-/**
- * Factory for creating module sandbox handles.
- * Implemented in apps/desktop (or apps/web) to inject platform-specific
- * sandbox implementations.
- */
-export interface ISandboxFactory {
-    create(moduleId: string, definition: IModuleDefinition): IModuleSandboxHandle
-}
+export type { ISandboxFactoryPort as ISandboxFactory } from './interfaces.js'

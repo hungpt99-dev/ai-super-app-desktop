@@ -1,4 +1,4 @@
-import type { IPermissionEngine, Permission } from '@agenthub/sdk'
+import type { IPermissionEnginePort } from './interfaces.js'
 import { PermissionDeniedError, ValidationError } from '@agenthub/shared'
 import { logger } from '@agenthub/shared'
 
@@ -13,15 +13,15 @@ const log = logger.child('PermissionEngine')
  * Thread-safety: JS is single-threaded, so Map operations are atomic.
  * The Map is never exposed directly — only read-only views are returned.
  */
-export class PermissionEngine implements IPermissionEngine {
+export class PermissionEngine implements IPermissionEnginePort {
     /** moduleId → Set of granted permissions */
-    private readonly grants = new Map<string, Set<Permission>>()
+    private readonly grants = new Map<string, Set<string>>()
 
-    grant(moduleId: string, permissions: readonly Permission[]): void {
+    grant(moduleId: string, permissions: readonly string[]): void {
         this.validateModuleId(moduleId)
         if (permissions.length === 0) return
 
-        const existing = this.grants.get(moduleId) ?? new Set<Permission>()
+        const existing = this.grants.get(moduleId) ?? new Set<string>()
         for (const p of permissions) {
             existing.add(p)
         }
@@ -39,7 +39,7 @@ export class PermissionEngine implements IPermissionEngine {
      * Revoke a single permission from a module without affecting others.
      * No-op if the module doesn't hold the permission.
      */
-    revokePermission(moduleId: string, permission: Permission): void {
+    revokePermission(moduleId: string, permission: string): void {
         this.validateModuleId(moduleId)
         const perms = this.grants.get(moduleId)
         if (perms) {
@@ -53,7 +53,7 @@ export class PermissionEngine implements IPermissionEngine {
      * Throws PermissionDeniedError if the module does not hold the permission.
      * Called by SDK proxy before EVERY privileged operation.
      */
-    check(moduleId: string, permission: Permission): void {
+    check(moduleId: string, permission: string): void {
         if (!this.hasPermission(moduleId, permission)) {
             throw new PermissionDeniedError(
                 `Module "${moduleId}" lacks permission: ${permission}`,
@@ -62,18 +62,18 @@ export class PermissionEngine implements IPermissionEngine {
         }
     }
 
-    hasPermission(moduleId: string, permission: Permission): boolean {
+    hasPermission(moduleId: string, permission: string): boolean {
         return this.grants.get(moduleId)?.has(permission) ?? false
     }
 
     /** Return all permissions for a specific module. */
-    getModulePermissions(moduleId: string): ReadonlySet<Permission> {
-        return this.grants.get(moduleId) ?? new Set<Permission>()
+    getModulePermissions(moduleId: string): ReadonlySet<string> {
+        return this.grants.get(moduleId) ?? new Set<string>()
     }
 
     /** Return all current in-memory grants (read-only). Used by the Settings UI. */
-    getGrants(): ReadonlyMap<string, ReadonlySet<Permission>> {
-        return this.grants as ReadonlyMap<string, ReadonlySet<Permission>>
+    getGrants(): ReadonlyMap<string, ReadonlySet<string>> {
+        return this.grants as ReadonlyMap<string, ReadonlySet<string>>
     }
 
     // ─── Internal ──────────────────────────────────────────────────────────────

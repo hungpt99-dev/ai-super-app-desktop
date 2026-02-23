@@ -1,4 +1,11 @@
-import type { IEmbeddingService } from '../index.js'
+/**
+ * OpenAI Embedding Service — infrastructure adapter.
+ *
+ * Moved from packages/memory to packages/provider since it calls
+ * the OpenAI API directly (infrastructure concern, not domain logic).
+ */
+
+import type { IEmbeddingService } from '@agenthub/core'
 
 export class OpenAiEmbeddingService implements IEmbeddingService {
     readonly dimensions = 1536 // text-embedding-ada-002

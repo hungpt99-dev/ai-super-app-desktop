@@ -1,66 +1,72 @@
 /**
- * Execution Package — scheduler, worker management, and lifecycle.
+ * Execution Package — scheduler, worker, concurrency, and lifecycle.
  *
- * See: docs/technical-design.md §3.1 (execution model)
- * See: docs/codebase.md Layer 3 — execution
+ * DOES NOT import provider or storage implementations directly.
+ * Uses locally defined port interfaces. Platform wires real adapters.
+ *
+ * See: docs/technical-design.md §9 EXECUTION ENGINE
  */
+
+import type { AgentLifecycleState } from '@agenthub/shared'
 
 // ─── Scheduler ──────────────────────────────────────────────────────────────
 
 export interface IScheduler {
-    /** Enqueue an execution for processing. */
-    enqueue(executionId: string, priority?: number): void
-    /** Dequeue the next execution to process. Returns null if empty. */
-    dequeue(): string | null
-    /** Cancel a queued execution. */
-    cancel(executionId: string): boolean
-    /** Number of pending executions. */
-    readonly size: number
+    /** Enqueue a graph for execution. */
+    enqueue(executionId: string, graphId: string): void
+    /** Step through the next node in the graph. */
+    step(executionId: string): Promise<void>
+    /** Cancel a running execution. */
+    cancel(executionId: string): void
 }
 
 // ─── Worker ─────────────────────────────────────────────────────────────────
 
-export type WorkerStatus = 'idle' | 'busy' | 'error' | 'shutdown'
-
 export interface IWorker {
     readonly id: string
-    readonly status: WorkerStatus
-    /** Execute a single graph run. */
-    execute(executionId: string): Promise<void>
-    /** Gracefully stop the worker after current execution completes. */
-    shutdown(): Promise<void>
+    readonly status: AgentLifecycleState
+    /** Execute one unit of work. */
+    execute(payload: Record<string, unknown>): Promise<unknown>
+    /** Terminate the worker. */
+    terminate(): void
+}
+
+export interface IWorkerManager {
+    /** Dispatch a job to an available worker. */
+    dispatch(executionId: string, payload: Record<string, unknown>): Promise<unknown>
+    /** Terminate a specific worker. */
+    terminateWorker(executionId: string): void
+    /** Get all active worker IDs. */
+    activeWorkers(): string[]
 }
 
 // ─── Lifecycle Manager ──────────────────────────────────────────────────────
 
 export interface ILifecycleManager {
-    /** Start the execution engine with the given number of workers. */
-    start(workerCount?: number): Promise<void>
-    /** Gracefully stop all workers. */
-    stop(): Promise<void>
-    /** Abort a specific execution. */
-    abort(executionId: string): Promise<void>
-    /** Get the status of all workers. */
-    getWorkerStatuses(): ReadonlyMap<string, WorkerStatus>
+    /** Create a new execution lifecycle. */
+    create(executionId: string): void
+    /** Get the current state of an execution. */
+    getState(executionId: string): AgentLifecycleState | null
+    /** Transition an execution to a new state. */
+    transition(executionId: string, state: AgentLifecycleState): void
 }
 
 // ─── Retry Policy ───────────────────────────────────────────────────────────
 
 export interface IRetryPolicy {
-    /** Maximum number of retry attempts. */
-    readonly maxRetries: number
-    /** Base delay between retries in milliseconds. */
-    readonly baseDelayMs: number
-    /** Whether to use exponential backoff. */
-    readonly exponentialBackoff: boolean
+    readonly maxAttempts: number
+    readonly delayMs: number
+    shouldRetry(error: Error, attempt: number): boolean
 }
 
 export const DEFAULT_RETRY_POLICY: IRetryPolicy = {
-    maxRetries: 3,
-    baseDelayMs: 1000,
-    exponentialBackoff: true,
+    maxAttempts: 3,
+    delayMs: 1000,
+    shouldRetry: (_error: Error, attempt: number) => attempt < 3,
 }
 
-export * from './scheduler/index.js'
-export * from './worker/index.js'
+// ─── Re-exports ─────────────────────────────────────────────────────────────
+
+export { GraphScheduler } from './scheduler/index.js'
+export { WorkerManager } from './worker/index.js'
 export * from './lifecycle/index.js'

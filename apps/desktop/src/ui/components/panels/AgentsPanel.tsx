@@ -9,13 +9,7 @@
 
 import React, { useEffect, useRef, useState } from 'react'
 import { useAgentsStore, type IDesktopAgent, type IDesktopAgentRun, type IChatMessage, type IAgentCredential } from '../../store/agents-store.js'
-import { findTemplate, type IAgentTemplate } from '../../store/agent-templates.js'
-import { CryptoPanel, WritingHelperPanel } from '../modules/index.js'
-
-const MODULE_PANELS: Record<string, React.ComponentType<any>> = {
-  'crypto-analysis': CryptoPanel,
-  'writing-helper': WritingHelperPanel,
-}
+import { findTemplate, type IAgentTemplate } from '../../store/template-registry.js'
 import { useAppStore } from '../../store/app-store.js'
 
 // ─── Shared Components ────────────────────────────────────────────────────────
@@ -187,13 +181,147 @@ function RunHistorySection({ agentRuns, agentId }: { agentRuns: IDesktopAgentRun
     </section>
   )
 }
-// ─── Custom UI tab ────────────────────────────────────────────────────────────
+// ─── Configuration tab ────────────────────────────────────────────────────────
 
-function CustomTabContent({ agent, latestRun }: { agent: IDesktopAgent; latestRun?: IDesktopAgentRun | undefined }): React.JSX.Element | null {
-  if (!agent.templateId) return null
-  const Panel = MODULE_PANELS[agent.templateId]
-  if (!Panel) return null
-  return <Panel agent={agent} latestRun={latestRun} />
+function ConfigTab({ agent, template }: { agent: IDesktopAgent; template?: IAgentTemplate | undefined }): React.JSX.Element {
+  const [systemPrompt, setSystemPrompt] = useState(agent.config?.systemPrompt ?? template?.config.systemPrompt ?? '')
+  const [model, setModel] = useState(agent.config?.model ?? template?.config.model ?? '')
+  const [temperature, setTemperature] = useState(agent.config?.temperature ?? template?.config.temperature ?? 0.7)
+  const [maxTokens, setMaxTokens] = useState(agent.config?.maxTokens ?? template?.config.maxTokens ?? 2048)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [disabledTools, setDisabledTools] = useState<Set<string>>(new Set(agent.disabledTools ?? []))
+
+  const handleSave = async (): Promise<void> => {
+    setSaving(true)
+    await useAgentsStore.getState().updateAgent(agent.id, {
+      config: {
+        systemPrompt: systemPrompt.trim() || undefined,
+        model: model.trim() || undefined,
+        temperature,
+        maxTokens,
+      },
+      disabledTools: [...disabledTools],
+    })
+    setSaving(false)
+    setSaved(true)
+    setTimeout(() => { setSaved(false) }, 2_000)
+  }
+
+  const tools = template?.tools ?? []
+
+  return (
+    <div className="space-y-6">
+      {/* Model Configuration */}
+      <section>
+        <p className="mb-4 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Model</p>
+        <div className="space-y-4 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-[var(--color-text-secondary)]">Model Name</label>
+            <input
+              value={model}
+              onChange={(e) => { setModel(e.target.value) }}
+              placeholder={template?.config.model ?? 'gpt-4o-mini'}
+              className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] px-4 py-2.5 text-sm text-[var(--color-text-primary)] outline-none transition-colors focus:border-[var(--color-accent)]"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-[var(--color-text-secondary)]">
+                Temperature: {String(temperature)}
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="2"
+                step="0.1"
+                value={temperature}
+                onChange={(e) => { setTemperature(parseFloat(e.target.value)) }}
+                className="w-full accent-[var(--color-accent)]"
+              />
+              <div className="flex justify-between text-[10px] text-[var(--color-text-muted)]">
+                <span>Precise</span>
+                <span>Creative</span>
+              </div>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-[var(--color-text-secondary)]">Max Tokens</label>
+              <input
+                type="number"
+                value={maxTokens}
+                onChange={(e) => { setMaxTokens(parseInt(e.target.value, 10) || 2048) }}
+                min={1}
+                max={128000}
+                className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] px-4 py-2.5 text-sm text-[var(--color-text-primary)] outline-none transition-colors focus:border-[var(--color-accent)]"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* System Prompt */}
+      <section>
+        <p className="mb-4 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">System Prompt</p>
+        <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+          <textarea
+            value={systemPrompt}
+            onChange={(e) => { setSystemPrompt(e.target.value) }}
+            placeholder={template?.config.systemPrompt ?? 'You are a helpful AI assistant...'}
+            rows={6}
+            className="w-full resize-none rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] px-4 py-3 font-mono text-xs leading-relaxed text-[var(--color-text-primary)] outline-none transition-colors focus:border-[var(--color-accent)]"
+          />
+          <p className="mt-2 text-[10px] text-[var(--color-text-muted)]">
+            Instructions sent to the AI before every message. Leave blank to use the template default.
+          </p>
+        </div>
+      </section>
+
+      {/* Tools */}
+      {tools.length > 0 && (
+        <section>
+          <p className="mb-4 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Tools ({String(tools.length)})</p>
+          <div className="space-y-2">
+            {tools.map((tool) => {
+              const isDisabled = disabledTools.has(tool.name)
+              return (
+                <div
+                  key={tool.name}
+                  className="flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-[var(--color-text-primary)]">{tool.name}</p>
+                    <p className="mt-0.5 truncate text-[10px] text-[var(--color-text-muted)]">{tool.description}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = new Set(disabledTools)
+                      if (isDisabled) { next.delete(tool.name) } else { next.add(tool.name) }
+                      setDisabledTools(next)
+                    }}
+                    className={`ml-3 shrink-0 rounded-full px-3 py-1 text-[10px] font-semibold transition-colors ${isDisabled
+                      ? 'bg-[var(--color-surface-2)] text-[var(--color-text-muted)]'
+                      : 'bg-[var(--color-success)]/15 text-[var(--color-success)]'
+                      }`}
+                  >
+                    {isDisabled ? 'Disabled' : 'Enabled'}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
+
+      <button
+        onClick={() => { void handleSave() }}
+        disabled={saving}
+        className="rounded-xl bg-[var(--color-accent)] px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
+      >
+        {saved ? '✓ Saved' : saving ? 'Saving…' : 'Save Configuration'}
+      </button>
+    </div>
+  )
 }
 
 // ─── Settings tab ─────────────────────────────────────────────────────────────
@@ -602,7 +730,7 @@ function SettingsTab({ agent, template, colorClass, onDelete, isRunning, onStop 
 
 // ─── AgentRunPanel (Main Export) ───────────────────────────────────────────────
 
-type AgentTab = 'custom' | 'settings'
+type AgentTab = 'config' | 'runs' | 'settings'
 
 export interface IAgentRunPanelProps {
   onBack: () => void
@@ -623,15 +751,9 @@ export function AgentRunPanel({ onBack }: IAgentRunPanelProps): React.JSX.Elemen
 
   const template = agent?.templateId ? findTemplate(agent.templateId) : undefined
   const colorClass = template?.colorClass ?? 'bg-[var(--color-surface-2)] text-[var(--color-text-muted)]'
-  const hasCustom = agent?.templateId !== undefined && agent.templateId in MODULE_PANELS
 
-  const [tab, setTab] = useState<AgentTab>(hasCustom ? 'custom' : 'settings')
+  const [tab, setTab] = useState<AgentTab>('config')
   const [confirmDelete, setConfirmDelete] = useState(false)
-
-  // Auto-switch away from "custom" if agent has no template
-  useEffect(() => {
-    if (!hasCustom && tab === 'custom') setTab('settings')
-  }, [hasCustom, tab])
 
   // Polling for active runs
   useEffect(() => {
@@ -653,10 +775,10 @@ export function AgentRunPanel({ onBack }: IAgentRunPanelProps): React.JSX.Elemen
     void useAgentsStore.getState().deleteAgent(agent.id).then(() => { onBack() })
   }
 
-  const customTabLabel = template ? `${template.icon} ${template.name}` : 'Widget'
   const tabs: { id: AgentTab; label: string }[] = [
-    ...(hasCustom ? [{ id: 'custom' as AgentTab, label: customTabLabel }] : []),
-    { id: 'settings', label: 'Settings' },
+    { id: 'config', label: '⚙️ Configuration' },
+    { id: 'runs', label: '▶ Runs' },
+    { id: 'settings', label: '🔧 Settings' },
   ]
 
   return (
@@ -791,8 +913,22 @@ export function AgentRunPanel({ onBack }: IAgentRunPanelProps): React.JSX.Elemen
       {/* Tab Content */}
       <div className="flex-1 overflow-y-auto px-6 py-6">
         <div className="mx-auto max-w-2xl">
-          {tab === 'custom' && hasCustom && (
-            <CustomTabContent agent={agent} latestRun={latestRun} />
+          {tab === 'config' && (
+            <ConfigTab agent={agent} template={template} />
+          )}
+          {tab === 'runs' && (
+            <div className="space-y-6">
+              {/* Live progress */}
+              {isRunning && latestRun?.plannedSteps && (
+                <RunProgress agentId={agent.id} runId={latestRun.id} />
+              )}
+              {/* Run history */}
+              {agentRuns.length > 0 ? (
+                <RunHistorySection agentRuns={agentRuns} agentId={agent.id} />
+              ) : (
+                <p className="text-center text-xs text-[var(--color-text-muted)] py-8">No runs yet. Click "Run Now" to start.</p>
+              )}
+            </div>
           )}
           {tab === 'settings' && (
             <SettingsTab
