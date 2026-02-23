@@ -546,7 +546,13 @@ async fn chat_send(
         .json(&body)
         .send()
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            if e.is_connect() {
+                "Cloud Gateway unreachable. Please check your internet connection or configure a local API key in the Dashboard.".to_string()
+            } else {
+                e.to_string()
+            }
+        })?;
 
     if !resp.status().is_success() {
         return Err(format!("stream error: HTTP {}", resp.status().as_u16()));
@@ -613,7 +619,13 @@ async fn ai_generate(
         .json(&body)
         .send()
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            if e.is_connect() {
+                "Cloud Gateway unreachable. Please check your internet connection or configure a local API key in the Dashboard.".to_string()
+            } else {
+                e.to_string()
+            }
+        })?;
 
     if !resp.status().is_success() {
         return Err(format!("generate error: HTTP {}", resp.status().as_u16()));
@@ -669,7 +681,13 @@ async fn ai_stream(
         .json(&body)
         .send()
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            if e.is_connect() {
+                "Cloud Gateway unreachable. Please check your internet connection or configure a local API key in the Dashboard.".to_string()
+            } else {
+                e.to_string()
+            }
+        })?;
 
     if !resp.status().is_success() {
         return Err(format!("stream error: HTTP {}", resp.status().as_u16()));

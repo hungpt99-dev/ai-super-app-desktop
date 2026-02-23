@@ -337,6 +337,10 @@ export const useGroupChatStore = create<IGroupChatState>((set, get) => ({
 
     const currentMode = get().mode
 
+    // ── Check for Local API Keys ──────────────────────────────────────────────
+    const aiOptions = await resolveApiOptions()
+    const hasKeys = Object.keys(aiOptions).length > 0
+
     // ── Mention detection: check for @Name ─────────────────────────────────────
     let targetAgent: IDesktopAgent | undefined
     const mentionMatch = text.match(/@(\w+)/)
@@ -357,6 +361,12 @@ export const useGroupChatStore = create<IGroupChatState>((set, get) => ({
     set({ messages: next, error: null })
 
     const { agents } = useAgentsStore.getState()
+
+    // ── Validation: Fail early if no keys configured ───────────────────────────
+    if (!hasKeys) {
+      _postSystem(set, get, '⚠️ **No API key configured.** Please add a key in the **Dashboard** or **AI Keys** tab to enable local chat.')
+      return
+    }
 
     // ── Tagged routing: if @mention is found, bypass the router ───────────────
     if (targetAgent) {
@@ -659,7 +669,7 @@ async function _agentConversationalReply(
       }))
     })
 
-    const res = await bridge.chat.send(prompt, aiOptions ?? {})
+    const res = await bridge.chat.send(prompt, aiOptions)
     unsub()
     const final = (accumulated || res.output).startsWith('[Dev mode]')
       ? `[Offline] Start the full Tauri app to enable AI responses from ${agent.name}.`
@@ -746,7 +756,7 @@ async function _agentStatusReply(
       }))
     })
 
-    const res = await bridge.chat.send(prompt, aiOptions ?? {})
+    const res = await bridge.chat.send(prompt, aiOptions)
     unsub()
     const final = (accumulated || res.output).startsWith('[Dev mode]')
       ? `[Offline] I was assigned "${ownedTopic}". Status: ${planStatus}.`
@@ -806,7 +816,7 @@ async function _genericAiReply(
       }))
     })
 
-    const res = await bridge.chat.send(userText, Object.keys(aiOptions).length > 0 ? aiOptions : {})
+    const res = await bridge.chat.send(userText, aiOptions)
     unsub()
     const final = accumulated || res.output
 
