@@ -2,8 +2,10 @@ import { create } from 'zustand'
 import type { IToastNotification } from '../../bridges/bridge-types.js'
 import { addLog } from './log-store.js'
 
-export type AppView = 'dashboard' | 'chat' | 'agents' | 'hub' | 'activity' | 'logs' | 'settings' | 'api-keys' | 'agent-run' | 'create-agent' | 'create-skill' | 'agent-marketplace' | 'skill-marketplace'
-  | 'execution-playground' | 'agent-builder' | 'skill-builder' | 'agent-library' | 'skill-library' | 'snapshot-manager'
+export type AppView = 'dashboard' | 'chat' | 'agents' | 'hub' | 'activity' | 'logs' | 'settings' | 'api-keys' | 'agent-run' | 'agent-editor' | 'skill-editor'
+  | 'agent-marketplace' | 'skill-marketplace'
+  | 'execution-playground' | 'agent-library' | 'skill-library' | 'snapshot-manager'
+  | 'metrics-dashboard' | 'workspace-manager'
 export type Theme = 'dark' | 'light' | 'system'
 export type { IToastNotification }
 

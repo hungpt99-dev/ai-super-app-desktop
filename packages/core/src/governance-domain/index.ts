@@ -28,7 +28,7 @@ export interface IPolicyRule {
     readonly description: string
     readonly enabled: boolean
     readonly priority: number
-    readonly evaluate(context: IPolicyContext): IPolicyEvaluationResult
+    evaluate(context: IPolicyContext): IPolicyEvaluationResult
 }
 
 export interface IPolicyContext {

@@ -186,6 +186,36 @@ const tauriBridge: IDesktopBridge = {
     updateRun: (runId: string, update: IAgentRunUpdate) =>
       invoke<undefined>('agents_update_run', { runId, update }).then(() => undefined),
   },
+
+  // ── Metrics ────────────────────────────────────────────────────────────────
+  metrics: {
+    getExecutionSummary: (payload: { executionId: string }) =>
+      invoke<unknown>('metrics:getExecutionSummary', payload),
+    getDailyUsage: (payload: { date: string }) =>
+      invoke<unknown>('metrics:getDailyUsage', payload),
+    getAgentBreakdown: (payload: { date: string }) =>
+      invoke<unknown>('metrics:getAgentBreakdown', payload),
+    getAllExecutions: () =>
+      invoke<readonly string[]>('metrics:getAllExecutions'),
+    exportReport: (payload: { fromDate: string; toDate: string }) =>
+      invoke<unknown>('metrics:exportReport', payload),
+    getSummary: (payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }) =>
+      invoke<unknown>('metrics:getSummary', payload),
+    getTokens: (payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }) =>
+      invoke<unknown>('metrics:getTokens', payload),
+    getCosts: (payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }) =>
+      invoke<unknown>('metrics:getCosts', payload),
+    getAgents: (payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }) =>
+      invoke<unknown>('metrics:getAgents', payload),
+    getExecutions: (payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }) =>
+      invoke<unknown>('metrics:getExecutions', payload),
+    getTools: (payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }) =>
+      invoke<unknown>('metrics:getTools', payload),
+    getModels: (payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }) =>
+      invoke<unknown>('metrics:getModels', payload),
+    exportData: (payload: { fromDate: string; toDate: string }) =>
+      invoke<unknown>('metrics:export', payload),
+  },
 }
 
 // ─── Dev bridge (browser-only mode) ──────────────────────────────────────────
@@ -509,6 +539,56 @@ const devBridge: IDesktopBridge = {
         throw new Error(`updateRun failed: ${String(res.status)}`)
       }
     },
+  },
+
+  // ── Metrics ────────────────────────────────────────────────────────────────
+  metrics: {
+    getExecutionSummary: (_payload: { executionId: string }): Promise<unknown> =>
+      Promise.resolve(null),
+    getDailyUsage: (_payload: { date: string }): Promise<unknown> =>
+      Promise.resolve(null),
+    getAgentBreakdown: (_payload: { date: string }): Promise<unknown> =>
+      Promise.resolve(null),
+    getAllExecutions: (): Promise<readonly string[]> =>
+      Promise.resolve([]),
+    exportReport: (_payload: { fromDate: string; toDate: string }): Promise<unknown> =>
+      Promise.resolve(null),
+    getSummary: (_payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }): Promise<unknown> =>
+      Promise.resolve(null),
+    getTokens: (_payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }): Promise<unknown> =>
+      Promise.resolve(null),
+    getCosts: (_payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }): Promise<unknown> =>
+      Promise.resolve(null),
+    getAgents: (_payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }): Promise<unknown> =>
+      Promise.resolve(null),
+    getExecutions: (_payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }): Promise<unknown> =>
+      Promise.resolve(null),
+    getTools: (_payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }): Promise<unknown> =>
+      Promise.resolve(null),
+    getModels: (_payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }): Promise<unknown> =>
+      Promise.resolve(null),
+    exportData: (_payload: { fromDate: string; toDate: string }): Promise<unknown> =>
+      Promise.resolve(null),
+  },
+
+  // ── Workspace ────────────────────────────────────────────────────────────────
+  workspace: {
+    initialize: (): Promise<unknown> =>
+      invoke<unknown>('workspace:initialize', {}),
+    create: (payload: { name: string }): Promise<unknown> =>
+      invoke<unknown>('workspace:create', payload),
+    delete: (payload: { workspaceId: string }): Promise<unknown> =>
+      invoke<unknown>('workspace:delete', payload),
+    rename: (payload: { workspaceId: string; newName: string }): Promise<unknown> =>
+      invoke<unknown>('workspace:rename', payload),
+    switch: (payload: { workspaceId: string }): Promise<unknown> =>
+      invoke<unknown>('workspace:switch', payload),
+    list: (): Promise<unknown> =>
+      invoke<unknown>('workspace:list', {}),
+    getActive: (): Promise<unknown> =>
+      invoke<unknown>('workspace:getActive', {}),
+    duplicate: (payload: { sourceWorkspaceId: string; newName: string }): Promise<unknown> =>
+      invoke<unknown>('workspace:duplicate', payload),
   },
 }
 

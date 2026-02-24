@@ -1,133 +1,57 @@
 /**
- * AgentBuilderPage — Full agent definition builder with:
- * - Metadata editing
- * - Model config
- * - Capability config
- * - Memory config
- * - Graph editor stub
- * - Skill attachment
- *
- * On save: IPC → main → validate → version → persist
- * No filesystem access in renderer.
+ * AgentEditorPage — Unified agent creation/editing page.
+ * 
+ * Combines CreateAgentPage and AgentBuilderPage into a single page.
+ * Uses mode: 'create' | 'edit' based on presence of agentId.
+ * 
+ * Architecture:
+ * - Pages only compose components (RULE 1)
+ * - All logic in hooks (RULE 3)
+ * - No bridge calls in page (RULE 5)
  */
 
-import React, { useState, useEffect, useCallback } from 'react'
-import type {
-    IAgentDefinitionDTO,
-    IValidationResultDTO,
-    ILocalSkillListItem,
-    IVersionRecordDTO,
-    IToolConfigDTO,
-} from '@agenthub/contracts'
-import { getDesktopExtendedBridge } from '../../bridges/desktop-bridge'
-
-const CATEGORIES = ['productivity', 'developer', 'creative', 'finance', 'education', 'utilities'] as const
-const CAPABILITIES = [
-    'tool_use', 'network_access', 'memory_read', 'memory_write',
-    'token_budget', 'agent_boundary', 'filesystem_read', 'filesystem_write',
-    'computer_use', 'code_execution',
-] as const
+import React from 'react'
+import { useAgentBuilder, CATEGORIES, CAPABILITIES, type AgentTab } from '../hooks/use-agent-builder'
 
 interface IProps {
     agentId?: string
     onBack: () => void
 }
 
-function createDefaultAgent(): IAgentDefinitionDTO {
-    return {
-        id: crypto.randomUUID(),
-        name: '',
-        version: '1.0.0',
-        description: '',
-        capabilities: [],
-        permissions: [],
-        memoryConfig: { enabled: false, scopes: [] },
-        tools: [],
-        skills: [],
-        createdAt: new Date().toISOString(),
+const TAB_OPTIONS: AgentTab[] = ['basic', 'capabilities', 'memory', 'tools', 'skills', 'graph']
+
+export function AgentEditorPage({ agentId, onBack }: IProps): React.JSX.Element {
+    const {
+        agent,
+        validation,
+        versionHistory,
+        saving,
+        saved,
+        tab,
+        availableSkills,
+        update,
+        handleValidate,
+        handleSave,
+        toggleCapability,
+        toggleMemoryScope,
+        addTool,
+        removeTool,
+        setTab,
+        attachSkill,
+        detachSkill,
+        errorCount,
+        warnCount,
+        isEditMode,
+    } = useAgentBuilder({ agentId })
+
+    const updateTool = (index: number, field: 'name' | 'description', value: string) => {
+        const tools = [...agent.tools]
+        tools[index] = { ...tools[index], [field]: value }
+        update({ tools })
     }
-}
-
-export function AgentBuilderPage({ agentId, onBack }: IProps): React.JSX.Element {
-    const bridge = getDesktopExtendedBridge()
-    const [agent, setAgent] = useState<IAgentDefinitionDTO>(createDefaultAgent())
-    const [validation, setValidation] = useState<IValidationResultDTO | null>(null)
-    const [versionHistory, setVersionHistory] = useState<readonly IVersionRecordDTO[]>([])
-    const [saving, setSaving] = useState(false)
-    const [saved, setSaved] = useState(false)
-    const [tab, setTab] = useState<'basic' | 'capabilities' | 'memory' | 'tools' | 'skills' | 'graph'>('basic')
-    const [availableSkills, setAvailableSkills] = useState<readonly ILocalSkillListItem[]>([])
-
-    useEffect(() => {
-        if (agentId) {
-            void bridge.agentBuilder.load(agentId).then(result => {
-                if (result) {
-                    setAgent(result.agent)
-                    setVersionHistory(result.versionHistory)
-                }
-            })
-        }
-        void bridge.skillBuilder.listLocal().then(setAvailableSkills)
-    }, [agentId])
-
-    const update = useCallback((partial: Partial<IAgentDefinitionDTO>) => {
-        setAgent(prev => ({ ...prev, ...partial, updatedAt: new Date().toISOString() } as IAgentDefinitionDTO))
-        setSaved(false)
-    }, [])
-
-    const handleValidate = async () => {
-        const result = await bridge.agentBuilder.validate(agent)
-        setValidation(result)
-        return result
-    }
-
-    const handleSave = async (bump?: 'patch' | 'minor' | 'major') => {
-        setSaving(true)
-        try {
-            const result = await bridge.agentBuilder.save({ agent, bump })
-            setValidation(result.validation)
-            if (result.validation.valid) {
-                setAgent(prev => ({ ...prev, version: result.version }))
-                setSaved(true)
-            }
-        } finally {
-            setSaving(false)
-        }
-    }
-
-    const toggleCapability = (cap: string) => {
-        const next = agent.capabilities.includes(cap)
-            ? agent.capabilities.filter(c => c !== cap)
-            : [...agent.capabilities, cap]
-        update({ capabilities: next, permissions: next })
-    }
-
-    const toggleMemoryScope = (scope: 'working' | 'session' | 'long-term') => {
-        const scopes = agent.memoryConfig.scopes.includes(scope)
-            ? agent.memoryConfig.scopes.filter(s => s !== scope)
-            : [...agent.memoryConfig.scopes, scope]
-        update({ memoryConfig: { ...agent.memoryConfig, scopes } })
-    }
-
-    const addTool = () => {
-        update({
-            tools: [...agent.tools, {
-                name: `tool_${agent.tools.length + 1}`,
-                description: '',
-                inputSchema: {},
-            }],
-        })
-    }
-
-    const removeTool = (index: number) => {
-        update({ tools: agent.tools.filter((_, i) => i !== index) })
-    }
-
-    const errorCount = validation?.issues.filter(i => i.severity === 'error').length ?? 0
-    const warnCount = validation?.issues.filter(i => i.severity === 'warning').length ?? 0
 
     return (
-        <div className="flex h-full flex-col overflow-hidden">
+        <div className="flex flex-col h-full overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-[var(--color-border)] px-6 py-4">
                 <div className="flex items-center gap-3">
@@ -135,7 +59,7 @@ export function AgentBuilderPage({ agentId, onBack }: IProps): React.JSX.Element
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5m7-7-7 7 7 7" /></svg>
                     </button>
                     <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">
-                        {agentId ? 'Edit Agent' : 'Agent Builder'}
+                        {isEditMode ? 'Edit Agent' : 'Agent Builder'}
                     </h1>
                     <span className="text-xs text-[var(--color-text-muted)]">v{agent.version}</span>
                     {saved && <span className="text-xs text-[var(--color-success)]">Saved ✓</span>}
@@ -148,7 +72,7 @@ export function AgentBuilderPage({ agentId, onBack }: IProps): React.JSX.Element
                         Validate
                     </button>
                     <button
-                        onClick={() => handleSave('patch')}
+                        onClick={() => void handleSave('patch')}
                         disabled={saving}
                         className="rounded-lg bg-[var(--color-accent)] px-4 py-1.5 text-xs font-medium text-white disabled:opacity-50 hover:opacity-90"
                     >
@@ -168,7 +92,7 @@ export function AgentBuilderPage({ agentId, onBack }: IProps): React.JSX.Element
 
             {/* Tabs */}
             <div className="flex border-b border-[var(--color-border)] px-6">
-                {(['basic', 'capabilities', 'memory', 'tools', 'skills', 'graph'] as const).map(t => (
+                {TAB_OPTIONS.map(t => (
                     <button
                         key={t}
                         onClick={() => setTab(t)}
@@ -185,9 +109,9 @@ export function AgentBuilderPage({ agentId, onBack }: IProps): React.JSX.Element
 
             <div className="flex flex-1 overflow-hidden">
                 {/* Form content */}
-                <div className="flex-1 overflow-auto p-6">
+                <div className="flex-1 p-6 overflow-auto">
                     {tab === 'basic' && (
-                        <div className="space-y-4 max-w-xl">
+                        <div className="max-w-xl space-y-4">
                             <div>
                                 <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">Name *</label>
                                 <input
@@ -258,7 +182,7 @@ export function AgentBuilderPage({ agentId, onBack }: IProps): React.JSX.Element
                     )}
 
                     {tab === 'capabilities' && (
-                        <div className="space-y-3 max-w-xl">
+                        <div className="max-w-xl space-y-3">
                             <p className="text-xs text-[var(--color-text-muted)]">Select capabilities this agent declares.</p>
                             <div className="grid grid-cols-2 gap-2">
                                 {CAPABILITIES.map(cap => (
@@ -279,7 +203,7 @@ export function AgentBuilderPage({ agentId, onBack }: IProps): React.JSX.Element
                     )}
 
                     {tab === 'memory' && (
-                        <div className="space-y-4 max-w-xl">
+                        <div className="max-w-xl space-y-4">
                             <label className="flex items-center gap-2 text-sm text-[var(--color-text-primary)]">
                                 <input
                                     type="checkbox"
@@ -290,7 +214,7 @@ export function AgentBuilderPage({ agentId, onBack }: IProps): React.JSX.Element
                                 Enable Memory
                             </label>
                             {agent.memoryConfig.enabled && (
-                                <div className="space-y-3 pl-6">
+                                <div className="pl-6 space-y-3">
                                     <p className="text-xs text-[var(--color-text-muted)]">Memory Scopes</p>
                                     {(['working', 'session', 'long-term'] as const).map(scope => (
                                         <label key={scope} className="flex items-center gap-2 text-sm text-[var(--color-text-primary)]">
@@ -323,7 +247,7 @@ export function AgentBuilderPage({ agentId, onBack }: IProps): React.JSX.Element
                     )}
 
                     {tab === 'tools' && (
-                        <div className="space-y-4 max-w-xl">
+                        <div className="max-w-xl space-y-4">
                             <div className="flex items-center justify-between">
                                 <p className="text-xs text-[var(--color-text-muted)]">Agent tools (direct, not via skills)</p>
                                 <button
@@ -338,11 +262,7 @@ export function AgentBuilderPage({ agentId, onBack }: IProps): React.JSX.Element
                                     <div className="flex items-center justify-between">
                                         <input
                                             type="text" value={tool.name}
-                                            onChange={(e) => {
-                                                const tools = [...agent.tools] as IToolConfigDTO[]
-                                                tools[i] = { name: e.target.value, description: tool.description, inputSchema: tool.inputSchema }
-                                                update({ tools })
-                                            }}
+                                            onChange={(e) => updateTool(i, 'name', e.target.value)}
                                             placeholder="tool_name"
                                             className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs text-[var(--color-text-primary)] font-mono"
                                         />
@@ -350,11 +270,7 @@ export function AgentBuilderPage({ agentId, onBack }: IProps): React.JSX.Element
                                     </div>
                                     <textarea
                                         value={tool.description}
-                                        onChange={(e) => {
-                                            const tools = [...agent.tools] as IToolConfigDTO[]
-                                            tools[i] = { name: tool.name, description: e.target.value, inputSchema: tool.inputSchema }
-                                            update({ tools })
-                                        }}
+                                        onChange={(e) => updateTool(i, 'description', e.target.value)}
                                         placeholder="Tool description..."
                                         rows={2}
                                         className="w-full rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs text-[var(--color-text-primary)] resize-none"
@@ -365,7 +281,7 @@ export function AgentBuilderPage({ agentId, onBack }: IProps): React.JSX.Element
                     )}
 
                     {tab === 'skills' && (
-                        <div className="space-y-4 max-w-xl">
+                        <div className="max-w-xl space-y-4">
                             <p className="text-xs text-[var(--color-text-muted)]">Attached skills ({agent.skills.length})</p>
                             {agent.skills.map((skill, i) => (
                                 <div key={skill.id} className="rounded-lg border border-[var(--color-border)] p-3 flex items-center justify-between">
@@ -374,7 +290,7 @@ export function AgentBuilderPage({ agentId, onBack }: IProps): React.JSX.Element
                                         <span className="ml-2 text-xs text-[var(--color-text-muted)]">v{skill.version}</span>
                                     </div>
                                     <button
-                                        onClick={() => update({ skills: agent.skills.filter((_, idx) => idx !== i) })}
+                                        onClick={() => detachSkill(i)}
                                         className="text-xs text-[var(--color-danger)] hover:opacity-80"
                                     >
                                         Detach
@@ -392,12 +308,7 @@ export function AgentBuilderPage({ agentId, onBack }: IProps): React.JSX.Element
                                             .map(skill => (
                                                 <button
                                                     key={skill.id}
-                                                    onClick={async () => {
-                                                        const loaded = await bridge.skillBuilder.load(skill.id)
-                                                        if (loaded) {
-                                                            update({ skills: [...agent.skills, loaded.skill] })
-                                                        }
-                                                    }}
+                                                    onClick={() => void attachSkill(skill.id)}
                                                     className="flex w-full items-center justify-between rounded-lg border border-[var(--color-border)] p-2 text-left hover:bg-[var(--color-surface-2)]"
                                                 >
                                                     <span className="text-sm text-[var(--color-text-primary)]">{skill.name}</span>
@@ -411,8 +322,8 @@ export function AgentBuilderPage({ agentId, onBack }: IProps): React.JSX.Element
                     )}
 
                     {tab === 'graph' && (
-                        <div className="flex h-full items-center justify-center">
-                            <div className="text-center space-y-2">
+                        <div className="flex items-center justify-center h-full">
+                            <div className="space-y-2 text-center">
                                 <div className="mx-auto h-12 w-12 rounded-full bg-[var(--color-surface-2)] flex items-center justify-center">
                                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-[var(--color-text-muted)]">
                                         <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />

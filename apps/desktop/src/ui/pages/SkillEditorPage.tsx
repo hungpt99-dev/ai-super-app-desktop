@@ -1,108 +1,54 @@
 /**
- * SkillBuilderPage — Full skill definition builder with:
- * - Skill type selector (llm_prompt, tool_wrapper, graph_fragment)
- * - Metadata editing
- * - Capability requirements
- * - Input/Output schema editor
- * - LLM prompt editing
- * - Validation panel
- *
- * All persistence via IPC bridge.
+ * SkillEditorPage — Unified skill creation/editing page.
+ * 
+ * Combines CreateSkillPage and SkillBuilderPage into a single page.
+ * Uses mode: 'create' | 'edit' based on presence of skillId.
+ * 
+ * Architecture:
+ * - Pages only compose components (RULE 1)
+ * - All logic in hooks (RULE 3)
+ * - No bridge calls in page (RULE 5)
  */
 
-import React, { useState, useEffect, useCallback } from 'react'
-import type {
-    ISkillDefinitionDTO,
-    IValidationResultDTO,
-    IVersionRecordDTO,
-} from '@agenthub/contracts'
-import { getDesktopExtendedBridge } from '../../bridges/desktop-bridge'
-
-const SKILL_TYPES = ['llm_prompt', 'tool_wrapper', 'graph_fragment'] as const
-const CAPABILITIES = [
-    'tool_use', 'network_access', 'memory_read', 'memory_write',
-    'filesystem_read', 'filesystem_write', 'code_execution',
-] as const
+import React from 'react'
+import { useSkillBuilder, SKILL_TYPES, CAPABILITIES, type SkillTab } from '../hooks/use-skill-builder'
 
 interface IProps {
     skillId?: string
     onBack: () => void
 }
 
-function createDefaultSkill(): ISkillDefinitionDTO {
-    return {
-        id: crypto.randomUUID(),
-        name: '',
-        version: '1.0.0',
-        description: '',
-        type: 'llm_prompt',
-        requiredCapabilities: [],
-        permissions: [],
-        tools: [],
-        category: '',
-        inputSchema: {},
-        outputSchema: {},
-        createdAt: new Date().toISOString(),
-    }
-}
+const TAB_OPTIONS: SkillTab[] = ['basic', 'capabilities', 'schema', 'prompt']
 
-export function SkillBuilderPage({ skillId, onBack }: IProps): React.JSX.Element {
-    const bridge = getDesktopExtendedBridge()
-    const [skill, setSkill] = useState<ISkillDefinitionDTO>(createDefaultSkill())
-    const [validation, setValidation] = useState<IValidationResultDTO | null>(null)
-    const [versionHistory, setVersionHistory] = useState<readonly IVersionRecordDTO[]>([])
-    const [saving, setSaving] = useState(false)
-    const [saved, setSaved] = useState(false)
-    const [tab, setTab] = useState<'basic' | 'capabilities' | 'schema' | 'prompt'>('basic')
+export function SkillEditorPage({ skillId, onBack }: IProps): React.JSX.Element {
+    const {
+        skill,
+        validation,
+        versionHistory,
+        saving,
+        saved,
+        tab,
+        update,
+        handleValidate,
+        handleSave,
+        toggleCapability,
+        setTab,
+        errorCount,
+        warnCount,
+        isEditMode,
+    } = useSkillBuilder({ skillId })
 
-    useEffect(() => {
-        if (skillId) {
-            void bridge.skillBuilder.load(skillId).then(result => {
-                if (result) {
-                    setSkill(result.skill)
-                    setVersionHistory(result.versionHistory)
-                }
-            })
-        }
-    }, [skillId])
-
-    const update = useCallback((partial: Partial<ISkillDefinitionDTO>) => {
-        setSkill(prev => ({ ...prev, ...partial, updatedAt: new Date().toISOString() } as ISkillDefinitionDTO))
-        setSaved(false)
-    }, [])
-
-    const handleValidate = async () => {
-        const result = await bridge.skillBuilder.validate(skill)
-        setValidation(result)
-        return result
-    }
-
-    const handleSave = async (bump?: 'patch' | 'minor' | 'major') => {
-        setSaving(true)
+    const handleSchemaChange = (field: 'inputSchema' | 'outputSchema', value: string) => {
         try {
-            const result = await bridge.skillBuilder.save({ skill, bump })
-            setValidation(result.validation)
-            if (result.validation.valid) {
-                setSkill(prev => ({ ...prev, version: result.version }))
-                setSaved(true)
-            }
-        } finally {
-            setSaving(false)
+            const parsed = JSON.parse(value) as Record<string, unknown>
+            update({ [field]: parsed })
+        } catch {
+            /* invalid json, ignore until valid */
         }
     }
-
-    const toggleCapability = (cap: string) => {
-        const next = skill.requiredCapabilities.includes(cap)
-            ? skill.requiredCapabilities.filter((c: string) => c !== cap)
-            : [...skill.requiredCapabilities, cap]
-        update({ requiredCapabilities: next })
-    }
-
-    const errorCount = validation?.issues.filter(i => i.severity === 'error').length ?? 0
-    const warnCount = validation?.issues.filter(i => i.severity === 'warning').length ?? 0
 
     return (
-        <div className="flex h-full flex-col overflow-hidden">
+        <div className="flex flex-col h-full overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-[var(--color-border)] px-6 py-4">
                 <div className="flex items-center gap-3">
@@ -110,7 +56,7 @@ export function SkillBuilderPage({ skillId, onBack }: IProps): React.JSX.Element
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5m7-7-7 7 7 7" /></svg>
                     </button>
                     <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">
-                        {skillId ? 'Edit Skill' : 'Skill Builder'}
+                        {isEditMode ? 'Edit Skill' : 'Skill Builder'}
                     </h1>
                     <span className="text-xs text-[var(--color-text-muted)]">v{skill.version}</span>
                     {saved && <span className="text-xs text-[var(--color-success)]">Saved ✓</span>}
@@ -123,7 +69,7 @@ export function SkillBuilderPage({ skillId, onBack }: IProps): React.JSX.Element
                         Validate
                     </button>
                     <button
-                        onClick={() => handleSave('patch')}
+                        onClick={() => void handleSave('patch')}
                         disabled={saving}
                         className="rounded-lg bg-[var(--color-accent)] px-4 py-1.5 text-xs font-medium text-white disabled:opacity-50 hover:opacity-90"
                     >
@@ -143,7 +89,7 @@ export function SkillBuilderPage({ skillId, onBack }: IProps): React.JSX.Element
 
             {/* Tabs */}
             <div className="flex border-b border-[var(--color-border)] px-6">
-                {(['basic', 'capabilities', 'schema', 'prompt'] as const).map(t => (
+                {TAB_OPTIONS.map(t => (
                     <button
                         key={t}
                         onClick={() => setTab(t)}
@@ -160,9 +106,9 @@ export function SkillBuilderPage({ skillId, onBack }: IProps): React.JSX.Element
 
             <div className="flex flex-1 overflow-hidden">
                 {/* Form content */}
-                <div className="flex-1 overflow-auto p-6">
+                <div className="flex-1 p-6 overflow-auto">
                     {tab === 'basic' && (
-                        <div className="space-y-4 max-w-xl">
+                        <div className="max-w-xl space-y-4">
                             <div>
                                 <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">Skill Type *</label>
                                 <div className="flex gap-2">
@@ -231,7 +177,7 @@ export function SkillBuilderPage({ skillId, onBack }: IProps): React.JSX.Element
                     )}
 
                     {tab === 'capabilities' && (
-                        <div className="space-y-3 max-w-xl">
+                        <div className="max-w-xl space-y-3">
                             <p className="text-xs text-[var(--color-text-muted)]">Capabilities this skill requires from its host agent.</p>
                             <div className="grid grid-cols-2 gap-2">
                                 {CAPABILITIES.map(cap => (
@@ -252,19 +198,12 @@ export function SkillBuilderPage({ skillId, onBack }: IProps): React.JSX.Element
                     )}
 
                     {tab === 'schema' && (
-                        <div className="space-y-4 max-w-xl">
+                        <div className="max-w-xl space-y-4">
                             <div>
                                 <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">Input Schema (JSON)</label>
                                 <textarea
                                     value={JSON.stringify(skill.inputSchema, null, 2)}
-                                    onChange={(e) => {
-                                        try {
-                                            const parsed = JSON.parse(e.target.value) as Record<string, unknown>
-                                            update({ inputSchema: parsed })
-                                        } catch {
-                                            /* invalid json, ignore until valid */
-                                        }
-                                    }}
+                                    onChange={(e) => handleSchemaChange('inputSchema', e.target.value)}
                                     rows={8}
                                     className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs text-[var(--color-text-primary)] resize-none font-mono"
                                 />
@@ -273,14 +212,7 @@ export function SkillBuilderPage({ skillId, onBack }: IProps): React.JSX.Element
                                 <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">Output Schema (JSON)</label>
                                 <textarea
                                     value={JSON.stringify(skill.outputSchema, null, 2)}
-                                    onChange={(e) => {
-                                        try {
-                                            const parsed = JSON.parse(e.target.value) as Record<string, unknown>
-                                            update({ outputSchema: parsed })
-                                        } catch {
-                                            /* invalid json, ignore until valid */
-                                        }
-                                    }}
+                                    onChange={(e) => handleSchemaChange('outputSchema', e.target.value)}
                                     rows={8}
                                     className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs text-[var(--color-text-primary)] resize-none font-mono"
                                 />
@@ -289,7 +221,7 @@ export function SkillBuilderPage({ skillId, onBack }: IProps): React.JSX.Element
                     )}
 
                     {tab === 'prompt' && (
-                        <div className="space-y-4 max-w-xl">
+                        <div className="max-w-xl space-y-4">
                             {skill.type !== 'llm_prompt' ? (
                                 <div className="rounded-lg border border-[var(--color-border)] p-6 text-center">
                                     <p className="text-sm text-[var(--color-text-muted)]">

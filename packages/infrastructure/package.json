@@ -1,16 +1,20 @@
 {
     "name": "@agenthub/infrastructure",
     "version": "0.1.0",
+    "private": true,
     "type": "module",
     "main": "./dist/index.js",
+    "module": "./dist/index.js",
     "types": "./dist/index.d.ts",
     "exports": {
         ".": {
             "import": "./dist/index.js",
+            "require": "./dist/index.js",
             "types": "./dist/index.d.ts"
         },
         "./node": {
             "import": "./dist/node.js",
+            "require": "./dist/node.js",
             "types": "./dist/node.d.ts"
         }
     },
@@ -19,6 +23,7 @@
         "@agenthub/graph-tools": "*",
         "@agenthub/sdk": "*",
         "@agenthub/shared": "*",
+        "@agenthub/observability": "*",
         "better-sqlite3": "^12.6.2",
         "openai": "^6.22.0"
     },

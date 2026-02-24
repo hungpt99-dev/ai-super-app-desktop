@@ -1,35 +1,20 @@
 {
   "files": [],
   "references": [
-    {
-      "path": "packages/shared"
-    },
-    {
-      "path": "packages/contracts"
-    },
-    {
-      "path": "packages/sdk"
-    },
-    {
-      "path": "packages/graph-tools"
-    },
-    {
-      "path": "packages/execution"
-    },
-    {
-      "path": "packages/core"
-    },
-    {
-      "path": "packages/security"
-    },
-    {
-      "path": "packages/infrastructure"
-    },
-    {
-      "path": "packages/platform"
-    },
-    {
-      "path": "apps/desktop"
-    }
+    { "path": "packages/shared" },
+    { "path": "packages/contracts" },
+    { "path": "packages/core" },
+    { "path": "packages/execution" },
+    { "path": "packages/sdk" },
+    { "path": "packages/governance" },
+    { "path": "packages/infrastructure" },
+    { "path": "packages/observability" },
+    { "path": "packages/platform" },
+    { "path": "packages/security" },
+    { "path": "packages/plugin-runtime" },
+    { "path": "packages/plugin-sdk" },
+    { "path": "packages/graph-tools" },
+    { "path": "packages/testing" },
+    { "path": "apps/desktop" }
   ]
 }

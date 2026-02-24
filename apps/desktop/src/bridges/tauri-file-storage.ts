@@ -13,7 +13,7 @@ import type { IFileStoragePort } from '@agenthub/contracts'
 
 const STORE_NAME = 'agenthub-files.json'
 
-async function getStore(): Promise<TauriStoreHandle> {
+async function getStore(): Promise<IKVStore> {
     try {
         const { load } = await import('@tauri-apps/plugin-store')
         return new TauriStoreHandle(await load(STORE_NAME))
@@ -42,25 +42,30 @@ class TauriStoreHandle implements IKVStore {
 class InMemoryStoreHandle implements IKVStore {
     private static _instance: InMemoryStoreHandle | null = null
     private readonly data = new Map<string, unknown>()
+    // Required by interface but unused in memory implementation
+    public readonly store: IKVStore | null = null
 
     static instance(): InMemoryStoreHandle {
         if (!this._instance) this._instance = new InMemoryStoreHandle()
         return this._instance
     }
 
-    async get<T>(key: string): Promise<T | undefined> {
-        return this.data.get(key) as T | undefined
+    get<T>(key: string): Promise<T | undefined> {
+        return Promise.resolve(this.data.get(key) as T | undefined)
     }
-    async set(key: string, value: unknown): Promise<void> {
+    set(key: string, value: unknown): Promise<void> {
         this.data.set(key, value)
+        return Promise.resolve()
     }
-    async delete(key: string): Promise<boolean> {
-        return this.data.delete(key)
+    delete(key: string): Promise<boolean> {
+        return Promise.resolve(this.data.delete(key))
     }
-    async keys(): Promise<string[]> {
-        return Array.from(this.data.keys())
+    keys(): Promise<string[]> {
+        return Promise.resolve(Array.from(this.data.keys()))
     }
-    async save(): Promise<void> { /* no-op */ }
+    save(): Promise<void> {
+        return Promise.resolve()
+    }
 }
 
 function compositeKey(subdir: string, filename: string): string {
@@ -68,8 +73,8 @@ function compositeKey(subdir: string, filename: string): string {
 }
 
 export class TauriFileStorageAdapter implements IFileStoragePort {
-    async ensureDir(_subdir: string): Promise<string> {
-        return _subdir
+    ensureDir(_subdir: string): Promise<string> {
+        return Promise.resolve(_subdir)
     }
 
     async writeJson<T>(subdir: string, filename: string, data: T): Promise<void> {

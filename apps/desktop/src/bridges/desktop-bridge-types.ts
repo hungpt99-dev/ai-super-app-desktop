@@ -50,6 +50,14 @@ import type {
     ITestRunPayload,
     ITestRunAllPayload,
     ITestRunResult,
+    IPlanningCreatePayload,
+    IPlanningCreateResult,
+    IPlanningMicroPayload,
+    IPlanningMicroResult,
+    IActingExecuteStepPayload,
+    IActingExecuteStepResult,
+    IActingExecuteMicroPayload,
+    IActingExecuteMicroResult,
 } from '@agenthub/contracts'
 
 export interface IDesktopExecutionBridge {
@@ -114,12 +122,14 @@ export interface IDesktopPluginBridge {
 }
 
 export interface IDesktopWorkspaceBridge {
-    create(payload: IWorkspaceCreatePayload): Promise<IWorkspaceResult>
-    delete(workspaceId: string): Promise<void>
-    list(): Promise<IWorkspaceListResult>
-    get(workspaceId: string): Promise<IWorkspaceResult | null>
-    switch(workspaceId: string): Promise<void>
-    getCurrent(): Promise<IWorkspaceResult>
+    initialize(): Promise<unknown>
+    create(payload: { name: string }): Promise<unknown>
+    delete(payload: { workspaceId: string }): Promise<void>
+    rename(payload: { workspaceId: string; newName: string }): Promise<unknown>
+    switch(payload: { workspaceId: string }): Promise<unknown>
+    list(): Promise<unknown>
+    getActive(): Promise<unknown>
+    duplicate(payload: { sourceWorkspaceId: string; newName: string }): Promise<unknown>
 }
 
 export interface IDesktopTestingBridge {
@@ -127,6 +137,32 @@ export interface IDesktopTestingBridge {
     runAll(payload: ITestRunAllPayload): Promise<ITestRunResult>
     listScenarios(workspaceId: string): Promise<readonly { readonly id: string; readonly name: string; readonly agentId: string }[]>
     getResults(workspaceId: string): Promise<ITestRunResult>
+}
+
+export interface IDesktopPlanningBridge {
+    create(payload: IPlanningCreatePayload): Promise<IPlanningCreateResult>
+    micro(payload: IPlanningMicroPayload): Promise<IPlanningMicroResult>
+}
+
+export interface IDesktopActingBridge {
+    executeStep(payload: IActingExecuteStepPayload): Promise<IActingExecuteStepResult>
+    executeMicro(payload: IActingExecuteMicroPayload): Promise<IActingExecuteMicroResult>
+}
+
+export interface IDesktopMetricsBridge {
+    getExecutionSummary(payload: { executionId: string }): Promise<unknown>
+    getDailyUsage(payload: { date: string }): Promise<unknown>
+    getAgentBreakdown(payload: { date: string }): Promise<unknown>
+    getAllExecutions(): Promise<readonly string[]>
+    exportReport(payload: { fromDate: string; toDate: string }): Promise<unknown>
+    getSummary(payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }): Promise<unknown>
+    getTokens(payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }): Promise<unknown>
+    getCosts(payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }): Promise<unknown>
+    getAgents(payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }): Promise<unknown>
+    getExecutions(payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }): Promise<unknown>
+    getTools(payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }): Promise<unknown>
+    getModels(payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }): Promise<unknown>
+    exportData(payload: { fromDate: string; toDate: string }): Promise<unknown>
 }
 
 export interface IDesktopExtendedBridge {
@@ -140,6 +176,9 @@ export interface IDesktopExtendedBridge {
     plugin: IDesktopPluginBridge
     workspace: IDesktopWorkspaceBridge
     testing: IDesktopTestingBridge
+    planning: IDesktopPlanningBridge
+    acting: IDesktopActingBridge
+    metrics: IDesktopMetricsBridge
 }
 
 declare global {

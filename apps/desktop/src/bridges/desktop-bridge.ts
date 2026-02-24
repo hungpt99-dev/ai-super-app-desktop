@@ -19,6 +19,9 @@ import type {
     IDesktopPluginBridge,
     IDesktopWorkspaceBridge,
     IDesktopTestingBridge,
+    IDesktopPlanningBridge,
+    IDesktopActingBridge,
+    IDesktopMetricsBridge,
 } from './desktop-bridge-types.js'
 import type {
     IExecutionStartPayload,
@@ -62,6 +65,14 @@ import type {
     ITestRunPayload,
     ITestRunAllPayload,
     ITestRunResult,
+    IPlanningCreatePayload,
+    IPlanningCreateResult,
+    IPlanningMicroPayload,
+    IPlanningMicroResult,
+    IActingExecuteStepPayload,
+    IActingExecuteStepResult,
+    IActingExecuteMicroPayload,
+    IActingExecuteMicroResult,
 } from '@agenthub/contracts'
 
 async function ipcInvoke<TPayload, TResult>(channel: string, payload: TPayload): Promise<TResult> {
@@ -265,23 +276,29 @@ function createPluginBridge(): IDesktopPluginBridge {
 
 function createWorkspaceBridge(): IDesktopWorkspaceBridge {
     return {
-        async create(payload: IWorkspaceCreatePayload): Promise<IWorkspaceResult> {
+        async initialize(): Promise<unknown> {
+            return ipcInvoke('workspace:initialize', {})
+        },
+        async create(payload: { name: string }): Promise<unknown> {
             return ipcInvoke('workspace:create', payload)
         },
-        async delete(workspaceId: string): Promise<void> {
-            await ipcInvoke('workspace:delete', workspaceId)
+        async delete(payload: { workspaceId: string }): Promise<void> {
+            return ipcInvoke('workspace:delete', payload)
         },
-        async list(): Promise<IWorkspaceListResult> {
-            return ipcInvoke('workspace:list', null)
+        async rename(payload: { workspaceId: string; newName: string }): Promise<unknown> {
+            return ipcInvoke('workspace:rename', payload)
         },
-        async get(workspaceId: string): Promise<IWorkspaceResult | null> {
-            return ipcInvoke('workspace:get', workspaceId)
+        async switch(payload: { workspaceId: string }): Promise<unknown> {
+            return ipcInvoke('workspace:switch', payload)
         },
-        async switch(workspaceId: string): Promise<void> {
-            await ipcInvoke('workspace:switch', workspaceId)
+        async list(): Promise<unknown> {
+            return ipcInvoke('workspace:list', {})
         },
-        async getCurrent(): Promise<IWorkspaceResult> {
-            return ipcInvoke('workspace:get-current', null)
+        async getActive(): Promise<unknown> {
+            return ipcInvoke('workspace:getActive', {})
+        },
+        async duplicate(payload: { sourceWorkspaceId: string; newName: string }): Promise<unknown> {
+            return ipcInvoke('workspace:duplicate', payload)
         },
     }
 }
@@ -303,6 +320,72 @@ function createTestingBridge(): IDesktopTestingBridge {
     }
 }
 
+function createPlanningBridge(): IDesktopPlanningBridge {
+    return {
+        async create(payload: IPlanningCreatePayload): Promise<IPlanningCreateResult> {
+            return ipcInvoke('planning:create', payload)
+        },
+        async micro(payload: IPlanningMicroPayload): Promise<IPlanningMicroResult> {
+            return ipcInvoke('planning:micro', payload)
+        },
+    }
+}
+
+function createActingBridge(): IDesktopActingBridge {
+    return {
+        async executeStep(payload: IActingExecuteStepPayload): Promise<IActingExecuteStepResult> {
+            return ipcInvoke('acting:executeStep', payload)
+        },
+        async executeMicro(payload: IActingExecuteMicroPayload): Promise<IActingExecuteMicroResult> {
+            return ipcInvoke('acting:executeMicro', payload)
+        },
+    }
+}
+
+function createMetricsBridge(): IDesktopMetricsBridge {
+    return {
+        async getExecutionSummary(payload: { executionId: string }): Promise<unknown> {
+            return ipcInvoke('metrics:getExecutionSummary', payload)
+        },
+        async getDailyUsage(payload: { date: string }): Promise<unknown> {
+            return ipcInvoke('metrics:getDailyUsage', payload)
+        },
+        async getAgentBreakdown(payload: { date: string }): Promise<unknown> {
+            return ipcInvoke('metrics:getAgentBreakdown', payload)
+        },
+        async getAllExecutions(): Promise<readonly string[]> {
+            return ipcInvoke('metrics:getAllExecutions', null)
+        },
+        async exportReport(payload: { fromDate: string; toDate: string }): Promise<unknown> {
+            return ipcInvoke('metrics:exportReport', payload)
+        },
+        async getSummary(payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }): Promise<unknown> {
+            return ipcInvoke('metrics:getSummary', payload)
+        },
+        async getTokens(payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }): Promise<unknown> {
+            return ipcInvoke('metrics:getTokens', payload)
+        },
+        async getCosts(payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }): Promise<unknown> {
+            return ipcInvoke('metrics:getCosts', payload)
+        },
+        async getAgents(payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }): Promise<unknown> {
+            return ipcInvoke('metrics:getAgents', payload)
+        },
+        async getExecutions(payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }): Promise<unknown> {
+            return ipcInvoke('metrics:getExecutions', payload)
+        },
+        async getTools(payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }): Promise<unknown> {
+            return ipcInvoke('metrics:getTools', payload)
+        },
+        async getModels(payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }): Promise<unknown> {
+            return ipcInvoke('metrics:getModels', payload)
+        },
+        async exportData(payload: { fromDate: string; toDate: string }): Promise<unknown> {
+            return ipcInvoke('metrics:export', payload)
+        },
+    }
+}
+
 export function getDesktopExtendedBridge(): IDesktopExtendedBridge {
     if (_bridge) return _bridge
 
@@ -317,6 +400,9 @@ export function getDesktopExtendedBridge(): IDesktopExtendedBridge {
         plugin: createPluginBridge(),
         workspace: createWorkspaceBridge(),
         testing: createTestingBridge(),
+        planning: createPlanningBridge(),
+        acting: createActingBridge(),
+        metrics: createMetricsBridge(),
     }
 
     if (typeof window !== 'undefined') {

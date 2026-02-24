@@ -126,4 +126,29 @@ export interface IDesktopBridge {
      */
     updateRun(runId: string, update: IAgentRunUpdate): Promise<void>
   }
+  metrics: {
+    getExecutionSummary(payload: { executionId: string }): Promise<unknown>
+    getDailyUsage(payload: { date: string }): Promise<unknown>
+    getAgentBreakdown(payload: { date: string }): Promise<unknown>
+    getAllExecutions(): Promise<readonly string[]>
+    exportReport(payload: { fromDate: string; toDate: string }): Promise<unknown>
+    getSummary(payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }): Promise<unknown>
+    getTokens(payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }): Promise<unknown>
+    getCosts(payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }): Promise<unknown>
+    getAgents(payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }): Promise<unknown>
+    getExecutions(payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }): Promise<unknown>
+    getTools(payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }): Promise<unknown>
+    getModels(payload: { fromDate: string; toDate: string; agentId?: string; model?: string; workspaceId?: string }): Promise<unknown>
+    exportData(payload: { fromDate: string; toDate: string }): Promise<unknown>
+  }
+  workspace: {
+    initialize(): Promise<unknown>
+    create(payload: { name: string }): Promise<unknown>
+    delete(payload: { workspaceId: string }): Promise<void>
+    rename(payload: { workspaceId: string; newName: string }): Promise<unknown>
+    switch(payload: { workspaceId: string }): Promise<unknown>
+    list(): Promise<unknown>
+    getActive(): Promise<unknown>
+    duplicate(payload: { sourceWorkspaceId: string; newName: string }): Promise<unknown>
+  }
 }

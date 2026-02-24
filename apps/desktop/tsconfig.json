@@ -17,28 +17,5 @@
   },
   "include": [
     "src/**/*"
-  ],
-  "references": [
-    {
-      "path": "../../packages/shared"
-    },
-    {
-      "path": "../../packages/contracts"
-    },
-    {
-      "path": "../../packages/sdk"
-    },
-    {
-      "path": "../../packages/core"
-    },
-    {
-      "path": "../../packages/platform"
-    },
-    {
-      "path": "../../packages/infrastructure"
-    },
-    {
-      "path": "../../packages/graph-tools"
-    }
   ]
 }

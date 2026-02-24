@@ -11,7 +11,8 @@
   "scripts": {
     "dev": "npm run dev --workspace=apps/desktop",
     "dev:desktop": "npm run dev --workspace=apps/desktop",
-    "build": "npm run build --workspaces",
+    "build": "npm run build -ws",
+    "build:packages": "npm run build -ws",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

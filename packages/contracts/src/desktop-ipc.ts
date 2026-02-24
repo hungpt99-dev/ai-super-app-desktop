@@ -46,6 +46,31 @@ export type DesktopIPCChannel =
     | 'filesystem:write'
     | 'filesystem:delete'
     | 'filesystem:list'
+    | 'planning:create'
+    | 'planning:micro'
+    | 'acting:executeStep'
+    | 'acting:executeMicro'
+    | 'metrics:getExecutionSummary'
+    | 'metrics:getDailyUsage'
+    | 'metrics:getAgentBreakdown'
+    | 'metrics:getAllExecutions'
+    | 'metrics:exportReport'
+    | 'metrics:getSummary'
+    | 'metrics:getTokens'
+    | 'metrics:getCosts'
+    | 'metrics:getAgents'
+    | 'metrics:getExecutions'
+    | 'metrics:getTools'
+    | 'metrics:getModels'
+    | 'metrics:export'
+    | 'workspace:initialize'
+    | 'workspace:create'
+    | 'workspace:delete'
+    | 'workspace:rename'
+    | 'workspace:switch'
+    | 'workspace:list'
+    | 'workspace:getActive'
+    | 'workspace:duplicate'
 
 // ─── Execution IPC Payloads ─────────────────────────────────────────────────
 
@@ -186,4 +211,130 @@ export interface ILocalSkillListItem {
     readonly author: string | undefined
     readonly icon: string | undefined
     readonly updatedAt: string | undefined
+}
+
+// ─── Planning IPC Payloads ──────────────────────────────────────────────────
+
+export type PlanningMode = 'SKELETON' | 'MICRO'
+
+export interface ISkeletonStepDTO {
+    readonly stepId: string
+    readonly agentId: string
+    readonly action: string
+    readonly toolName: string
+    readonly input: Record<string, unknown>
+    readonly expectedOutput: string
+}
+
+export interface ISkeletonPlanDTO {
+    readonly planId: string
+    readonly mode: 'SKELETON'
+    readonly steps: readonly ISkeletonStepDTO[]
+    readonly estimatedTokens: number
+    readonly createdAt: string
+}
+
+export interface IDirectExecutePlanDTO {
+    readonly planId: string
+    readonly mode: 'DIRECT'
+    readonly agentId: string
+    readonly action: string
+    readonly createdAt: string
+}
+
+export interface IMicroActionDTO {
+    readonly actionId: string
+    readonly toolName: string
+    readonly input: Record<string, unknown>
+    readonly expectedOutput: string
+}
+
+export interface IMicroPlanDTO {
+    readonly planId: string
+    readonly stepId: string
+    readonly actions: readonly IMicroActionDTO[]
+    readonly estimatedTokens: number
+    readonly createdAt: string
+}
+
+export interface IPlanningCreatePayload {
+    readonly input: string
+    readonly agents: readonly IPlanningAgentCandidateDTO[]
+    readonly budget: IPlanningBudgetDTO
+}
+
+export interface IPlanningAgentCandidateDTO {
+    readonly agentId: string
+    readonly name: string
+    readonly capabilities: readonly string[]
+    readonly costPerToken: number
+}
+
+export interface IPlanningBudgetDTO {
+    readonly maxTokens: number
+    readonly maxSteps: number
+    readonly maxDepth: number
+}
+
+export interface IPlanningCreateResult {
+    readonly plan: ISkeletonPlanDTO | IDirectExecutePlanDTO
+}
+
+export interface IPlanningMicroPayload {
+    readonly step: ISkeletonStepDTO
+    readonly budget: IPlanningBudgetDTO
+}
+
+export interface IPlanningMicroResult {
+    readonly microPlan: IMicroPlanDTO
+}
+
+// ─── Acting IPC Payloads ────────────────────────────────────────────────────
+
+export interface IToolCallRecordDTO {
+    readonly toolName: string
+    readonly input: unknown
+    readonly output: unknown
+    readonly durationMs: number
+    readonly timestamp: string
+}
+
+export interface IMemoryDeltaDTO {
+    readonly key: string
+    readonly previousValue: unknown
+    readonly newValue: unknown
+}
+
+export interface ICapabilityCheckDTO {
+    readonly capability: string
+    readonly required: boolean
+    readonly granted: boolean
+}
+
+export interface IActingExecutionResultDTO {
+    readonly executionId: string
+    readonly agent: string
+    readonly toolCalls: readonly IToolCallRecordDTO[]
+    readonly memoryChanges: readonly IMemoryDeltaDTO[]
+    readonly capabilityChecks: readonly ICapabilityCheckDTO[]
+    readonly status: 'completed' | 'failed'
+}
+
+export interface IActingExecuteStepPayload {
+    readonly step: ISkeletonStepDTO
+    readonly agentCapabilities: readonly string[]
+}
+
+export interface IActingExecuteStepResult {
+    readonly result: IActingExecutionResultDTO
+}
+
+export interface IActingExecuteMicroPayload {
+    readonly actions: readonly string[]
+    readonly agentId: string
+    readonly agentCapabilities: readonly string[]
+}
+
+export interface IActingExecuteMicroResult {
+    readonly result: IActingExecutionResultDTO
 }

@@ -31,10 +31,13 @@ export function SideloadAgentModal({ onClose }: ISideloadAgentModalProps): React
     setResult(null)
     const r = await loadFile(file)
     setLoading(false)
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (r.ok) {
-      setResult({ ok: true, message: `✓ "${r.module.name}" v${r.module.version} installed — it now appears in All Agent Types.` })
+      const successResult = r as { ok: true; module: { name: string; version: string } }
+      setResult({ ok: true, message: `✓ "${successResult.module.name}" v${successResult.module.version} installed — it now appears in All Agent Types.` })
     } else {
-      setResult({ ok: false, message: r.error })
+      const errorResult = r as { ok: false; error: string }
+      setResult({ ok: false, message: errorResult.error })
     }
   }
 
@@ -44,7 +47,7 @@ export function SideloadAgentModal({ onClose }: ISideloadAgentModalProps): React
 
         {/* Header */}
         <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-6 py-4">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-900/30 text-lg">📦</div>
+          <div className="flex items-center justify-center w-8 h-8 text-lg rounded-lg shrink-0 bg-amber-900/30">📦</div>
           <div className="flex-1">
             <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Sideload Agent Package</h2>
             <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">Dev mode — install a compiled agent module directly from disk</p>
@@ -146,7 +149,7 @@ export function SideloadAgentModal({ onClose }: ISideloadAgentModalProps): React
                 {modules.map((m) => (
                   <div key={m.id} className="flex items-center gap-2.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2">
                     <span className="text-base">{m.icon}</span>
-                    <div className="min-w-0 flex-1">
+                    <div className="flex-1 min-w-0">
                       <p className="truncate text-xs font-medium text-[var(--color-text-primary)]">{m.name}</p>
                       <p className="text-[10px] text-[var(--color-text-muted)]">v{m.version} · {m.author}</p>
                     </div>

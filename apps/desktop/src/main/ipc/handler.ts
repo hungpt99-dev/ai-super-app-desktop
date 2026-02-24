@@ -26,6 +26,10 @@ import type {
     IAgentDefinitionDTO,
     ISkillDefinitionDTO,
     IVersionBumpPayload,
+    IPlanningCreatePayload,
+    IPlanningMicroPayload,
+    IActingExecuteStepPayload,
+    IActingExecuteMicroPayload,
 } from '@agenthub/contracts'
 import { runtimeHost } from '../runtime-host.js'
 import { platformHost } from '../platform-host.js'
@@ -34,6 +38,10 @@ import { agentIPC } from './agent.ipc.js'
 import { skillIPC } from './skill.ipc.js'
 import { snapshotIPC } from './snapshot.ipc.js'
 import { filesystemIPC } from './filesystem.ipc.js'
+import { planningIPC } from './planning.ipc.js'
+import { actingIPC } from './acting.ipc.js'
+import { metricsIPC } from './metrics.ipc.js'
+import { workspaceIPC } from './workspace.ipc.js'
 import type {
     IFilesystemReadPayload,
     IFilesystemWritePayload,
@@ -184,6 +192,89 @@ async function dispatch(channel: IPCChannel | DesktopIPCChannel, payload: unknow
 
         case 'filesystem:list':
             return filesystemIPC.list(payload as IFilesystemListPayload)
+
+        // ── Planning channels ──────────────────────────────────────────
+
+        case 'planning:create':
+            return planningIPC.create(payload as IPlanningCreatePayload)
+
+        case 'planning:micro':
+            return planningIPC.micro(payload as IPlanningMicroPayload)
+
+        // ── Acting channels ────────────────────────────────────────────
+
+        case 'acting:executeStep':
+            return actingIPC.executeStep(payload as IActingExecuteStepPayload)
+
+        case 'acting:executeMicro':
+            return actingIPC.executeMicro(payload as IActingExecuteMicroPayload)
+
+        // ── Metrics channels ──────────────────────────────────────────────
+
+        case 'metrics:getExecutionSummary':
+            return metricsIPC.getExecutionSummary(payload as any)
+
+        case 'metrics:getDailyUsage':
+            return metricsIPC.getDailyUsage(payload as any)
+
+        case 'metrics:getAgentBreakdown':
+            return metricsIPC.getAgentBreakdown(payload as any)
+
+        case 'metrics:getAllExecutions':
+            return metricsIPC.getAllExecutions()
+
+        case 'metrics:exportReport':
+            return metricsIPC.exportReport(payload as any)
+
+        case 'metrics:getSummary':
+            return metricsIPC.getSummary(payload as any)
+
+        case 'metrics:getTokens':
+            return metricsIPC.getTokens(payload as any)
+
+        case 'metrics:getCosts':
+            return metricsIPC.getCosts(payload as any)
+
+        case 'metrics:getAgents':
+            return metricsIPC.getAgents(payload as any)
+
+        case 'metrics:getExecutions':
+            return metricsIPC.getExecutions(payload as any)
+
+        case 'metrics:getTools':
+            return metricsIPC.getTools(payload as any)
+
+        case 'metrics:getModels':
+            return metricsIPC.getModels(payload as any)
+
+        case 'metrics:export':
+            return metricsIPC.exportData(payload as any)
+
+        // ── Workspace channels ────────────────────────────────────────────────
+
+        case 'workspace:initialize':
+            return workspaceIPC.initialize()
+
+        case 'workspace:create':
+            return workspaceIPC.create(payload as any)
+
+        case 'workspace:delete':
+            return workspaceIPC.delete(payload as any)
+
+        case 'workspace:rename':
+            return workspaceIPC.rename(payload as any)
+
+        case 'workspace:switch':
+            return workspaceIPC.switch(payload as any)
+
+        case 'workspace:list':
+            return workspaceIPC.list()
+
+        case 'workspace:getActive':
+            return workspaceIPC.getActive()
+
+        case 'workspace:duplicate':
+            return workspaceIPC.duplicate(payload as any)
 
         default:
             throw new Error(`Unknown IPC channel: ${channel}`)

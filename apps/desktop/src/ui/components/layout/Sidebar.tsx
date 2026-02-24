@@ -5,8 +5,8 @@ import { useAgentStore } from '../../store/agent-store.js'
 
 /** Views that map directly to a top-level nav item (excludes sub-views like crypto/writing-helper). */
 type INavView = 'dashboard' | 'chat' | 'agents' | 'hub' | 'activity' | 'logs' | 'api-keys' | 'settings'
-  | 'create-agent' | 'create-skill' | 'agent-marketplace' | 'skill-marketplace'
-  | 'execution-playground' | 'agent-builder' | 'skill-builder' | 'agent-library' | 'skill-library' | 'snapshot-manager'
+  | 'agent-editor' | 'skill-editor' | 'agent-marketplace' | 'skill-marketplace'
+  | 'execution-playground' | 'agent-library' | 'skill-library' | 'snapshot-manager'
 
 interface ISidebarProps {
   activeView: AppView
@@ -106,7 +106,7 @@ const NAV_ITEMS: { id: INavView; label: string; icon: React.ReactNode }[] = [
 
 const BUILD_NAV_ITEMS: { id: INavView; label: string; icon: React.ReactNode }[] = [
   {
-    id: 'create-agent',
+    id: 'agent-editor',
     label: 'Create Agent',
     icon: (
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -117,7 +117,7 @@ const BUILD_NAV_ITEMS: { id: INavView; label: string; icon: React.ReactNode }[] 
     ),
   },
   {
-    id: 'create-skill',
+    id: 'skill-editor',
     label: 'Create Skill',
     icon: (
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -164,8 +164,8 @@ const DESKTOP_NAV_ITEMS: { id: INavView; label: string; icon: React.ReactNode }[
     ),
   },
   {
-    id: 'agent-builder',
-    label: 'Agent Builder',
+    id: 'agent-library',
+    label: 'Agent Library',
     icon: (
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
@@ -174,30 +174,10 @@ const DESKTOP_NAV_ITEMS: { id: INavView; label: string; icon: React.ReactNode }[
     ),
   },
   {
-    id: 'skill-builder',
-    label: 'Skill Builder',
-    icon: (
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
-      </svg>
-    ),
-  },
-  {
-    id: 'agent-library',
-    label: 'Agent Library',
-    icon: (
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-      </svg>
-    ),
-  },
-  {
     id: 'skill-library',
     label: 'Skill Library',
     icon: (
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
         <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
         <line x1="8" y1="7" x2="16" y2="7" />
         <line x1="8" y1="11" x2="13" y2="11" />
@@ -266,7 +246,7 @@ export function Sidebar({ activeView, onNavigate, unreadCount, onNotifications, 
       </div>
 
       {/* Navigation */}
-      <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-3">
+      <nav className="flex flex-col flex-1 min-h-0 gap-1 p-3 overflow-y-auto">
         <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-widest text-[var(--color-text-muted)]">
           Menu
         </p>
@@ -418,7 +398,7 @@ export function Sidebar({ activeView, onNavigate, unreadCount, onNotifications, 
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--color-accent-dim)] text-xs font-bold text-[var(--color-accent)]">
               {initial}
             </div>
-            <div className="min-w-0 flex-1">
+            <div className="flex-1 min-w-0">
               <p className="truncate text-xs font-medium text-[var(--color-text-primary)]">{user.name}</p>
               <p className="truncate text-[10px] text-[var(--color-text-muted)]">{user.email}</p>
             </div>

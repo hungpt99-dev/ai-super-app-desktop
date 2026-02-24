@@ -26,7 +26,7 @@ import { getDesktopBridge } from './lib/bridge.js'
 import { initAgentRuntime } from '../app/module-bootstrap.js'
 import { initTokenStore } from '../bridges/token-store.js'
 import type { Permission } from '@agenthub/sdk'
-import { CreateAgentPage, CreateSkillPage, AgentMarketplacePage, SkillMarketplacePage, AgentDetailPage, ExecutionPlaygroundPage, AgentBuilderPage, SkillBuilderPage, AgentLibraryPage, SkillLibraryPage, SnapshotManagerPage } from './pages/index'
+import { AgentMarketplacePage, SkillMarketplacePage, ExecutionPlaygroundPage, AgentEditorPage, SkillEditorPage, AgentLibraryPage, SkillLibraryPage, SnapshotManagerPage, MetricsDashboardPage, WorkspaceManagerPage } from './pages/index'
 
 const bridge = getDesktopBridge()
 
@@ -144,7 +144,7 @@ export function App(): React.JSX.Element {
 
       <NotificationCenter isOpen={notifOpen} onClose={() => { setNotifOpen(false) }} />
 
-      <main className="flex h-screen flex-1 flex-col overflow-hidden">
+      <main className="flex flex-col flex-1 h-screen overflow-hidden">
         {activeView === 'dashboard' && <DashboardPanel onNavigate={setView} />}
         {activeView === 'chat' && <GroupChatWindow />}
         {activeView === 'agents' && <FeatureGrid onOpenModule={handleOpenModule} />}
@@ -154,25 +154,25 @@ export function App(): React.JSX.Element {
         {activeView === 'settings' && <SettingsPanel onBack={() => { setView('chat') }} />}
         {activeView === 'api-keys' && <APIKeysPanel onBack={() => { setView('chat') }} />}
         {activeView === 'agent-run' && <AgentRunPanel onBack={() => { setView('agents') }} />}
-        {activeView === 'create-agent' && <CreateAgentPage />}
-        {activeView === 'create-skill' && <CreateSkillPage />}
+        {activeView === 'agent-editor' && <AgentEditorPage agentId={undefined} onBack={() => setView('agent-library')} />}
+        {activeView === 'skill-editor' && <SkillEditorPage skillId={undefined} onBack={() => setView('skill-library')} />}
         {activeView === 'agent-marketplace' && <AgentMarketplacePage />}
         {activeView === 'skill-marketplace' && <SkillMarketplacePage />}
         {activeView === 'execution-playground' && <ExecutionPlaygroundPage />}
-        {activeView === 'agent-builder' && <AgentBuilderPage onBack={() => { setView('agent-library') }} />}
-        {activeView === 'skill-builder' && <SkillBuilderPage onBack={() => { setView('skill-library') }} />}
         {activeView === 'agent-library' && (
           <AgentLibraryPage
-            onEditAgent={() => { setView('agent-builder') }}
+            onEditAgent={() => { setView('agent-editor') }}
             onRunAgent={() => { setView('execution-playground') }}
           />
         )}
         {activeView === 'skill-library' && (
-          <SkillLibraryPage onEditSkill={() => { setView('skill-builder') }} />
+          <SkillLibraryPage onEditSkill={() => { setView('skill-editor') }} />
         )}
         {activeView === 'snapshot-manager' && (
           <SnapshotManagerPage onReplayStarted={() => { setView('execution-playground') }} />
         )}
+        {activeView === 'metrics-dashboard' && <MetricsDashboardPage />}
+        {activeView === 'workspace-manager' && <WorkspaceManagerPage workspaceId="" />}
       </main>
 
       {/* Global toast overlay — rendered outside main so it floats above all panels */}

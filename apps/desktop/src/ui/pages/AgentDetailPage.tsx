@@ -42,7 +42,6 @@ export function AgentDetailPage({ agentId, onBack }: AgentDetailPageProps) {
     async function handleDownloadExport() {
         if (!exportJson) return
         try {
-            // @ts-expect-error plugin-dialog may not be installed
             const { save } = await import('@tauri-apps/plugin-dialog')
             const { writeTextFile } = await import('@tauri-apps/plugin-fs')
             const path = await save({
@@ -77,7 +76,7 @@ export function AgentDetailPage({ agentId, onBack }: AgentDetailPageProps) {
             </div>
 
             <div className="flex-1 overflow-y-auto">
-                <div className="max-w-3xl mx-auto px-6 py-6 space-y-6">
+                <div className="max-w-3xl px-6 py-6 mx-auto space-y-6">
                     {/* Header */}
                     <div className="flex items-start gap-4">
                         <span className="text-4xl">{agent.icon ?? '🤖'}</span>
@@ -90,8 +89,8 @@ export function AgentDetailPage({ agentId, onBack }: AgentDetailPageProps) {
 
                     {/* Signature */}
                     {agent.signature && (
-                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-900/20 border border-green-800">
-                            <span className="text-green-400 text-xs">Verified</span>
+                        <div className="flex items-center gap-2 px-3 py-2 border border-green-800 rounded-lg bg-green-900/20">
+                            <span className="text-xs text-green-400">Verified</span>
                             <span className="text-[10px] font-mono text-green-500 truncate">{agent.signature}</span>
                         </div>
                     )}
@@ -101,7 +100,7 @@ export function AgentDetailPage({ agentId, onBack }: AgentDetailPageProps) {
                         <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] mb-2">Capabilities ({agent.capabilities.length})</h3>
                         <div className="flex flex-wrap gap-1">
                             {agent.capabilities.map((cap) => (
-                                <span key={cap} className="text-xs px-2 py-1 rounded bg-blue-900/20 text-blue-400 font-mono">{cap}</span>
+                                <span key={cap} className="px-2 py-1 font-mono text-xs text-blue-400 rounded bg-blue-900/20">{cap}</span>
                             ))}
                         </div>
                     </div>
@@ -181,8 +180,8 @@ export function AgentDetailPage({ agentId, onBack }: AgentDetailPageProps) {
                     <ValidationPanel validation={validation} title="Definition Validation" />
 
                     {enforcement && !enforcement.allowed && (
-                        <div className="rounded-lg border border-red-800 bg-red-900/20 p-4">
-                            <h4 className="text-sm font-semibold text-red-400 mb-2">Capability Issues</h4>
+                        <div className="p-4 border border-red-800 rounded-lg bg-red-900/20">
+                            <h4 className="mb-2 text-sm font-semibold text-red-400">Capability Issues</h4>
                             {enforcement.issues.map((iss, idx) => (
                                 <p key={idx} className="text-xs text-red-300">{iss.message}</p>
                             ))}

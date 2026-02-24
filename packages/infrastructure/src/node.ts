@@ -14,3 +14,4 @@ export { SqliteMemoryStore } from './storage-adapter/sqlite/memory-store.js'
 // Filesystem-based adapters (depend on node:fs)
 export { LocalFileStorageAdapter } from './local-storage-adapter/index.js'
 export { LocalSnapshotStorageAdapter } from './snapshot-storage-adapter/index.js'
+export { FileMetricsStore } from './observability-adapter/FileMetricsStore.js'

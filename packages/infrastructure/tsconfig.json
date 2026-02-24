@@ -3,13 +3,12 @@
     "compilerOptions": {
         "rootDir": "src",
         "outDir": "dist",
+        "declaration": true,
+        "emitDeclarationOnly": false,
+        "module": "ESNext",
+        "target": "ES2020",
+        "moduleResolution": "Bundler",
         "lib": ["ES2022", "DOM", "WebWorker"]
     },
-    "include": ["src"],
-    "references": [
-        { "path": "../shared" },
-        { "path": "../core" },
-        { "path": "../sdk" },
-        { "path": "../graph-tools" }
-    ]
+    "include": ["src"]
 }
