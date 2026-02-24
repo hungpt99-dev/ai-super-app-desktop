@@ -16,5 +16,6 @@
     "sourceMap": true,
     "composite": true,
     "incremental": true
-  }
+  },
+  "exclude": ["dist", "node_modules"]
 }

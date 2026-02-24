@@ -1,12 +1,7 @@
-/**
- * SDK Authoring — agent definition, DSL, builders.
- *
- * This sub-module is for module authors who build agents.
- * It provides defineModule() and related authoring APIs.
- */
-
 export { defineModule } from '../define-module.js'
 export type { IDefineModuleOptions } from '../define-module.js'
+export { defineAgent, AgentBuilder } from './define-agent.js'
+export type { IAgentBlueprint, IAgentBuilderNodeConfig, IAgentBuilderEdgeConfig } from './define-agent.js'
 export type {
     IModuleManifest,
     IModuleDefinition,

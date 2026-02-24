@@ -1,10 +1,3 @@
-/**
- * Runtime factory — the single place where AgentRuntime is instantiated.
- *
- * Apps MUST use createRuntime() instead of `new AgentRuntime(...)`.
- * This enforces that all wiring goes through the platform layer.
- */
-
 import {
     AgentRuntime,
     PermissionEngine,
@@ -16,8 +9,6 @@ import type {
     ICoreSandbox,
     ICoreVectorStore,
     ISandboxFactoryPort,
-    IPermissionEnginePort,
-    IModuleManagerPort,
     IAgentRuntimeConfig,
 } from '@agenthub/core'
 import { GraphScheduler, WorkerManager } from '@agenthub/execution'
@@ -25,41 +16,24 @@ import { logger } from '@agenthub/shared'
 
 const log = logger.child('Platform')
 
-// ─── Runtime Config ─────────────────────────────────────────────────────────
-
 export interface IRuntimeConfig {
-    /** Storage adapter (SQLite, Tauri, etc.). */
-    storage: ICoreStorageAdapter
-    /** LLM provider adapter. */
-    provider: ICoreLLMProvider
-    /** Sandbox adapter for code execution. */
-    sandbox: ICoreSandbox
-    /** Vector store adapter. */
-    vectorStore: ICoreVectorStore
-    /** Secret vault for API keys. */
-    secretVault?: any
-    /** Sandbox factory for creating module sandboxes. */
-    sandboxFactory?: ISandboxFactoryPort
-    /** Core version string. Defaults to '1.0.0'. */
-    coreVersion?: string
+    readonly storage: ICoreStorageAdapter
+    readonly provider: ICoreLLMProvider
+    readonly sandbox: ICoreSandbox
+    readonly vectorStore?: ICoreVectorStore
+    readonly sandboxFactory?: ISandboxFactoryPort
+    readonly secretVault?: unknown
+    readonly coreVersion?: string
 }
-
-// ─── Factory Function ───────────────────────────────────────────────────────
 
 export interface IRuntimeBundle {
-    runtime: AgentRuntime
-    permissionEngine: PermissionEngine
-    moduleManager: ModuleManager
-    scheduler: GraphScheduler
-    workerManager: WorkerManager
+    readonly runtime: AgentRuntime
+    readonly permissionEngine: PermissionEngine
+    readonly moduleManager: ModuleManager
+    readonly scheduler: GraphScheduler
+    readonly workerManager: WorkerManager
 }
 
-/**
- * Create a fully wired AgentRuntime.
- *
- * This is the ONLY approved way to instantiate the runtime.
- * All adapters are injected here — no `new AgentRuntime()` elsewhere.
- */
 export function createRuntime(config: IRuntimeConfig): IRuntimeBundle {
     log.info('Creating AgentRuntime via platform factory')
 
@@ -68,8 +42,8 @@ export function createRuntime(config: IRuntimeConfig): IRuntimeBundle {
 
     const sandboxFactory: ISandboxFactoryPort = config.sandboxFactory ?? {
         create: () => ({
-            activate: async () => { },
-            deactivate: async () => { },
+            activate: async () => {},
+            deactivate: async () => {},
             getCtx: () => null,
         }),
     }
@@ -83,16 +57,20 @@ export function createRuntime(config: IRuntimeConfig): IRuntimeBundle {
     const scheduler = new GraphScheduler()
     const workerManager = new WorkerManager()
 
-    const runtime = new AgentRuntime({
+    const runtimeConfig: Record<string, unknown> = {
         storage: config.storage,
         provider: config.provider,
         sandbox: config.sandbox,
         permissionEngine,
         moduleManager,
         secretVault: config.secretVault,
-        vectorStore: config.vectorStore,
         scheduler,
-    })
+    }
+    if (config.vectorStore !== undefined) {
+        runtimeConfig['vectorStore'] = config.vectorStore
+    }
+
+    const runtime = new AgentRuntime(runtimeConfig as any)
 
     log.info('AgentRuntime created successfully')
 

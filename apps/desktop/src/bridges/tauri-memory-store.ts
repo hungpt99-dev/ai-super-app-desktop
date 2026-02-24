@@ -1,4 +1,7 @@
-import type { IMemoryStore, IMemoryItem, MemoryType } from '@agenthub/memory'
+import type { MemoryDomain } from '@agenthub/core'
+type IMemoryStore = MemoryDomain.IMemoryStorage
+type IMemoryItem = MemoryDomain.IMemoryItem
+type MemoryType = MemoryDomain.MemoryType
 
 /**
  * TauriMemoryStore

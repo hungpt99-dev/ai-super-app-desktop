@@ -1,0 +1,14 @@
+{
+  "name": "research-pipeline",
+  "base_template": "research",
+  "selected_skills": ["search", "summarize"],
+  "memory_tier_override": "Delta",
+  "budget_limit": 3000,
+  "skill_dependencies": [
+    {
+      "skill_id": "summarize",
+      "depends_on": "search",
+      "fields": ["results"]
+    }
+  ]
+}

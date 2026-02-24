@@ -15,6 +15,7 @@
         "@agenthub/shared": "*",
         "@agenthub/core": "*",
         "@agenthub/execution": "*",
+        "@agenthub/infrastructure": "*",
         "@agenthub/security": "*"
     },
     "scripts": {

@@ -1,0 +1,60 @@
+{
+  "id": "research-pipeline",
+  "nodes": [
+    { "id": "start", "node_type": "START_NODE" },
+    {
+      "id": "analyze",
+      "node_type": "LLM_NODE",
+      "system_prompt": "You are a research analyst. Return JSON with fields: findings, confidence.",
+      "temperature": 0.3,
+      "max_tokens": 512,
+      "allowed_tools": ["web_search"],
+      "memory_tier": "CompressedSummary",
+      "contract": {
+        "allowed_fields": ["findings", "confidence"],
+        "required_fields": ["findings", "confidence"],
+        "max_output_tokens": 256,
+        "forbid_free_text": true
+      }
+    },
+    {
+      "id": "summarize",
+      "node_type": "LLM_NODE",
+      "system_prompt": "Summarize findings. Return JSON: {summary, key_points}.",
+      "model": "gpt-4o-mini",
+      "temperature": 0.2,
+      "max_tokens": 256,
+      "dependencies": [{ "node_id": "analyze", "fields": ["findings", "confidence"] }],
+      "memory_tier": "None",
+      "contract": {
+        "allowed_fields": ["summary", "key_points"],
+        "required_fields": ["summary"],
+        "max_output_tokens": 128,
+        "forbid_free_text": true
+      }
+    },
+    {
+      "id": "format",
+      "node_type": "LLM_NODE",
+      "system_prompt": "Format into report. Return JSON: {title, body}.",
+      "model": "gpt-4o-mini",
+      "temperature": 0.1,
+      "max_tokens": 256,
+      "dependencies": [{ "node_id": "summarize", "fields": ["summary"] }],
+      "memory_tier": "None",
+      "contract": {
+        "allowed_fields": ["title", "body"],
+        "required_fields": ["title", "body"],
+        "max_output_tokens": 128,
+        "forbid_free_text": true
+      }
+    },
+    { "id": "end", "node_type": "END_NODE" }
+  ],
+  "edges": [
+    { "from": "start", "to": "analyze" },
+    { "from": "analyze", "to": "summarize" },
+    { "from": "summarize", "to": "format" },
+    { "from": "format", "to": "end" }
+  ]
+}

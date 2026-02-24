@@ -39,6 +39,19 @@ export interface IExecPermissionPort {
     hasPermission(moduleId: string, permission: string): boolean
 }
 
+// ─── Execution Governance Gate ──────────────────────────────────────────────
+// Optional pre-execution policy check. Platform wires the governance enforcer.
+
+export interface IExecGovernanceGatePort {
+    /** Returns true if execution is allowed, false if rejected. */
+    check(context: {
+        readonly agentId: string
+        readonly workspaceId: string
+        readonly model?: string
+        readonly input: Record<string, unknown>
+    }): Promise<{ readonly allowed: boolean; readonly violations: readonly { readonly code: string; readonly message: string }[] }>
+}
+
 // ─── Execution Environment ──────────────────────────────────────────────────
 
 export interface IExecutionEnvironment {
@@ -46,6 +59,7 @@ export interface IExecutionEnvironment {
     provider: IExecProviderPort
     sandbox: IExecSandboxPort
     permissionEngine: IExecPermissionPort
+    governanceGate?: IExecGovernanceGatePort
 }
 
 // ─── Execution Lifecycle ────────────────────────────────────────────────────
@@ -63,3 +77,5 @@ export interface IExecutionLifecycle {
     transition(to: ExecutionState): void
     snapshot(): Promise<void>
 }
+
+export type { ExecutionLifecycleEvent, IExecutionEvent, IExecutionEventEmitter } from './events.js'

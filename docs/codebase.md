@@ -1,52 +1,474 @@
-# Clean Architecture Specification v4.1
+# Codebase Structure — AgentHub
+
+Version: 4.2
+Aligned with: Clean Architecture Specification v4.1
 
 ---
 
-# I. ARCHITECTURAL PHILOSOPHY
+# I. REPOSITORY OVERVIEW
 
-AgentHub được thiết kế dựa trên:
-
-- Clean Architecture
-- Dependency Inversion
-- Hexagonal Architecture
-- Adapter Pattern
-- Capability-Based Security
-- Deterministic Execution
-- Strict Layer Isolation
-- Runtime-Agnostic Core
-- Multi-Environment Support
-
-Mục tiêu:
-
-Xây dựng một Agent Operating System có thể chạy ở nhiều môi trường khác nhau mà không thay đổi domain logic.
-
----
-
-# II. SYSTEM LAYER MODEL
+AgentHub is structured as a strict layered monorepo.
 
 ```
-Layer 1  → shared
-Layer 2  → core (domain OS)
-Layer 3  → execution (runtime mechanics)
-Layer 4  → infrastructure (adapters)
-Layer 5  → security
-Layer 6  → platform (composition root)
-Layer 7  → sdk (authoring + client)
-Layer 8  → apps (desktop, web, other hosts)
+agenthub/
+│
+├── apps/
+├── packages/
+├── docs/
+├── scripts/
+├── turbo.json
+├── tsconfig.base.json
+└── package.json
+```
+
+The repository enforces:
+
+* Layer isolation
+* Dependency direction control
+* Replaceable infrastructure
+* Runtime-agnostic core
+
+---
+
+# II. HIGH-LEVEL LAYER MAPPING
+
+| Folder                  | Layer                       |
+| ----------------------- | --------------------------- |
+| packages/shared         | Layer 1 – Shared            |
+| packages/core           | Layer 2 – Core (Agent OS)   |
+| packages/execution      | Layer 3 – Runtime Mechanics |
+| packages/infrastructure | Layer 4 – Adapters          |
+| packages/security       | Layer 5 – Integrity         |
+| packages/platform       | Layer 6 – Composition Root  |
+| packages/sdk            | Layer 7 – SDK               |
+| apps/*                  | Layer 8 – Host Applications |
+
+---
+
+# III. ROOT FILES
+
+## agents.md
+
+Contains:
+
+* Example agent definitions
+* Authoring patterns
+* Template references
+
+Not used by runtime directly.
+
+---
+
+## package.json
+
+Defines:
+
+* Workspace configuration
+* Shared dev dependencies
+* Root scripts
+* Turbo tasks
+
+Does not contain runtime logic.
+
+---
+
+## tsconfig.base.json
+
+Defines:
+
+* Shared TypeScript configuration
+* Path alias rules
+* Project references
+* Strict compilation settings
+
+Enforces cross-package dependency boundaries.
+
+---
+
+## tsconfig.json
+
+Root project reference file.
+
+Used for:
+
+* Monorepo compilation
+* IDE resolution
+
+---
+
+## vitest.config.ts
+
+Global test configuration.
+
+Defines:
+
+* Test environment
+* Coverage rules
+* Isolation settings
+
+---
+
+# IV. APPS LAYER
+
+```
+apps/
+  desktop/
+  web/
+```
+
+Apps are host environments.
+
+They never contain domain logic.
+
+---
+
+## apps/desktop
+
+Responsibilities:
+
+* Host runtime
+* Inject adapters
+* Bootstrap platform
+* Manage UI + Tauri bridge
+
+### Structure
+
+```
+desktop/
+  src/
+    app/
+    bridges/
+    main/
+    ui/
+  src-tauri/
+```
+
+### Important Rule
+
+Desktop imports:
+
+```
+platform
+sdk
+```
+
+Desktop must NOT import:
+
+```
+core
+execution
+infrastructure
 ```
 
 ---
 
-# III. DEPENDENCY RULES
+## apps/web
 
-Allowed:
+Responsibilities:
+
+* Snapshot viewer
+* Trace inspector
+* Graph visualizer
+
+Web must NOT import:
+
+```
+execution
+sandbox
+provider
+runtime internals
+```
+
+Web is read-only.
+
+---
+
+# V. PACKAGES LAYER
+
+All architecture-critical logic lives here.
+
+---
+
+# 1️⃣ packages/shared
+
+Lowest layer.
+
+Contains:
+
+* Types
+* DTO
+* Schemas
+* Constants
+* Shared utilities (pure only)
+
+No side effects.
+
+All layers may depend on shared.
+
+---
+
+# 2️⃣ packages/core — Agent Operating System
+
+Pure domain logic.
+
+Contains:
+
+```
+core/
+  agent-domain/
+  graph-domain/
+  runtime-domain/
+  memory-domain/
+  identity-domain/
+  policy-domain/
+  capability-domain/
+  event-domain/
+```
+
+Responsibilities:
+
+* AgentRuntime model
+* Orchestrator
+* Graph engine
+* Memory logic
+* Identity system
+* Policy enforcement
+* Capability validation
+* Event modeling
+
+Core must:
+
+* Have zero side-effects
+* Not access filesystem
+* Not access network
+* Not import infrastructure
+* Only depend on shared
+
+Core defines ports (interfaces) for:
+
+* Provider
+* Storage
+* Sandbox
+* Observability
+* Embedding
+* Vector store
+
+---
+
+# 3️⃣ packages/execution — Runtime Mechanics
+
+Mechanical layer.
+
+Contains:
+
+```
+execution/
+  scheduler/
+  worker/
+  lifecycle/
+```
+
+Responsibilities:
+
+* Scheduling
+* Concurrency control
+* Timeout handling
+* Abort logic
+* Deterministic ordering
+
+Execution must NOT:
+
+* Know graph semantics
+* Know policy rules
+* Know provider implementation
+* Know identity model
+
+Execution only runs tasks given by Core.
+
+---
+
+# 4️⃣ packages/infrastructure — Adapters
+
+Implements ports defined by Core.
+
+Contains:
+
+```
+infrastructure/
+  provider-adapter/
+  storage-adapter/
+  embedding-adapter/
+  sandbox-adapter/
+  memory-manager-adapter/
+  observability-adapter/
+  event-bus-adapter/
+  snapshot-adapter/
+```
+
+Infrastructure:
+
+* Can access filesystem
+* Can access network
+* Can use Node APIs
+* Can use external libraries
+
+Core never imports infrastructure.
+
+---
+
+# 5️⃣ packages/security
+
+Independent integrity layer.
+
+Contains:
+
+```
+security/
+  signature/
+  verification/
+  key-management/
+```
+
+Responsibilities:
+
+* Signature validation
+* Hash verification
+* Agent authenticity
+* Capability token validation
+
+Security is reusable and environment-agnostic.
+
+---
+
+# 6️⃣ packages/platform — Composition Root
+
+Only place allowed to wire system.
+
+Contains:
+
+```
+platform/
+  bootstrap/
+  container/
+  factories/
+```
+
+Responsibilities:
+
+* Instantiate adapters
+* Bind ports to implementations
+* Read environment config
+* Create runtime instance
+* Connect core + execution
+
+Example:
+
+```
+createRuntime({
+  providerAdapter,
+  storageAdapter,
+  vectorStoreAdapter,
+  embeddingAdapter,
+  sandboxAdapter,
+  observabilityAdapter
+})
+```
+
+Apps must not instantiate runtime manually.
+
+---
+
+# 7️⃣ packages/sdk
+
+Two parts:
+
+```
+sdk/
+  authoring/
+  client/
+```
+
+---
+
+## Authoring SDK
+
+Used by developers to define agents.
+
+Example:
+
+```
+defineAgent({
+  name,
+  tools,
+  memory,
+  policy
+})
+```
+
+Produces:
+
+```
+AgentDefinition
+```
+
+Does NOT run runtime.
+
+---
+
+## Client SDK
+
+Used to:
+
+* Invoke runtime
+* Stream execution
+* Inject memory
+* Approve checkpoints
+* Inspect traces
+
+Contains no domain logic.
+
+---
+
+# VI. DATA FLOW MODEL
+
+Standard execution flow:
+
+```
+App
+  → Platform
+    → Core (decides WHAT)
+      → Execution (runs HOW)
+        → Infrastructure (adapter)
+          → Sandbox
+            → Tool
+```
+
+Memory flow:
+
+```
+Core (memory strategy)
+  → VectorStoreAdapter
+  → EmbeddingAdapter
+  → StorageAdapter
+```
+
+Security validation:
+
+```
+Platform
+  → Security
+    → Core
+```
+
+---
+
+# VII. STRICT DEPENDENCY ENFORCEMENT
+
+## Allowed
 
 ```
 apps → sdk
 apps → platform
-
-sdk → core
-sdk → shared
 
 platform → core
 platform → execution
@@ -56,9 +478,11 @@ platform → security
 execution → shared
 infrastructure → shared
 core → shared
+security → shared
+sdk → shared
 ```
 
-Forbidden:
+## Forbidden
 
 ```
 core → infrastructure
@@ -71,344 +495,38 @@ execution → infrastructure
 web → runtime internals
 ```
 
-Core là trung tâm, không phụ thuộc implementation.
+---
+
+# VIII. REPLACEMENT CAPABILITY
+
+Each layer is independently replaceable:
+
+* Replace provider → only infrastructure changes
+* Replace storage → only storage adapter changes
+* Replace sandbox → only sandbox adapter changes
+* Replace execution engine → only execution layer changes
+* Replace host (desktop/web) → no core changes
 
 ---
 
-# IV. DIRECTORY STRUCTURE
+# IX. DESIGN PRINCIPLES ENFORCED
 
-```
-agenthub/
-│
-├── apps/
-│   ├── desktop/
-│   └── web/
-│
-├── packages/
-│
-│   ├── shared/
-│   │   ├── types/
-│   │   ├── dto/
-│   │   ├── schemas/
-│   │   ├── constants/
-│   │   └── index.ts
-│
-│   ├── core/
-│   │   ├── runtime/
-│   │   ├── orchestrator/
-│   │   ├── graph/
-│   │   ├── agents/
-│   │   ├── memory/
-│   │   ├── identity/
-│   │   ├── policy/
-│   │   ├── capability/
-│   │   ├── events/
-│   │   └── index.ts
-│
-│   ├── execution/
-│   │   ├── scheduler/
-│   │   ├── worker/
-│   │   ├── concurrency/
-│   │   ├── lifecycle/
-│   │   └── index.ts
-│
-│   ├── infrastructure/
-│   │   ├── provider/
-│   │   ├── storage/
-│   │   ├── vector-store/
-│   │   ├── embedding/
-│   │   ├── tools/
-│   │   ├── sandbox/
-│   │   ├── network/
-│   │   └── observability/
-│
-│   ├── security/
-│   │   ├── signature/
-│   │   ├── key-management/
-│   │   ├── verification/
-│   │   └── index.ts
-│
-│   ├── platform/
-│   │   ├── bootstrap/
-│   │   ├── container/
-│   │   ├── factories/
-│   │   └── index.ts
-│
-│   ├── sdk/
-│   │   ├── authoring/
-│   │   ├── client/
-│   │   └── index.ts
-│
-├── turbo.json
-├── tsconfig.base.json
-└── package.json
-```
+* Deterministic execution
+* Capability-based isolation
+* Policy-first runtime
+* Environment independence
+* Replaceable infrastructure
+* Clean dependency direction
+* Multi-agent scalability
 
 ---
 
-# V. CORE (Agent Operating System)
-
-Core chứa domain logic thuần:
-
-- AgentRuntime
-- Graph Engine
-- Orchestrator
-- Memory domain logic
-- Identity model
-- Capability enforcement
-- Policy engine
-- Event system
-
-Core:
-
-- Không side-effect
-- Không environment access
-- Không file system
-- Không network
-- Không provider implementation
-- Không biết đang chạy ở desktop hay cloud
-
-Core chỉ làm việc thông qua **Ports (interfaces)**.
-
----
-
-# VI. MEMORY (Domain Layer)
-
-Memory là business capability, thuộc core.
-
-Bao gồm:
-
-- Retrieval strategy
-- Injection logic
-- Importance scoring
-- Scope resolution
-- Memory lifecycle
-- Pruning strategy
-
-Infrastructure cung cấp:
-
-- Vector store adapter
-- Embedding adapter
-- Storage adapter
-
-Core định nghĩa interface, không implement chi tiết kỹ thuật.
-
----
-
-# VII. EXECUTION LAYER
-
-Execution xử lý cơ chế runtime:
-
-- Scheduler
-- Worker management
-- Timeout
-- Abort handling
-- Concurrency control
-
-Execution:
-
-- Không biết graph semantics
-- Không biết policy logic
-- Không biết identity
-- Không biết provider
-
-Core quyết định “WHAT”.
-Execution quyết định “HOW”.
-
----
-
-# VIII. INFRASTRUCTURE (Adapters)
-
-Chỉ implement các ports từ core:
-
-- ProviderAdapter
-- StorageAdapter
-- VectorStoreAdapter
-- EmbeddingAdapter
-- SandboxAdapter
-- TransportAdapter
-- ObservabilityAdapter
-
-Infrastructure có thể dùng Node APIs hoặc external libs.
-
-Core không import implementation cụ thể.
-
----
-
-# IX. SECURITY
-
-Security tách riêng:
-
-- Signature verification
-- Hash validation
-- Key management
-- Integrity checking
-
-Security không chứa marketplace logic.
-
-Marketplace consume security.
-
----
-
-# X. PLATFORM (Composition Root)
-
-Platform là nơi duy nhất:
-
-- Instantiate adapters
-- Đọc environment
-- Cấu hình DI container
-- Wire execution + core
-
-Ví dụ:
-
-```
-createRuntime({
-  providerAdapter,
-  storageAdapter,
-  vectorStoreAdapter,
-  sandboxAdapter,
-  observabilityAdapter
-})
-```
-
-Apps không tự new runtime thủ công.
-
----
-
-# XI. SDK
-
-## 1️⃣ Authoring SDK
-
-Dành cho developer xây agent.
-
-Ví dụ:
-
-```
-defineAgent({
-  name,
-  tools,
-  memory,
-  policy
-})
-```
-
-Tạo AgentDefinition object.
-
-Không chạy runtime.
-
----
-
-## 2️⃣ Client SDK
-
-Dùng để:
-
-- Invoke runtime từ bên ngoài
-- Stream execution
-- Inject memory
-- Approve checkpoint
-
-Client SDK không chứa runtime logic.
-
----
-
-# XII. APPS
-
-## Desktop
-
-- Host runtime
-- Inject adapters qua platform
-- Single-user mode
-
-## Web
-
-- Snapshot viewer
-- Trace inspector
-- Graph visualizer
-
-Web không import:
-
-- execution
-- provider
-- sandbox
-- runtime internals
-
----
-
-# XIII. SANDBOX RULE
-
-Tất cả tool execution đi qua sandbox:
-
-```
-core → execution → sandbox → tool
-```
-
-Không bao giờ:
-
-```
-core → tool trực tiếp
-```
-
-Sandbox enforce:
-
-- CPU limit
-- Memory limit
-- Timeout
-- Network restriction
-
----
-
-# XIV. ISOLATION GUARANTEE
-
-Core:
-
-- Không biết môi trường chạy
-- Không biết provider cụ thể
-- Không biết storage cụ thể
-
-Execution:
-
-- Không biết business logic
-
-Web:
-
-- Không biết runtime tồn tại
-
-Mỗi layer độc lập, thay thế được.
-
----
-
-# XV. ARCHITECTURAL GUARANTEES
-
-✔ Deterministic execution
-
-✔ Policy-driven runtime
-
-✔ Capability-based security
-
-✔ Provider-agnostic
-
-✔ Environment-agnostic
-
-✔ Clean dependency direction
-
-✔ Replaceable infrastructure
-
-✔ Multi-agent ready
-
----
-
-# FINAL SYSTEM MODEL
+# X. MENTAL MODEL
 
 Core = Agent Operating System
-
 Execution = Runtime Engine
-
 Infrastructure = Hardware Drivers
-
-Platform = Composition Layer
-
-SDK = Agent Programming Interface
-
 Security = Integrity Layer
-
-Apps = Host Environment
+Platform = System Bootloader
+SDK = Programming Interface
+Apps = Host Machines

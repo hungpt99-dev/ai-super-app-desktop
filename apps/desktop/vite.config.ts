@@ -17,6 +17,33 @@ export default defineConfig({
     target: 'esnext',
     minify: !process.env['TAURI_DEBUG'] ? 'esbuild' : false,
     sourcemap: Boolean(process.env['TAURI_DEBUG']),
+    rollupOptions: {
+      // Node-native modules must never enter the browser bundle.
+      external: [
+        'better-sqlite3',
+        'node:fs',
+        'node:path',
+        'node:os',
+        'node:child_process',
+        'node:crypto',
+        'fs',
+        'path',
+        'os',
+        'child_process',
+        'crypto',
+      ],
+    },
+  },
+  optimizeDeps: {
+    // Prevent Vite from pre-bundling Node-native packages for the browser.
+    exclude: [
+      'better-sqlite3',
+      'node:fs',
+      'node:path',
+      'node:os',
+      'node:child_process',
+      'node:crypto',
+    ],
   },
   server: {
     // Tauri expects a stable port for its devUrl.

@@ -27,6 +27,7 @@
   --color-success: #34d399;
   --color-warning: #fbbf24;
   --color-danger: #f87171;
+  --color-info: #60a5fa;
 
   /* Sidebar width */
   --sidebar-width: 220px;
@@ -96,6 +97,7 @@ body {
   --color-success: #059669;
   --color-warning: #d97706;
   --color-danger: #dc2626;
+  --color-info: #3b82f6;
 }
 
 /* Streaming cursor blink animation */

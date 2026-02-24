@@ -1,0 +1,191 @@
+/**
+ * IPC Handler — typed message router for main ↔ renderer communication.
+ *
+ * All IPC calls from the renderer arrive here. The handler dispatches
+ * to the appropriate RuntimeHost or PlatformHost method and returns
+ * a typed IIPCResponse.
+ *
+ * The renderer NEVER imports core, execution, or infrastructure directly.
+ * It sends IPC messages using @agenthub/contracts types.
+ *
+ * See: docs/technical-design.md §14 IPC ARCHITECTURE
+ */
+
+import type {
+    IIPCRequest,
+    IIPCResponse,
+    IPCChannel,
+    IModuleInvokePayload,
+    IRuntimeStatusPayload,
+    DesktopIPCChannel,
+    IExecutionStartPayload,
+    IExecutionStopPayload,
+    IAgentSavePayload,
+    ISkillSavePayload,
+    IReplayRequestDTO,
+    IAgentDefinitionDTO,
+    ISkillDefinitionDTO,
+    IVersionBumpPayload,
+} from '@agenthub/contracts'
+import { runtimeHost } from '../runtime-host.js'
+import { platformHost } from '../platform-host.js'
+import { executionIPC } from './execution.ipc.js'
+import { agentIPC } from './agent.ipc.js'
+import { skillIPC } from './skill.ipc.js'
+import { snapshotIPC } from './snapshot.ipc.js'
+import { filesystemIPC } from './filesystem.ipc.js'
+import type {
+    IFilesystemReadPayload,
+    IFilesystemWritePayload,
+    IFilesystemDeletePayload,
+    IFilesystemListPayload,
+} from './filesystem.ipc.js'
+import { logger } from '@agenthub/shared'
+
+const log = logger.child('IPCHandler')
+
+export async function handleIPCMessage(request: IIPCRequest): Promise<IIPCResponse> {
+    const { channel, requestId, payload } = request
+
+    try {
+        const data = await dispatch(channel, payload)
+        return {
+            channel,
+            requestId,
+            success: true,
+            data,
+            timestamp: new Date().toISOString(),
+        }
+    } catch (err) {
+        log.error(`IPC error on channel ${channel}`, { error: String(err) })
+        return {
+            channel,
+            requestId,
+            success: false,
+            error: {
+                code: 'IPC_ERROR',
+                message: err instanceof Error ? err.message : String(err),
+            },
+            timestamp: new Date().toISOString(),
+        }
+    }
+}
+
+async function dispatch(channel: IPCChannel | DesktopIPCChannel, payload: unknown): Promise<unknown> {
+    switch (channel) {
+        case 'runtime:init':
+            return runtimeHost.start()
+
+        case 'runtime:status': {
+            const status: IRuntimeStatusPayload = {
+                initialized: platformHost.isInitialized,
+                agentCount: 0,
+                moduleCount: runtimeHost.getBuiltinModules().length,
+                uptime: 0,
+            }
+            return status
+        }
+
+        case 'module:list':
+            return runtimeHost.getBuiltinModules().map(m => ({
+                id: m.id,
+                name: m.definition.manifest.name,
+                version: m.definition.manifest.version,
+                description: m.definition.manifest.description,
+            }))
+
+        case 'module:invoke-tool': {
+            const p = payload as IModuleInvokePayload
+            log.info('Module tool invocation via IPC', { moduleId: p.moduleId, tool: p.toolName })
+            return { invoked: true, moduleId: p.moduleId, tool: p.toolName }
+        }
+
+        case 'agent:list':
+            return []
+
+        case 'agent:start':
+            await runtimeHost.startAgentLoop()
+            return { started: true }
+
+        case 'agent:stop':
+            runtimeHost.stopAgentLoop()
+            return { stopped: true }
+
+        // ── Desktop-specific channels ──────────────────────────────────
+
+        case 'execution:start':
+            return executionIPC.start(payload as IExecutionStartPayload)
+
+        case 'execution:stop':
+            return executionIPC.stop(payload as IExecutionStopPayload)
+
+        case 'execution:replay':
+            return executionIPC.replay(payload as IReplayRequestDTO)
+
+        case 'execution:state':
+            return executionIPC.getState(payload as string)
+
+        case 'agent:save':
+            return agentIPC.save(payload as IAgentSavePayload)
+
+        case 'agent:load':
+            return agentIPC.load(payload as string)
+
+        case 'agent:delete':
+            return agentIPC.delete(payload as string)
+
+        case 'agent:list-local':
+            return agentIPC.listLocal()
+
+        case 'agent:validate':
+            return agentIPC.validate(payload as IAgentDefinitionDTO)
+
+        case 'skill:save':
+            return skillIPC.save(payload as ISkillSavePayload)
+
+        case 'skill:load':
+            return skillIPC.load(payload as string)
+
+        case 'skill:delete':
+            return skillIPC.delete(payload as string)
+
+        case 'skill:list-local':
+            return skillIPC.listLocal()
+
+        case 'skill:validate':
+            return skillIPC.validate(payload as ISkillDefinitionDTO)
+
+        case 'snapshot:list':
+            return snapshotIPC.list()
+
+        case 'snapshot:load':
+            return snapshotIPC.load(payload as string)
+
+        case 'snapshot:delete':
+            return snapshotIPC.delete(payload as string)
+
+        case 'snapshot:replay':
+            return snapshotIPC.replay(payload as IReplayRequestDTO)
+
+        case 'version:history':
+            return null
+
+        case 'version:bump':
+            return null
+
+        case 'filesystem:read':
+            return filesystemIPC.read(payload as IFilesystemReadPayload)
+
+        case 'filesystem:write':
+            return filesystemIPC.write(payload as IFilesystemWritePayload)
+
+        case 'filesystem:delete':
+            return filesystemIPC.delete(payload as IFilesystemDeletePayload)
+
+        case 'filesystem:list':
+            return filesystemIPC.list(payload as IFilesystemListPayload)
+
+        default:
+            throw new Error(`Unknown IPC channel: ${channel}`)
+    }
+}

@@ -1,6 +1,5 @@
 import { createRuntime, type IRuntimeBundle } from '@agenthub/platform'
-import { OpenaiProviderAdapter } from '@agenthub/provider'
-import { CoreSandboxAdapter } from '@agenthub/sandbox'
+import { OpenaiProviderAdapter, CoreSandboxAdapter } from '@agenthub/infrastructure'
 import { AgentRuntimeTauriStorage } from '../bridges/tauri-storage.js'
 import { TauriVectorStore } from '../bridges/tauri-vector-store.js'
 import { TauriMemoryStore } from '../bridges/tauri-memory-store.js'

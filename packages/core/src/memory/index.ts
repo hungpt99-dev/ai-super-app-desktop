@@ -1,8 +1,10 @@
 /**
- * Core memory module — domain logic, types, and port interfaces.
+ * Core memory module — ports, types, and interfaces only.
  *
- * Infrastructure implementations (CosineVectorStore, OpenAiEmbeddingService)
- * live in their respective infrastructure packages.
+ * Implementations (LongTermMemoryManager, CosineVectorStore, OpenAiEmbeddingService)
+ * live in @agenthub/infrastructure.
+ *
+ * Clean Architecture: core defines contracts, infrastructure implements them.
  */
 
 export * from './types.js'

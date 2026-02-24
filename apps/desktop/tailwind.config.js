@@ -14,6 +14,12 @@ export default {
         'text-secondary': 'var(--color-text-secondary)',
         accent: 'var(--color-accent)',
         'accent-hover': 'var(--color-accent-hover)',
+        'accent-dim': 'var(--color-accent-dim)',
+        'text-muted': 'var(--color-text-muted)',
+        success: 'var(--color-success)',
+        warning: 'var(--color-warning)',
+        danger: 'var(--color-danger)',
+        info: 'var(--color-info)',
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],

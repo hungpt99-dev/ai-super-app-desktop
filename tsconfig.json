@@ -5,22 +5,13 @@
       "path": "packages/shared"
     },
     {
+      "path": "packages/contracts"
+    },
+    {
       "path": "packages/sdk"
     },
     {
-      "path": "packages/storage"
-    },
-    {
-      "path": "packages/provider"
-    },
-    {
-      "path": "packages/network"
-    },
-    {
-      "path": "packages/memory"
-    },
-    {
-      "path": "packages/tools"
+      "path": "packages/graph-tools"
     },
     {
       "path": "packages/execution"
@@ -29,10 +20,10 @@
       "path": "packages/core"
     },
     {
-      "path": "packages/sandbox"
+      "path": "packages/security"
     },
     {
-      "path": "packages/security"
+      "path": "packages/infrastructure"
     },
     {
       "path": "packages/platform"

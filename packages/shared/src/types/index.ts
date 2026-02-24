@@ -85,26 +85,56 @@ export interface ITokenTrackingRecord {
 
 /**
  * All permission types used in the system.
- * Must stay in sync with SDK Permission enum.
  *
  * See: docs/technical-design.md §10.1 Permission Model
  */
-export type PermissionType =
-    | 'ai.generate'
-    | 'ai.stream'
-    | 'storage.read'
-    | 'storage.write'
-    | 'network.fetch'
-    | 'memory.read'
-    | 'memory.write'
-    | 'computer.screenshot'
-    | 'computer.input'
-    | 'computer.clipboard'
-    | 'computer.shell'
-    | 'computer.files'
-    | 'tool.execute'
-    | 'agent.call'
-    | 'filesystem'
+export enum Permission {
+  AiGenerate = 'ai.generate',
+  AiStream = 'ai.stream',
+  StorageLocal = 'storage.local',
+  StorageRead = 'storage.read',
+  StorageWrite = 'storage.write',
+  UiNotify = 'ui.notify',
+  UiDashboard = 'ui.dashboard',
+  EventsPublish = 'events.publish',
+  EventsSubscribe = 'events.subscribe',
+  // ── Computer-use permissions ──────────────────────────────────────────────
+  /** Capture screenshots (requires Screen Recording on macOS). */
+  ComputerScreenshot = 'computer.screenshot',
+  /** Control mouse and keyboard (requires Accessibility on macOS). */
+  ComputerInput = 'computer.input',
+  /** Read/write the system clipboard. */
+  ComputerClipboard = 'computer.clipboard',
+  /** Launch OS applications and run shell commands. HIGH RISK — user approval required. */
+  ComputerShell = 'computer.shell',
+  /** Read and write local files. HIGH RISK — user approval required. */
+  ComputerFiles = 'computer.files',
+  // ── Memory permissions ────────────────────────────────────────────────────
+  /** Read from the local persistent memory store. */
+  MemoryRead = 'memory.read',
+  /** Write to (and delete from) the local persistent memory store. */
+  MemoryWrite = 'memory.write',
+  /**
+   * Write to the workspace-level shared knowledge base (`scope = "workspace:shared"`).
+   * Read is always allowed with `MemoryRead`. Without this permission, a module
+   * can only write to its own private scope (`agent:{moduleId}`).
+   */
+  MemorySharedWrite = 'memory.shared-write',
+  /**
+   * Make outbound HTTP/HTTPS requests to any URL.
+   * Covers `ctx.http.get/post/put/patch/delete/request`.
+   */
+  NetworkFetch = 'network.fetch',
+  // ── Agent permissions (§10 Security Architecture) ──────────────────────────
+  /** Call another agent (AGENT_CALL_NODE). Enforced by orchestrator. */
+  AgentCall = 'agent.call',
+  /** Execute a registered tool. Enforced by sandbox. */
+  ToolExecute = 'tool.execute',
+  /** Access the local filesystem. HIGH RISK — user approval required. */
+  Filesystem = 'filesystem',
+}
+
+export type PermissionType = Permission
 
 // ─── Memory Scope (shared so core Layer 2 can use it) ───────────────────────
 

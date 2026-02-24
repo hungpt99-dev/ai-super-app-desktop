@@ -1,0 +1,32 @@
+{
+    "name": "@agenthub/infrastructure",
+    "version": "0.1.0",
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "import": "./dist/index.js",
+            "types": "./dist/index.d.ts"
+        },
+        "./node": {
+            "import": "./dist/node.js",
+            "types": "./dist/node.d.ts"
+        }
+    },
+    "dependencies": {
+        "@agenthub/core": "*",
+        "@agenthub/graph-tools": "*",
+        "@agenthub/sdk": "*",
+        "@agenthub/shared": "*",
+        "better-sqlite3": "^12.6.2",
+        "openai": "^6.22.0"
+    },
+    "scripts": {
+        "build": "tsc -p tsconfig.json",
+        "typecheck": "tsc --noEmit"
+    },
+    "devDependencies": {
+        "@types/better-sqlite3": "^7.6.13"
+    }
+}

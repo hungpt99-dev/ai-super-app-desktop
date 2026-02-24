@@ -23,6 +23,9 @@
       "path": "../../packages/shared"
     },
     {
+      "path": "../../packages/contracts"
+    },
+    {
       "path": "../../packages/sdk"
     },
     {
@@ -32,13 +35,10 @@
       "path": "../../packages/platform"
     },
     {
-      "path": "../../packages/provider"
+      "path": "../../packages/infrastructure"
     },
     {
-      "path": "../../packages/sandbox"
-    },
-    {
-      "path": "../../packages/storage"
+      "path": "../../packages/graph-tools"
     }
   ]
 }

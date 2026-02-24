@@ -11,6 +11,11 @@
       "types": "./dist/index.d.ts"
     }
   },
+  "dependencies": {
+    "@agenthub/shared": "*",
+    "@agenthub/core": "*",
+    "@agenthub/contracts": "*"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit"

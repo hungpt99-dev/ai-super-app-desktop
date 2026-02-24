@@ -18,7 +18,7 @@ import type { MemoryScope } from '@agenthub/shared'
 
 /**
  * Abstract storage adapter type for core.
- * Implemented by @agenthub/storage — core never imports that package directly.
+ * Implemented by infrastructure — core never imports that package directly.
  */
 export interface ICoreStorageAdapter {
     get<T>(key: string): Promise<T | null>
@@ -38,7 +38,7 @@ export interface IPermissionEngine {
 
 /**
  * Abstract LLM provider type for core.
- * Implemented by @agenthub/provider — core never imports that package directly.
+ * Implemented by infrastructure — core never imports that package directly.
  *
  * Matches: docs/technical-design.md §3.2 Provider Abstraction Layer
  */
@@ -69,7 +69,7 @@ export interface ICoreLLMProvider {
 
 /**
  * Abstract vector store type for core.
- * Implemented by @agenthub/memory — core never imports that package directly.
+ * Implemented by infrastructure — core never imports that package directly.
  */
 export interface ICoreVectorStore {
     upsert(id: string, vector: number[], metadata: Record<string, unknown>): Promise<void>
@@ -78,7 +78,7 @@ export interface ICoreVectorStore {
 
 /**
  * Abstract sandbox factory type for core.
- * Implemented by @agenthub/sandbox — core never imports that package directly.
+ * Implemented by infrastructure — core never imports that package directly.
  */
 export interface ICoreSandbox {
     execute(code: string, context: Record<string, unknown>): Promise<unknown>
@@ -87,7 +87,7 @@ export interface ICoreSandbox {
 
 /**
  * Abstract transport type for core.
- * Implemented by @agenthub/network — core never imports that package directly.
+ * Implemented by infrastructure — core never imports that package directly.
  */
 export interface ICoreTransport {
     connect(url: string): Promise<void>

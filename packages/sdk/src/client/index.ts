@@ -1,10 +1,3 @@
-/**
- * SDK Client — runtime invocation, streaming, control APIs.
- *
- * This sub-module is for app developers who consume agents.
- * No runtime logic should live here.
- */
-
 export type {
     IAiClient,
     IAiGenerateRequest,
@@ -24,3 +17,5 @@ export type {
     IUsageReport,
     ISubscriptionInfo,
 } from '../types.js'
+
+export type { RuntimeDomain } from '@agenthub/core'

@@ -1,0 +1,23 @@
+{
+    "name": "@agenthub/testing",
+    "version": "1.0.0",
+    "private": true,
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "import": "./dist/index.js",
+            "types": "./dist/index.d.ts"
+        }
+    },
+    "dependencies": {
+        "@agenthub/core": "*",
+        "@agenthub/contracts": "*",
+        "@agenthub/shared": "*"
+    },
+    "scripts": {
+        "build": "tsc -p tsconfig.json",
+        "typecheck": "tsc --noEmit"
+    }
+}
