@@ -1,14 +1,89 @@
 node_modules/
+# Rust & Cargo
+/target/
+**/target/
+**/Cargo.lock.bak
+**/.cargo/
+**/.rustup/
+**/*.rs.bk
+
+# Tauri Bundler & Updater
+/src-tauri/target/
+/src-tauri/gen/
+/src-tauri/bundled/
+/src-tauri/updater/
+/src-tauri/icons/
+*.app
+*.dmg
+*.msi
+*.deb
+*.rpm
+*.AppImage
+*.snap
+*.exe
+*.pkg
+*.tar.gz
+*.zip
+
+# Node.js & Vite
+node_modules/
 dist/
 build/
-.turbo/
+.cache/
+.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 *.tsbuildinfo
-coverage/
+
+# Environment Files
 .env
 .env.*
 !.env.example
+
+# Test Coverage
+coverage/
+*.lcov
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.nfs*
+
+# VSCode
+.vscode/
+.history/
+
+# JetBrains IDEs
+.idea/
+*.iml
+
+# Logs
+logs/
 *.log
 
-# Rust / Tauri build artifacts
-apps/desktop/src-tauri/target/
-gen/
+# Miscellaneous
+*.swp
+*.swo
+*.bak
+*.tmp
+
+# User Data & Local Workspaces
+~/.agenthub/
+workspaces-local/
+
+# Ignore local build outputs
+*.local
+
+# End of .gitignore
