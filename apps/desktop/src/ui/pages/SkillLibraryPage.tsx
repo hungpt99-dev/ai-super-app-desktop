@@ -96,7 +96,7 @@ export function SkillLibraryPage({ onEditSkill }: IProps): React.JSX.Element {
     })
 
     return (
-        <div className="flex h-full flex-col overflow-hidden">
+        <div className="flex flex-col w-full h-full overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-[var(--color-border)] px-6 py-4">
                 <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">Skill Library</h1>
@@ -129,7 +129,7 @@ export function SkillLibraryPage({ onEditSkill }: IProps): React.JSX.Element {
 
             <div className="flex flex-1 overflow-hidden">
                 {/* Skill list */}
-                <div className="flex-1 overflow-auto p-4">
+                <div className="flex-1 p-4 overflow-auto">
                     {loading ? (
                         <div className="flex items-center justify-center py-12">
                             <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--color-accent)] border-t-transparent" />
@@ -153,7 +153,7 @@ export function SkillLibraryPage({ onEditSkill }: IProps): React.JSX.Element {
                                     }`}
                                 >
                                     <div className="flex items-start justify-between">
-                                        <div className="min-w-0 flex-1">
+                                        <div className="flex-1 min-w-0">
                                             <h3 className="text-sm font-medium text-[var(--color-text-primary)] truncate">{skill.name}</h3>
                                             <div className="flex items-center gap-2 mt-0.5">
                                                 <span className="text-xs text-[var(--color-text-muted)]">v{skill.version}</span>
@@ -163,7 +163,7 @@ export function SkillLibraryPage({ onEditSkill }: IProps): React.JSX.Element {
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="mt-2 flex items-center gap-2">
+                                    <div className="flex items-center gap-2 mt-2">
                                         <button
                                             onClick={(e) => { e.stopPropagation(); onEditSkill(skill.id) }}
                                             className="rounded px-2 py-0.5 text-xs text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10"
@@ -261,7 +261,7 @@ export function SkillLibraryPage({ onEditSkill }: IProps): React.JSX.Element {
                             {selectedVersions.length > 0 && (
                                 <div>
                                     <span className="text-xs text-[var(--color-text-muted)]">Version History</span>
-                                    <div className="space-y-1 mt-1">
+                                    <div className="mt-1 space-y-1">
                                         {selectedVersions.map((v, i) => (
                                             <div key={i} className="rounded bg-[var(--color-surface-2)] p-1.5 text-xs text-[var(--color-text-secondary)]">
                                                 v{v.version} — {v.bump} — {new Date(v.createdAt).toLocaleDateString()}

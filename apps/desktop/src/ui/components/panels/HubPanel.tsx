@@ -8,7 +8,7 @@ import React from 'react'
  */
 export function HubPanel(): React.JSX.Element {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-6 bg-[var(--color-bg)] p-8 text-center">
+    <div className="flex h-full w-full flex-col items-center justify-center gap-6 bg-[var(--color-bg)] p-8 text-center">
       <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-[var(--color-surface-2)] text-4xl">
         🛍️
       </div>

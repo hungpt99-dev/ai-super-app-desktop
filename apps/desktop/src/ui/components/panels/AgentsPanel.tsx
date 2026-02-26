@@ -42,7 +42,7 @@ function RunItem({ run }: { run: IDesktopAgentRun }): React.JSX.Element {
 function CredentialRow({ cred, onRemove }: { cred: IAgentCredential; onRemove: () => void }): React.JSX.Element {
   return (
     <div className="flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)] px-4 py-2">
-      <div className="min-w-0 flex-1">
+      <div className="flex-1 min-w-0">
         <p className="truncate text-xs font-medium text-[var(--color-text-primary)]">{cred.key}</p>
         <p className="truncate text-[10px] text-[var(--color-text-muted)] font-mono">••••••••</p>
       </div>
@@ -110,13 +110,13 @@ function RunProgress({ agentId, runId }: { agentId: string; runId: string }): Re
   const logs = run?.logs ?? []
 
   return (
-    <div className="rounded-2xl border border-blue-400/20 bg-blue-400/5 p-4 shadow-sm">
+    <div className="p-4 border shadow-sm rounded-2xl border-blue-400/20 bg-blue-400/5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-[10px] font-bold uppercase tracking-widest text-blue-400">Live Execution</h3>
         <span className="flex h-1.5 w-1.5 animate-pulse rounded-full bg-blue-400" />
       </div>
 
-      <div className="space-y-3 relative">
+      <div className="relative space-y-3">
         {/* Connector line */}
         <div className="absolute left-[7px] top-2 bottom-2 w-[1.5px] bg-blue-400/10" />
 
@@ -288,7 +288,7 @@ function ConfigTab({ agent, template }: { agent: IDesktopAgent; template?: IAgen
                   key={tool.name}
                   className="flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3"
                 >
-                  <div className="min-w-0 flex-1">
+                  <div className="flex-1 min-w-0">
                     <p className="text-xs font-semibold text-[var(--color-text-primary)]">{tool.name}</p>
                     <p className="mt-0.5 truncate text-[10px] text-[var(--color-text-muted)]">{tool.description}</p>
                   </div>
@@ -415,7 +415,7 @@ function SettingsTab({ agent, template, colorClass, onDelete, isRunning, onStop 
       {isRunning && (
         <section>
           <p className="mb-4 text-[10px] font-semibold uppercase tracking-wider text-blue-400">Active Run</p>
-          <div className="flex items-center justify-between rounded-2xl border border-blue-400/30 bg-blue-400/5 px-5 py-4">
+          <div className="flex items-center justify-between px-5 py-4 border rounded-2xl border-blue-400/30 bg-blue-400/5">
             <div className="flex items-center gap-3">
               <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-blue-400" />
               <div>
@@ -763,8 +763,14 @@ export function AgentRunPanel({ onBack }: IAgentRunPanelProps): React.JSX.Elemen
   }, [selectedAgentId, hasActive])
 
   // If agent no longer exists (e.g. deleted), go back to list
+  // Only redirect if there WAS a selected agent that got deleted
+  const prevAgentRef = React.useRef(agent)
   useEffect(() => {
-    if (!agent) setView('agents')
+    // Only navigate to 'agents' if there was a selected agent and it's now gone
+    if (prevAgentRef.current && !agent) {
+      setView('agents')
+    }
+    prevAgentRef.current = agent
   }, [agent, setView])
 
   if (!agent) return <div />
@@ -782,7 +788,7 @@ export function AgentRunPanel({ onBack }: IAgentRunPanelProps): React.JSX.Elemen
   ]
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-[var(--color-bg)]">
+    <div className="flex h-full w-full flex-col overflow-hidden bg-[var(--color-bg)]">
       {/* Header */}
       <div className="shrink-0 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-6 pb-0 pt-4">
         <div className="flex items-center gap-3 pb-4">
@@ -799,7 +805,7 @@ export function AgentRunPanel({ onBack }: IAgentRunPanelProps): React.JSX.Elemen
             {template?.icon ?? '🤖'}
           </div>
 
-          <div className="min-w-0 flex-1">
+          <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-base font-semibold text-[var(--color-text-primary)]">{agent.name}</h1>
               <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${agent.status === 'active' ? 'bg-[var(--color-success)]/15 text-[var(--color-success)]' : 'bg-yellow-400/15 text-yellow-400'
@@ -822,14 +828,14 @@ export function AgentRunPanel({ onBack }: IAgentRunPanelProps): React.JSX.Elemen
             {agent.description && <p className="mt-0.5 truncate text-xs text-[var(--color-text-secondary)]">{agent.description}</p>}
           </div>
 
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {agent.status === 'active' && (
               <button
                 onClick={() => { useAgentsStore.getState().runAgent(agent.id) }}
                 disabled={busy}
                 className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--color-success)] px-4 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
               >
-                {busy && <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />}
+                {busy && <span className="w-3 h-3 border-2 border-current rounded-full animate-spin border-t-transparent" />}
                 Run Now
               </button>
             )}
@@ -905,14 +911,14 @@ export function AgentRunPanel({ onBack }: IAgentRunPanelProps): React.JSX.Elemen
 
       {/* Live execution progress — shown above tab content on ALL tabs */}
       {isRunning && latestRun?.plannedSteps && (
-        <div className="shrink-0 border-b border-blue-400/15 px-6 py-4">
+        <div className="px-6 py-4 border-b shrink-0 border-blue-400/15">
           <RunProgress agentId={agent.id} runId={latestRun.id} />
         </div>
       )}
 
       {/* Tab Content */}
-      <div className="flex-1 overflow-y-auto px-6 py-6">
-        <div className="mx-auto max-w-2xl">
+      <div className="flex-1 px-6 py-6 overflow-x-hidden overflow-y-auto">
+        <div className="max-w-2xl mx-auto">
           {tab === 'config' && (
             <ConfigTab agent={agent} template={template} />
           )}

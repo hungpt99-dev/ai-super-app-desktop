@@ -1,3 +1,7 @@
 export { Sidebar } from './Sidebar.js'
 export { ToastContainer } from './Toast.js'
 export { NotificationCenter } from './NotificationCenter.js'
+export { WorkspaceTabs } from './WorkspaceTabs.js'
+export { WorkspaceHeader } from './WorkspaceHeader.js'
+export { AgentWorkspaceTabs } from './AgentWorkspaceTabs.js'
+export { AgentWorkspaceHeader } from './AgentWorkspaceHeader.js'

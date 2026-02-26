@@ -56,7 +56,7 @@ interface IStatCardProps {
 function StatCard({ icon, label, value, accent = 'text-[var(--color-accent)]' }: IStatCardProps): React.JSX.Element {
   return (
     <div className="flex flex-col rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
-      <div className="mb-3 flex items-center justify-between">
+      <div className="flex items-center justify-between mb-3">
         <span className="text-xl">{icon}</span>
       </div>
       <p className={`text-2xl font-bold ${accent}`}>{String(value)}</p>
@@ -81,7 +81,7 @@ function DefaultKeyCard({
 
   return (
     <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <p className="text-sm font-semibold text-[var(--color-text-primary)]">Default Run Key</p>
           <p className="mt-0.5 text-xs text-[var(--color-text-secondary)]">
@@ -212,7 +212,7 @@ function TemplateCard({ template, instanceCount, onCreate }: ITemplateCardProps)
                  bg-[var(--color-surface)] p-5 transition-all
                  hover:border-[var(--color-accent)] hover:shadow-[0_0_0_1px_var(--color-accent-dim)]"
     >
-      <div className="mb-3 flex items-start justify-between">
+      <div className="flex items-start justify-between mb-3">
         <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--color-surface-2)] text-2xl">
           {template.icon}
         </div>
@@ -295,7 +295,7 @@ function CreateFromTemplateModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="w-full max-w-lg rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-2xl">
         {/* Header */}
-        <div className="mb-5 flex items-center gap-3">
+        <div className="flex items-center gap-3 mb-5">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--color-surface-2)] text-2xl">
             {template.icon}
           </div>
@@ -420,7 +420,7 @@ export function DashboardPanel({ onNavigate }: IDashboardPanelProps): React.JSX.
     : 'Welcome!'
 
   return (
-    <div className="flex h-full flex-col bg-[var(--color-bg)]">
+    <div className="flex h-full w-full flex-col bg-[var(--color-bg)]">
       {/* Header */}
       <div className="shrink-0 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-8 py-5">
         <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">Dashboard</h1>
@@ -428,8 +428,8 @@ export function DashboardPanel({ onNavigate }: IDashboardPanelProps): React.JSX.
       </div>
 
       {/* Scrollable body */}
-      <div className="flex-1 overflow-y-auto px-8 py-7">
-        <div className="mx-auto max-w-4xl space-y-8">
+      <div className="flex-1 px-8 overflow-x-hidden overflow-y-auto py-7">
+        <div className="max-w-4xl mx-auto space-y-8">
 
           {/* ── Stats row ─────────────────────────────────────────────────── */}
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -449,7 +449,7 @@ export function DashboardPanel({ onNavigate }: IDashboardPanelProps): React.JSX.
 
           {/* ── Recent activity ────────────────────────────────────────────── */}
           <section>
-            <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center justify-between mb-4">
               <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
                 Recent Activity
               </p>

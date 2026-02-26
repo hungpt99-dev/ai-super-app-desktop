@@ -248,8 +248,7 @@ function RunRow({ run, onOpenAgent }: IRunRowProps): React.JSX.Element {
             <button
               onClick={() => { useAgentsStore.getState().stopAgent(run.agent_id) }}
               title="Stop this run"
-              className="flex h-6 w-6 items-center justify-center rounded-lg
-                         bg-red-500/15 text-red-400 transition-colors hover:bg-red-500/30"
+              className="flex items-center justify-center w-6 h-6 text-red-400 transition-colors rounded-lg bg-red-500/15 hover:bg-red-500/30"
             >
               {/* Square stop icon */}
               <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
@@ -445,7 +444,7 @@ export function ActivityPanel({ onNavigate }: IActivityPanelProps): React.JSX.El
   const activeCount = allRuns.filter((r) => r.status === 'running').length
 
   return (
-    <div className="flex h-full flex-col bg-[var(--color-bg)]">
+    <div className="flex h-full w-full flex-col bg-[var(--color-bg)]">
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="shrink-0 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-8 py-5">
         <div className="flex items-center justify-between">
@@ -526,8 +525,8 @@ export function ActivityPanel({ onNavigate }: IActivityPanelProps): React.JSX.El
       </div>
 
       {/* ── Body ────────────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto px-8 py-6">
-        <div className="mx-auto max-w-4xl space-y-6">
+      <div className="flex-1 px-8 py-6 overflow-x-hidden overflow-y-auto">
+        <div className="max-w-4xl mx-auto space-y-6">
 
           {/* Stats bar */}
           <StatsBar runs={allRuns} />

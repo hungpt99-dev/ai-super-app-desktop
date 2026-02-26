@@ -48,7 +48,7 @@ export function SkillEditorPage({ skillId, onBack }: IProps): React.JSX.Element 
     }
 
     return (
-        <div className="flex flex-col h-full overflow-hidden">
+        <div className="flex flex-col w-full h-full overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-[var(--color-border)] px-6 py-4">
                 <div className="flex items-center gap-3">

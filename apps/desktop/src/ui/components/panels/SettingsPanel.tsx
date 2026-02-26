@@ -118,7 +118,7 @@ export function SettingsPanel({ onBack }: ISettingsPanelProps): React.JSX.Elemen
   }, [])
 
   return (
-    <div className="flex h-full flex-col bg-[var(--color-bg)]">
+    <div className="flex h-full w-full flex-col bg-[var(--color-bg)]">
       {/* Header */}
       <div className="flex shrink-0 items-center gap-3 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-3.5">
         <button
@@ -136,7 +136,7 @@ export function SettingsPanel({ onBack }: ISettingsPanelProps): React.JSX.Elemen
         </div>
       </div>
 
-      <div className="flex h-0 flex-1 overflow-hidden">
+      <div className="flex flex-1 h-0 overflow-hidden">
         {/* Sidebar nav */}
         <nav className="flex w-44 shrink-0 flex-col gap-0.5 border-r border-[var(--color-border)] bg-[var(--color-surface)] p-2">
           {TABS.map(({ id, label, icon }) => (
@@ -159,7 +159,7 @@ export function SettingsPanel({ onBack }: ISettingsPanelProps): React.JSX.Elemen
         </nav>
 
         {/* Tab content */}
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="flex-1 p-5 overflow-x-hidden overflow-y-auto">
           {activeTab === 'appearance'    && <AppearanceTab />}
           {activeTab === 'notifications' && <NotificationsTab />}
           {activeTab === 'privacy'       && <PrivacyTab />}

@@ -12,23 +12,40 @@ function notifyError(title: string, err: unknown): void {
 /** Resolve the app-level default BYOK key, if one has been configured. */
 async function resolveDefaultApiOptions(): Promise<{ apiKey?: string; provider?: string; model?: string }> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
     const defaultId: string | null = await getDefaultKeyId()
+    addLog({
+      level: 'info',
+      source: 'chat',
+      message: `resolveDefaultApiOptions: defaultId=${defaultId}`,
+      detail: '',
+    })
     if (!defaultId) return {}
     const keys = await listAPIKeys()
+    addLog({
+      level: 'info',
+      source: 'chat',
+      message: `resolveDefaultApiOptions: keys count=${keys.length}`,
+      detail: '',
+    })
     const entry = keys.find((k) => k.id === defaultId && k.isActive)
     if (!entry) return {}
     const options: { apiKey?: string; provider?: string; model?: string } = { apiKey: entry.rawKey, provider: entry.provider }
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     if (entry.model) options.model = entry.model
     return options
-  } catch {
+  } catch (err) {
+    addLog({
+      level: 'error',
+      source: 'chat',
+      message: `resolveDefaultApiOptions error: ${String(err)}`,
+      detail: err instanceof Error ? err.stack : '',
+    })
     return {}
   }
 }
 
 export interface IChatMessage {
   id: string
+  workspaceId: string
   role: 'user' | 'assistant'
   content: string
   timestamp: Date
@@ -36,13 +53,29 @@ export interface IChatMessage {
   isStreaming?: boolean
 }
 
-interface IChatState {
+/** Per-workspace chat state */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+interface IWorkspaceChatState {
   messages: IChatMessage[]
   isLoading: boolean
   error: string | null
-  send: (text: string) => Promise<void>
-  clear: () => void
-  setError: (e: string | null) => void
+}
+
+interface IChatState {
+  /** Messages keyed by workspace/tab ID - THIS IS THE CRITICAL FIX for workspace isolation */
+  messagesByWorkspace: Record<string, IChatMessage[]>
+  /** Loading state per workspace */
+  loadingByWorkspace: Record<string, boolean>
+  /** Error state per workspace */
+  errorByWorkspace: Record<string, string | null>
+  /** Send a message to a specific workspace */
+  send: (text: string, workspaceId: string) => Promise<void>
+  /** Clear messages for a specific workspace */
+  clear: (workspaceId: string) => void
+  /** Set error for a specific workspace */
+  setError: (error: string | null, workspaceId: string) => void
+  /** Get messages for a specific workspace (selector helper) */
+  getWorkspaceMessages: (workspaceId: string) => IChatMessage[]
 }
 
 let counter = 0
@@ -50,21 +83,31 @@ const nextId = () => `msg-${String(++counter)}-${String(Date.now())}`
 
 /**
  * useChatStore — Zustand store for chat state.
- *
- * Wires streaming: registers bridge.chat.onStream before calling send,
- * accumulates chunks into the assistant placeholder message, and marks
- * isStreaming = false when the response completes.
+ * 
+ * CRITICAL FIX: Now maintains per-workspace message isolation.
+ * State is keyed by workspaceId to prevent cross-workspace contamination.
+ * 
+ * Structure:
+ * {
+ *   messagesByWorkspace: {
+ *     'workspace-1': [message1, message2],
+ *     'workspace-2': [message3, message4]
+ *   },
+ *   loadingByWorkspace: { 'workspace-1': false, ... },
+ *   errorByWorkspace: { 'workspace-1': null, ... }
+ * }
  */
 export const useChatStore = create<IChatState>((set, get) => ({
-  messages: [],
-  isLoading: false,
-  error: null,
+  messagesByWorkspace: {},
+  loadingByWorkspace: {},
+  errorByWorkspace: {},
 
-  send: async (text: string) => {
-    if (!text.trim() || get().isLoading) return
+  send: async (text: string, workspaceId: string) => {
+    if (!text.trim() || get().loadingByWorkspace[workspaceId]) return
 
     const userMsg: IChatMessage = {
       id: nextId(),
+      workspaceId,
       role: 'user',
       content: text.trim(),
       timestamp: new Date(),
@@ -72,23 +115,55 @@ export const useChatStore = create<IChatState>((set, get) => ({
 
     const assistantId = nextId()
 
-    // Add user message + empty assistant placeholder in one update to avoid flicker
+    // Initialize workspace state if not exists
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const _currentMessages = get().messagesByWorkspace[workspaceId] ?? []
+    
     set((s) => ({
-      messages: [
-        ...s.messages,
-        userMsg,
-        { id: assistantId, role: 'assistant', content: '', timestamp: new Date(), isStreaming: true },
-      ],
-      isLoading: true,
-      error: null,
+      messagesByWorkspace: {
+        ...s.messagesByWorkspace,
+        [workspaceId]: [...(s.messagesByWorkspace[workspaceId] ?? []), userMsg, { 
+          id: assistantId, 
+          workspaceId,
+          role: 'assistant', 
+          content: '', 
+          timestamp: new Date(), 
+          isStreaming: true 
+        }]
+      },
+      loadingByWorkspace: {
+        ...s.loadingByWorkspace,
+        [workspaceId]: true
+      },
+      errorByWorkspace: {
+        ...s.errorByWorkspace,
+        [workspaceId]: null
+      }
     }))
 
     let accumulated = ''
 
     try {
+      // DIAGNOSTIC: Log environment details for debugging
+      const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+      addLog({
+        level: 'info',
+        source: 'chat',
+        message: `Environment check: isTauri=${String(isTauri)}`,
+        detail: '',
+      })
+
       const bridge = getDesktopBridge()
 
       const aiOptions = await resolveDefaultApiOptions()
+      
+      // DIAGNOSTIC: Log API configuration
+      addLog({
+        level: 'info',
+        source: 'chat',
+        message: `API config: hasKey=${aiOptions.apiKey ? 'yes' : 'no'}, provider=${aiOptions.provider || 'none'}`,
+        detail: '',
+      })
 
       addLog({
         level: 'info',
@@ -97,20 +172,21 @@ export const useChatStore = create<IChatState>((set, get) => ({
         detail: text.length > 120 ? `${text.slice(0, 120)}…` : text,
       })
 
-      // Register streaming handler BEFORE calling send
       const unsubscribe = bridge.chat.onStream((chunk) => {
         accumulated += chunk
         set((s) => ({
-          messages: s.messages.map((m) =>
-            m.id === assistantId ? { ...m, content: accumulated } : m,
-          ),
+          messagesByWorkspace: {
+            ...s.messagesByWorkspace,
+            [workspaceId]: (s.messagesByWorkspace[workspaceId] ?? []).map((m) =>
+              m.id === assistantId ? { ...m, content: accumulated } : m
+            )
+          }
         }))
       })
 
       const response = await bridge.chat.send(text, aiOptions)
       unsubscribe()
 
-      // Use streamed content if available, fall back to response payload
       const finalContent = accumulated || response.output
 
       addLog({
@@ -121,25 +197,67 @@ export const useChatStore = create<IChatState>((set, get) => ({
       })
 
       set((s) => ({
-        messages: s.messages.map((m) =>
-          m.id === assistantId ? { ...m, content: finalContent, isStreaming: false } : m,
-        ),
-        isLoading: false,
+        messagesByWorkspace: {
+          ...s.messagesByWorkspace,
+          [workspaceId]: (s.messagesByWorkspace[workspaceId] ?? []).map((m) =>
+            m.id === assistantId ? { ...m, content: finalContent, isStreaming: false } : m
+          )
+        },
+        loadingByWorkspace: {
+          ...s.loadingByWorkspace,
+          [workspaceId]: false
+        }
       }))
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Something went wrong. Please try again.'
-      addLog({ level: 'error', source: 'chat', message: 'Chat request failed', detail: msg })
+      // Enhanced error logging for debugging
+      const errorDetail = err instanceof Error ? `message=${err.message}, stack=${err.stack || 'no stack'}` : String(err)
+      addLog({ level: 'error', source: 'chat', message: 'Chat request failed', detail: errorDetail })
       notifyError('Chat request failed', err)
-      // Remove the empty placeholder and surface the error
       set((s) => ({
-        messages: s.messages.filter((m) => m.id !== assistantId),
-        isLoading: false,
-        error: msg,
+        messagesByWorkspace: {
+          ...s.messagesByWorkspace,
+          [workspaceId]: (s.messagesByWorkspace[workspaceId] ?? []).filter((m) => m.id !== assistantId)
+        },
+        loadingByWorkspace: {
+          ...s.loadingByWorkspace,
+          [workspaceId]: false
+        },
+        errorByWorkspace: {
+          ...s.errorByWorkspace,
+          [workspaceId]: msg
+        }
       }))
     }
   },
 
-  clear: () => { set({ messages: [], error: null }) },
+  clear: (workspaceId: string) => { 
+    set((s) => ({
+      messagesByWorkspace: {
+        ...s.messagesByWorkspace,
+        [workspaceId]: []
+      },
+      errorByWorkspace: {
+        ...s.errorByWorkspace,
+        [workspaceId]: null
+      }
+    }))
+  },
 
-  setError: (error) => { set({ error }) },
+  setError: (error: string | null, workspaceId: string) => { 
+    set((s) => ({
+      errorByWorkspace: {
+        ...s.errorByWorkspace,
+        [workspaceId]: error
+      }
+    }))
+  },
+
+  getWorkspaceMessages: (workspaceId: string) => {
+    return get().messagesByWorkspace[workspaceId] ?? []
+  }
 }))
+
+// Legacy export - do not use directly, use useChat() hook instead
+// Kept for backward compatibility with any code that might import it directly
+export const useChat = useChatStore

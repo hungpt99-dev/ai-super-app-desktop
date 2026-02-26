@@ -31,6 +31,7 @@ import type { PermissionEngine } from '@agenthub/core'
 import { ComputerAgent } from './computer-agent.js'
 import * as CU from './computer-use.js'
 import { logger } from '@agenthub/shared'
+import { validateShellCommand } from '../main/security/command-whitelist.js'
 
 const log = logger.child('SandboxedComputer')
 
@@ -140,6 +141,18 @@ export class SandboxedComputer implements IComputerAPI {
 
   async runShell(command: string): Promise<IShellResult> {
     this.check(Permission.ComputerShell)
+    
+    // Validate command against whitelist
+    const validation = validateShellCommand(command)
+    if (!validation.allowed) {
+      log.warn('Shell command blocked', { moduleId: this.moduleId, command, reason: validation.error })
+      return {
+        stdout: '',
+        stderr: validation.error || 'Command not allowed',
+        exitCode: 1,
+      }
+    }
+    
     log.info('computer.runShell', { moduleId: this.moduleId, command })
     return CU.runShell(command)
   }

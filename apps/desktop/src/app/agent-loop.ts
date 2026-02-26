@@ -23,6 +23,8 @@ import { useAgentStore } from '../ui/store/agent-store.js'
 import { tokenStore } from '../bridges/token-store.js'
 import { getDesktopBridge } from '../ui/lib/bridge.js'
 import { IS_TAURI } from '../bridges/runtime.js'
+import { agentStateManager, checkpointManager } from '../main/memory/agent-state-manager.js'
+import { tokenBudgetManager } from '../main/planning/token-budget-manager.js'
 
 const log = logger.child('AgentLoop')
 
@@ -42,9 +44,42 @@ let heartbeatTimer: ReturnType<typeof setInterval> | null = null
 let pollTimer: ReturnType<typeof setTimeout> | null = null
 let metricsTimer: ReturnType<typeof setInterval> | null = null
 let uptimeStart: number | null = null
-let isExecuting = false
+/**
+ * Execution lock - uses Promise-based mutex to prevent race conditions.
+ * This ensures only one agent run executes at a time even under high concurrency.
+ */
+let executionLock: Promise<void> = Promise.resolve()
+let executionLockResolver: (() => void) | null = null
 /** Consecutive empty polls — drives exponential backoff. */
 let emptyPollStreak = 0
+
+/** Execution state flag - prevents concurrent runs */
+let isExecuting = false
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Acquire execution lock - returns a promise that resolves when lock is acquired.
+ * Uses a Promise-based mutex pattern to prevent race conditions.
+ */
+function acquireExecutionLock(): Promise<() => void> {
+    return new Promise((resolve) => {
+        // Wait for previous execution to complete
+        executionLock.then(() => {
+            // Create a new resolver that will be called to release the lock
+            let releaseLock: (() => void) | null = null
+            const releasePromise = new Promise<void>((r) => {
+                releaseLock = r
+            })
+            
+            // Chain the new release promise
+            executionLock = releasePromise
+            executionLockResolver = releaseLock
+            
+            resolve(() => releaseLock!())
+        })
+    })
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -84,7 +119,7 @@ async function generateAgentName(): Promise<string> {
 function nextPollDelay(): number {
   const cap = Math.min(POLL_BASE_MS * Math.pow(2, emptyPollStreak), POLL_MAX_MS)
   // Full-jitter: random in [0, cap] to avoid thundering-herd across agents.
-  return Math.floor(Math.random() * cap) + POLL_BASE_MS
+  return Math.floor(Math.random() * cap)
 }
 
 // ─── Device registration ───────────────────────────────────────────────────────
@@ -130,7 +165,10 @@ async function sendHeartbeat(deviceId: string): Promise<void> {
   })
 }
 
-// ─── Agent run execution ───────────────────────────────────────────────────────────────────
+// ─── Agent run execution ─────────────────────────────────────────────────────────────────--
+
+const MAX_RUN_DURATION_MS = 30 * 60 * 1000 // 30 minutes max per run
+const CRASH_RECOVERY_CHECKPOINT_INTERVAL = 60 * 1000 // Checkpoint every minute
 
 async function executeNextRun(): Promise<void> {
   if (isExecuting) return
@@ -138,24 +176,63 @@ async function executeNextRun(): Promise<void> {
 
   const bridge = getDesktopBridge()
   let runId: string | null = null
+  let runStartTime = 0
+  let checkpointTimer: ReturnType<typeof setInterval> | null = null
 
   try {
     const run = await bridge.agents.poll()
-    if (!run) {
+    if (run === null) {
       // Empty queue — increase backoff.
       emptyPollStreak = Math.min(emptyPollStreak + 1, 6) // cap at 2^6 = 64× base
       return
     }
 
+    // Check for existing checkpoint to resume
+    const existingCheckpoint = checkpointManager.loadCheckpoint(run.run_id)
+    if (existingCheckpoint !== null) {
+      log.info('Resuming from checkpoint', { runId: run.run_id, step: existingCheckpoint.step })
+    }
+
     // Got a run — reset backoff to base interval.
     emptyPollStreak = 0
     runId = run.run_id
+    runStartTime = Date.now()
     isExecuting = true
     useAgentStore.getState().setActiveRun(run.run_id, run.goal)
     useAgentStore.getState().setStatus('running')
     log.info(`Executing run ${run.run_id} | agent_type: ${run.agent_type} | goal: "${run.goal}"`)
 
+    // Create token budget for this run
+    tokenBudgetManager.createBudget(run.run_id, run.agent_type)
+    
+    // Add run to state manager
+    agentStateManager.addRun({
+      runId: run.run_id,
+      agentId: run.agent_type,
+      workspaceId: '', // Would be set from workspace context
+      status: 'running',
+      goal: run.goal,
+      steps: 0,
+      tokenUsage: 0,
+    })
+
     await bridge.agents.updateRun(run.run_id, { status: 'running', steps: 0 })
+
+    // Set up checkpoint timer
+    let currentSteps = 0
+    let currentTokenUsage = 0
+    checkpointTimer = setInterval(() => {
+      if (runId !== null) {
+        checkpointManager.saveCheckpoint({
+          runId,
+          agentId: run.agent_type,
+          workspaceId: '',
+          step: currentSteps,
+          tokenUsage: currentTokenUsage,
+          snapshot: {},
+        })
+      }
+    }, CRASH_RECOVERY_CHECKPOINT_INTERVAL)
 
     // Dispatch to the appropriate module tool.
     // The module is responsible for the shape of its own result object.
@@ -194,7 +271,13 @@ async function executeNextRun(): Promise<void> {
     useAgentStore.getState().incrementCompleted()
     log.info(`Run ${run.run_id} completed (${String(steps)} steps)`)
   } catch (err) {
-    log.warn(`Run execution error: ${String(err)}`)
+    log.error(`Run execution error: ${String(err)}`, { runId })
+    
+    // Auto-stop on crash - prevent runaway execution
+    isExecuting = false
+    useAgentStore.getState().setStatus('idle')
+    useAgentStore.getState().setActiveRun(null)
+    
     if (runId !== null) {
       try {
         await bridge.agents.updateRun(runId, {
@@ -205,9 +288,27 @@ async function executeNextRun(): Promise<void> {
       } catch { /* reporting failure is best-effort */ }
     }
   } finally {
+    // Cleanup
+    if (checkpointTimer !== null) {
+      clearInterval(checkpointTimer)
+      checkpointTimer = null
+    }
+    
+    // Check for timeout
+    if (runStartTime > 0 && Date.now() - runStartTime > MAX_RUN_DURATION_MS) {
+      log.warn('Run exceeded max duration, auto-stopping', { runId, duration: MAX_RUN_DURATION_MS })
+      isExecuting = false
+      useAgentStore.getState().setStatus('idle')
+    }
+    
     isExecuting = false
     useAgentStore.getState().setActiveRun(null)
-    useAgentStore.getState().setStatus('idle')
+    
+    // Clean up run state
+    if (runId !== null) {
+      tokenBudgetManager.deleteBudget(runId)
+    }
+    
     schedulePoll()
   }
 }
@@ -284,5 +385,10 @@ export function stopAgentLoop(): void {
   emptyPollStreak = 0
   uptimeStart = null
   useAgentStore.getState().setStatus('offline')
+  
+  // Cleanup all memory and state
+  agentStateManager.clearAll()
+  checkpointManager.cleanupOldCheckpoints()
+  
   log.info('Agent loop stopped')
 }

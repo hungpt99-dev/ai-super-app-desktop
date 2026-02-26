@@ -167,7 +167,7 @@ export class GatewayClient {
   }
 
   private async withRetry<T>(fn: () => Promise<T>): Promise<T> {
-    let lastError: unknown
+    let lastError: unknown = new Error('Request failed')
     for (let attempt = 0; attempt < this.maxRetries; attempt++) {
       try {
         return await fn()

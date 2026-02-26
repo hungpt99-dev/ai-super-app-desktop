@@ -86,7 +86,7 @@ function PlanCard({ plan, onConfirm, onDismiss }: IPlanCardProps): React.JSX.Ele
       {isDone && plan.result && (
         <div className="mb-3 rounded-lg border border-[var(--color-success)]/20 bg-[var(--color-surface)] p-3 text-xs text-[var(--color-text-secondary)]">
           <p className="mb-1 font-semibold text-[var(--color-success)]">Result preview</p>
-          <p className="line-clamp-4 whitespace-pre-wrap">{plan.result.slice(0, 400)}{plan.result.length > 400 ? '…' : ''}</p>
+          <p className="whitespace-pre-wrap line-clamp-4">{plan.result.slice(0, 400)}{plan.result.length > 400 ? '…' : ''}</p>
         </div>
       )}
 
@@ -261,7 +261,7 @@ const SUGGESTIONS = [
 
 function EmptyState({ onSuggest }: { onSuggest: (s: string) => void }): React.JSX.Element {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center py-16 text-center">
+    <div className="flex flex-col items-center justify-center flex-1 py-16 text-center">
       <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--color-accent-dim)]">
         <span className="text-3xl text-[var(--color-accent)]">🤝</span>
       </div>
@@ -271,7 +271,7 @@ function EmptyState({ onSuggest }: { onSuggest: (s: string) => void }): React.JS
       <p className="mt-1.5 max-w-xs text-sm text-[var(--color-text-secondary)]">
         Assign tasks to your agents or ask them anything. The right agent will take ownership automatically.
       </p>
-      <div className="mt-6 flex flex-wrap justify-center gap-2">
+      <div className="flex flex-wrap justify-center gap-2 mt-6">
         {SUGGESTIONS.map((s) => (
           <button
             key={s}
@@ -343,9 +343,14 @@ export function GroupChatWindow(): React.JSX.Element {
   const isAnyAgentBusy = thinkingAgentIds.size > 0 || runningAgentIds.size > 0
 
   // Scroll to bottom on new messages.
+  const prevMessageCount = useRef(messages.length)
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, thinkingAgentIds.size])
+    // Only scroll if a new message was added
+    if (messages.length > prevMessageCount.current) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+    prevMessageCount.current = messages.length
+  }, [messages.length, thinkingAgentIds.size])
 
   const submit = useCallback(
     async (text: string) => {
@@ -463,7 +468,7 @@ export function GroupChatWindow(): React.JSX.Element {
       </div>
 
       {/* ── Messages ───────────────────────────────────────────────────────── */}
-      <div className="flex flex-1 flex-col overflow-y-auto px-6 py-6">
+      <div className="flex flex-col flex-1 px-6 py-6 overflow-x-hidden overflow-y-auto">
         {messages.length === 0 && thinkingEntries.length === 0 ? (
           <EmptyState onSuggest={(s) => void submit(s)} />
         ) : (
@@ -493,7 +498,7 @@ export function GroupChatWindow(): React.JSX.Element {
             <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
           <span className="flex-1 font-medium">{error}</span>
-          <button onClick={() => { setError(null) }} className="opacity-60 transition-opacity hover:opacity-100" aria-label="Dismiss">✕</button>
+          <button onClick={() => { setError(null) }} className="transition-opacity opacity-60 hover:opacity-100" aria-label="Dismiss">✕</button>
         </div>
       )}
 
@@ -507,7 +512,7 @@ export function GroupChatWindow(): React.JSX.Element {
               <div className="border-b border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
                 Mention Agent
               </div>
-              <div className="max-h-48 overflow-y-auto p-1">
+              <div className="p-1 overflow-y-auto max-h-48">
                 {activeAgents.map((a) => (
                   <button
                     key={a.id}
@@ -529,7 +534,7 @@ export function GroupChatWindow(): React.JSX.Element {
           )}
 
           {/* Mode Selector */}
-          <div className="mb-3 flex items-center gap-2">
+          <div className="flex items-center gap-2 mb-3">
             {([
               { id: 'ask', label: 'Ask AI', icon: '❓', color: 'text-blue-400' },
               { id: 'task', label: 'Assign Task', icon: '🎯', color: 'text-[var(--color-success)]' },

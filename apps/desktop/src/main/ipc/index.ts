@@ -11,4 +11,5 @@ export { filesystemIPC } from './filesystem.ipc.js'
 export { planningIPC } from './planning.ipc.js'
 export { actingIPC } from './acting.ipc.js'
 export { metricsIPC } from './metrics.ipc.js'
+export { workspaceTabsIPC } from './workspace-tabs.ipc.js'
 

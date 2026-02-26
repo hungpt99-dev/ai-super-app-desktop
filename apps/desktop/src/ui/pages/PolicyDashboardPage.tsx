@@ -74,10 +74,10 @@ export function PolicyDashboardPage({ workspaceId }: IProps): React.JSX.Element 
     }
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col w-full h-full">
             <div className="px-6 pt-6 pb-4 border-b border-gray-700">
                 <h1 className="text-2xl font-bold text-white">Policy Dashboard</h1>
-                <p className="text-gray-400 text-sm mt-1">Governance, budgets, and model access control</p>
+                <p className="mt-1 text-sm text-gray-400">Governance, budgets, and model access control</p>
             </div>
 
             <div className="flex border-b border-gray-700">
@@ -96,7 +96,7 @@ export function PolicyDashboardPage({ workspaceId }: IProps): React.JSX.Element 
                 ))}
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 p-6 overflow-y-auto">
                 {selectedTab === 'models' && modelList && (
                     <div className="space-y-3">
                         <h2 className="text-lg font-semibold text-white">Registered Models</h2>
@@ -107,11 +107,11 @@ export function PolicyDashboardPage({ workspaceId }: IProps): React.JSX.Element 
                                 {modelList.models.map((model) => (
                                     <div
                                         key={model.modelId}
-                                        className="flex items-center justify-between p-4 bg-gray-800 rounded-lg border border-gray-700"
+                                        className="flex items-center justify-between p-4 bg-gray-800 border border-gray-700 rounded-lg"
                                     >
                                         <div>
-                                            <p className="text-white font-medium">{model.modelId}</p>
-                                            <p className="text-gray-400 text-sm">Provider: {model.provider} · Max tokens: {model.maxTokens}</p>
+                                            <p className="font-medium text-white">{model.modelId}</p>
+                                            <p className="text-sm text-gray-400">Provider: {model.provider} · Max tokens: {model.maxTokens}</p>
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <span
@@ -128,7 +128,7 @@ export function PolicyDashboardPage({ workspaceId }: IProps): React.JSX.Element 
                                             {model.status !== 'allowed' && (
                                                 <button
                                                     onClick={() => void handleAllowModel(model.modelId)}
-                                                    className="px-3 py-1 text-xs bg-green-600 hover:bg-green-700 text-white rounded"
+                                                    className="px-3 py-1 text-xs text-white bg-green-600 rounded hover:bg-green-700"
                                                 >
                                                     Allow
                                                 </button>
@@ -136,7 +136,7 @@ export function PolicyDashboardPage({ workspaceId }: IProps): React.JSX.Element 
                                             {model.status !== 'denied' && (
                                                 <button
                                                     onClick={() => void handleDenyModel(model.modelId)}
-                                                    className="px-3 py-1 text-xs bg-red-600 hover:bg-red-700 text-white rounded"
+                                                    className="px-3 py-1 text-xs text-white bg-red-600 rounded hover:bg-red-700"
                                                 >
                                                     Deny
                                                 </button>
@@ -158,12 +158,12 @@ export function PolicyDashboardPage({ workspaceId }: IProps): React.JSX.Element 
                                 value={evaluateAgentId}
                                 onChange={(e) => setEvaluateAgentId(e.target.value)}
                                 placeholder="Agent ID"
-                                className="flex-1 px-3 py-2 bg-gray-800 border border-gray-600 rounded text-white placeholder-gray-500"
+                                className="flex-1 px-3 py-2 text-white placeholder-gray-500 bg-gray-800 border border-gray-600 rounded"
                             />
                             <button
                                 onClick={() => void handleEvaluate()}
                                 disabled={evaluating}
-                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded font-medium"
+                                className="px-4 py-2 font-medium text-white bg-blue-600 rounded hover:bg-blue-700 disabled:bg-gray-600"
                             >
                                 {evaluating ? 'Evaluating…' : 'Evaluate'}
                             </button>
@@ -193,7 +193,7 @@ export function PolicyDashboardPage({ workspaceId }: IProps): React.JSX.Element 
                 {selectedTab === 'budget' && (
                     <div className="space-y-3">
                         <h2 className="text-lg font-semibold text-white">Budget Overview</h2>
-                        <p className="text-gray-400 text-sm">
+                        <p className="text-sm text-gray-400">
                             Select an agent to view budget usage. Budget checks are enforced automatically during execution.
                         </p>
                     </div>

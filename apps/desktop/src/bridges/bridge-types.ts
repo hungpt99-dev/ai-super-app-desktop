@@ -151,4 +151,16 @@ export interface IDesktopBridge {
     getActive(): Promise<unknown>
     duplicate(payload: { sourceWorkspaceId: string; newName: string }): Promise<unknown>
   }
+  workspaceTabs: {
+    initialize(): Promise<unknown>
+    create(name: string): Promise<unknown>
+    close(tabId: string): Promise<void>
+    switch(tabId: string): Promise<unknown>
+    rename(tabId: string, newName: string): Promise<unknown>
+    list(): Promise<unknown>
+    getCurrent(): Promise<unknown>
+    addAgent(tabId: string, agentId: string): Promise<void>
+    removeAgent(tabId: string, agentId: string): Promise<void>
+    getAgents(tabId: string): Promise<unknown>
+  }
 }

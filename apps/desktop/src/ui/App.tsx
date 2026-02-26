@@ -1,6 +1,5 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import {
-  GroupChatWindow,
   FeatureGrid,
   Sidebar,
   ToastContainer,
@@ -15,18 +14,17 @@ import {
   AuthScreen,
   HubPanel,
 } from './components/index.js'
+import { ErrorBoundary } from './components/dev/ErrorBoundary.js'
 import { useAuthStore } from './store/auth-store.js'
 import { useAppStore } from './store/app-store.js'
 import { DevMetricsOverlay } from './components/dev/index.js'
 import { useDevSettingsStore } from './store/dev/dev-settings-store.js'
 import { startAgentLoop, stopAgentLoop } from '../app/agent-loop.js'
-import { usePermissionStore } from './store/permission-store.js'
 import { useAgentsStore } from './store/agents-store.js'
 import { getDesktopBridge } from './lib/bridge.js'
 import { initAgentRuntime } from '../app/module-bootstrap.js'
 import { initTokenStore } from '../bridges/token-store.js'
-import type { Permission } from '@agenthub/sdk'
-import { AgentMarketplacePage, SkillMarketplacePage, ExecutionPlaygroundPage, AgentEditorPage, SkillEditorPage, AgentLibraryPage, SkillLibraryPage, SnapshotManagerPage, MetricsDashboardPage, WorkspaceManagerPage } from './pages/index'
+import { AgentMarketplacePage, SkillMarketplacePage, ExecutionPlaygroundPage, AgentEditorPage, SkillEditorPage, AgentLibraryPage, SkillLibraryPage, SnapshotManagerPage, MetricsDashboardPage, AgentWorkspacePage } from './pages/index'
 
 const bridge = getDesktopBridge()
 
@@ -39,11 +37,23 @@ export function App(): React.JSX.Element {
   const setView = useAppStore((s) => s.setView)
   const pushNotification = useAppStore((s) => s.pushNotification)
   const unreadCount = useAppStore((s) => s.unreadCount)
-  const requestPermissions = usePermissionStore((s) => s.requestPermissions)
   const { user } = useAuthStore()
   const showPerfMetrics = useDevSettingsStore((s) => s.enabled && s.showPerformanceMetrics)
   const [notifOpen, setNotifOpen] = useState(false)
   const [authOpen, setAuthOpen] = useState(false)
+  
+  // Use useRef to track previous view for navigation history
+  const previousViewRef = useRef<string>('dashboard')
+
+  // Track view changes for navigation history
+  useEffect(() => {
+    if (activeView !== 'settings' && activeView !== 'api-keys') {
+      previousViewRef.current = activeView
+    }
+  }, [activeView])
+
+  // Check if current view is Agent Workspace (chat view)
+  const isAgentWorkspace = activeView === 'chat'
 
   // ── OAuth callback detection ────────────────────────────────────────────────
   // When the OAuth popup window mounts (after the backend redirects back), it
@@ -100,11 +110,13 @@ export function App(): React.JSX.Element {
     }
   }, [user])
 
-  // Initialise token store and module manager on mount.
+  // Initialise token store, module manager, and check auth on mount.
   useEffect(() => {
     void (async () => {
       await initTokenStore()
       await initAgentRuntime()
+      // Check authentication status on startup
+      await useAuthStore.getState().checkAuth()
     })()
   }, [])
 
@@ -125,9 +137,15 @@ export function App(): React.JSX.Element {
     }
   }
 
+  // Render Agent Workspace with tabs and header
+  const renderAgentWorkspace = () => (
+    <AgentWorkspacePage />
+  )
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-[var(--color-bg)]">
+    <ErrorBoundary>
+      <div className="flex h-screen w-full overflow-hidden bg-[var(--color-bg)]">
+      {/* Global Sidebar - always visible */}
       <Sidebar
         activeView={activeView}
         onNavigate={setView}
@@ -136,6 +154,7 @@ export function App(): React.JSX.Element {
         onSignIn={() => { setAuthOpen(true) }}
       />
 
+      {/* Auth Modal Overlay */}
       {authOpen ? (
         <div className="absolute inset-0 z-50">
           <AuthScreen onClose={() => { setAuthOpen(false) }} />
@@ -144,35 +163,42 @@ export function App(): React.JSX.Element {
 
       <NotificationCenter isOpen={notifOpen} onClose={() => { setNotifOpen(false) }} />
 
-      <main className="flex flex-col flex-1 h-screen overflow-hidden">
-        {activeView === 'dashboard' && <DashboardPanel onNavigate={setView} />}
-        {activeView === 'chat' && <GroupChatWindow />}
-        {activeView === 'agents' && <FeatureGrid onOpenModule={handleOpenModule} />}
-        {activeView === 'hub' && <HubPanel />}
-        {activeView === 'activity' && <ActivityPanel onNavigate={setView} />}
-        {activeView === 'logs' && <LogsPanel />}
-        {activeView === 'settings' && <SettingsPanel onBack={() => { setView('chat') }} />}
-        {activeView === 'api-keys' && <APIKeysPanel onBack={() => { setView('chat') }} />}
-        {activeView === 'agent-run' && <AgentRunPanel onBack={() => { setView('agents') }} />}
-        {activeView === 'agent-editor' && <AgentEditorPage agentId={undefined} onBack={() => setView('agent-library')} />}
-        {activeView === 'skill-editor' && <SkillEditorPage skillId={undefined} onBack={() => setView('skill-library')} />}
-        {activeView === 'agent-marketplace' && <AgentMarketplacePage />}
-        {activeView === 'skill-marketplace' && <SkillMarketplacePage />}
-        {activeView === 'execution-playground' && <ExecutionPlaygroundPage />}
-        {activeView === 'agent-library' && (
-          <AgentLibraryPage
-            onEditAgent={() => { setView('agent-editor') }}
-            onRunAgent={() => { setView('execution-playground') }}
-          />
+      {/* Main Content Area - contains workspace UI or regular panels */}
+      <main className="flex flex-1 h-full overflow-hidden">
+        {/* Agent Workspace - contains tabs, header, and content */}
+        {isAgentWorkspace ? (
+          renderAgentWorkspace()
+        ) : (
+          /* All other views - no workspace UI */
+          <>
+            {activeView === 'dashboard' && <DashboardPanel onNavigate={setView} />}
+            {activeView === 'agents' && <FeatureGrid onOpenModule={handleOpenModule} />}
+            {activeView === 'hub' && <HubPanel />}
+            {activeView === 'activity' && <ActivityPanel onNavigate={setView} />}
+            {activeView === 'logs' && <LogsPanel />}
+            {activeView === 'settings' && <SettingsPanel onBack={() => { setView(previousViewRef.current as typeof activeView) }} />}
+            {activeView === 'api-keys' && <APIKeysPanel onBack={() => { setView(previousViewRef.current as typeof activeView) }} />}
+            {activeView === 'agent-run' && <AgentRunPanel onBack={() => { setView('agents') }} />}
+            {activeView === 'agent-editor' && <AgentEditorPage agentId={undefined} onBack={() => { setView('agent-library') }} />}
+            {activeView === 'skill-editor' && <SkillEditorPage skillId={undefined} onBack={() => { setView('skill-library') }} />}
+            {activeView === 'agent-marketplace' && <AgentMarketplacePage />}
+            {activeView === 'skill-marketplace' && <SkillMarketplacePage />}
+            {activeView === 'execution-playground' && <ExecutionPlaygroundPage />}
+            {activeView === 'agent-library' && (
+              <AgentLibraryPage
+                onEditAgent={() => { setView('agent-editor') }}
+                onRunAgent={() => { setView('execution-playground') }}
+              />
+            )}
+            {activeView === 'skill-library' && (
+              <SkillLibraryPage onEditSkill={() => { setView('skill-editor') }} />
+            )}
+            {activeView === 'snapshot-manager' && (
+              <SnapshotManagerPage onReplayStarted={() => { setView('execution-playground') }} />
+            )}
+            {activeView === 'metrics-dashboard' && <MetricsDashboardPage />}
+          </>
         )}
-        {activeView === 'skill-library' && (
-          <SkillLibraryPage onEditSkill={() => { setView('skill-editor') }} />
-        )}
-        {activeView === 'snapshot-manager' && (
-          <SnapshotManagerPage onReplayStarted={() => { setView('execution-playground') }} />
-        )}
-        {activeView === 'metrics-dashboard' && <MetricsDashboardPage />}
-        {activeView === 'workspace-manager' && <WorkspaceManagerPage workspaceId="" />}
       </main>
 
       {/* Global toast overlay — rendered outside main so it floats above all panels */}
@@ -184,5 +210,6 @@ export function App(): React.JSX.Element {
       {/* Developer performance metrics overlay */}
       {showPerfMetrics && <DevMetricsOverlay />}
     </div>
+    </ErrorBoundary>
   )
 }

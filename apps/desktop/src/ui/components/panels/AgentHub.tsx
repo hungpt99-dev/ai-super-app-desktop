@@ -22,7 +22,7 @@ function AgentTypeCard({ agentType, isInstalled, isBuiltIn, onInstall, onRemove 
         : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/50'
         }`}
     >
-      <div className="mb-3 flex items-start justify-between">
+      <div className="flex items-start justify-between mb-3">
         <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--color-surface-2)] text-2xl">
           {agentType.icon}
         </div>
@@ -109,8 +109,8 @@ export function AgentHub(): React.JSX.Element {
       </div>
 
       {/* Body */}
-      <div className="flex-1 overflow-y-auto px-8 py-6">
-        <div className="mx-auto max-w-3xl space-y-6">
+      <div className="flex-1 px-8 py-6 overflow-x-hidden overflow-y-auto">
+        <div className="max-w-3xl mx-auto space-y-6">
 
           {/* Search */}
           <div className="relative">

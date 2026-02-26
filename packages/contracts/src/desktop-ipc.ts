@@ -71,6 +71,16 @@ export type DesktopIPCChannel =
     | 'workspace:list'
     | 'workspace:getActive'
     | 'workspace:duplicate'
+    | 'workspaceTabs:initialize'
+    | 'workspaceTabs:create'
+    | 'workspaceTabs:close'
+    | 'workspaceTabs:switch'
+    | 'workspaceTabs:rename'
+    | 'workspaceTabs:list'
+    | 'workspaceTabs:getCurrent'
+    | 'workspaceTabs:addAgent'
+    | 'workspaceTabs:removeAgent'
+    | 'workspaceTabs:getAgents'
 
 // ─── Execution IPC Payloads ─────────────────────────────────────────────────
 

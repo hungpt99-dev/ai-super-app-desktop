@@ -44,7 +44,7 @@ export function AgentMarketplacePage() {
     const categories = [...new Set(agentListings.map((l) => l.category))]
 
     return (
-        <div className="flex flex-col h-full overflow-hidden">
+        <div className="flex flex-col w-full h-full overflow-hidden">
             {/* Header */}
             <div className="px-6 py-4 border-b border-[var(--border)]">
                 <h1 className="text-lg font-bold text-[var(--text-primary)]">Agent Marketplace</h1>
@@ -79,7 +79,7 @@ export function AgentMarketplacePage() {
                         <span className="text-sm text-[var(--text-secondary)]">Loading marketplace...</span>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 p-6">
+                    <div className="grid grid-cols-1 gap-4 p-6 lg:grid-cols-2">
                         {filtered.map((listing) => (
                             <MarketplaceCard
                                 key={listing.id}
@@ -144,8 +144,8 @@ function AgentDetailModal({ agent, onClose, onInstall }: { agent: IAgentDefiniti
                 <p className="text-sm text-[var(--text-primary)] mb-4">{agent.description}</p>
 
                 {agent.signature && (
-                    <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg bg-green-900/20 border border-green-800">
-                        <span className="text-green-400 text-xs">Signature verified</span>
+                    <div className="flex items-center gap-2 px-3 py-2 mb-4 border border-green-800 rounded-lg bg-green-900/20">
+                        <span className="text-xs text-green-400">Signature verified</span>
                         <span className="text-[10px] font-mono text-green-500 truncate">{agent.signature}</span>
                     </div>
                 )}
@@ -220,7 +220,7 @@ function InstallConfirmModal({ onConfirm, onForce, onCancel }: { onConfirm: () =
                 <div className="flex justify-end gap-2">
                     <button type="button" onClick={onCancel} className="px-4 py-2 text-sm border border-[var(--border)] text-[var(--text-secondary)] rounded-lg">Cancel</button>
                     <button type="button" onClick={onConfirm} className="px-4 py-2 text-sm bg-[var(--accent)] text-white rounded-lg hover:opacity-90">Install</button>
-                    <button type="button" onClick={onForce} className="px-4 py-2 text-sm bg-yellow-600 text-white rounded-lg hover:bg-yellow-500" title="Overwrite existing version">Force</button>
+                    <button type="button" onClick={onForce} className="px-4 py-2 text-sm text-white bg-yellow-600 rounded-lg hover:bg-yellow-500" title="Overwrite existing version">Force</button>
                 </div>
             </div>
         </div>

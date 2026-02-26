@@ -5,7 +5,7 @@ import { addLog } from './log-store.js'
 export type AppView = 'dashboard' | 'chat' | 'agents' | 'hub' | 'activity' | 'logs' | 'settings' | 'api-keys' | 'agent-run' | 'agent-editor' | 'skill-editor'
   | 'agent-marketplace' | 'skill-marketplace'
   | 'execution-playground' | 'agent-library' | 'skill-library' | 'snapshot-manager'
-  | 'metrics-dashboard' | 'workspace-manager'
+  | 'metrics-dashboard'
 export type Theme = 'dark' | 'light' | 'system'
 export type { IToastNotification }
 
@@ -68,7 +68,7 @@ export const useAppStore = create<IAppState>((set) => ({
   unreadCount: 0,
   theme: readSavedTheme(),
 
-  setView: (view) => { set({ activeView: view }) },
+  setView: (view) => set({ activeView: view }),
 
   setTheme: (theme) => {
     try {
@@ -101,13 +101,18 @@ export const useAppStore = create<IAppState>((set) => ({
       notificationHistory: [entry, ...s.notificationHistory].slice(0, 100),
       unreadCount: s.unreadCount + 1,
     }))
-    // Auto-dismiss toast after 4.5 s
-    setTimeout(() => {
-      set((s) => ({ notifications: s.notifications.filter((t) => t.id !== id) }))
-    }, 4500)
   },
 
-  dismissNotification: (id) => { set((s) => ({ notifications: s.notifications.filter((t) => t.id !== id) })) },
+  dismissNotification: (id) => { 
+    // Check if the notification being dismissed is unread
+    const notification = useAppStore.getState().notifications.find((t) => t.id === id)
+    const wasUnread = notification !== undefined
+    
+    set((s) => ({ 
+      notifications: s.notifications.filter((t) => t.id !== id),
+      unreadCount: wasUnread ? Math.max(0, s.unreadCount - 1) : s.unreadCount
+    })) 
+  },
 
   markAllRead: () => {
     set((s) => ({

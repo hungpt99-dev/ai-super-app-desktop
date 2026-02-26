@@ -42,6 +42,7 @@ import { planningIPC } from './planning.ipc.js'
 import { actingIPC } from './acting.ipc.js'
 import { metricsIPC } from './metrics.ipc.js'
 import { workspaceIPC } from './workspace.ipc.js'
+import { workspaceTabsIPC } from './workspace-tabs.ipc.js'
 import type {
     IFilesystemReadPayload,
     IFilesystemWritePayload,
@@ -49,6 +50,7 @@ import type {
     IFilesystemListPayload,
 } from './filesystem.ipc.js'
 import { logger } from '@agenthub/shared'
+import { ipcSecurity } from '../security/ipc-security.js'
 
 const log = logger.child('IPCHandler')
 
@@ -56,6 +58,25 @@ export async function handleIPCMessage(request: IIPCRequest): Promise<IIPCRespon
     const { channel, requestId, payload } = request
 
     try {
+        // Security validation - fail closed
+        const workspaceId = (payload as { workspaceId?: string })?.workspaceId ?? null
+        const permissions = (payload as { permissions?: string[] })?.permissions ?? []
+        const validation = ipcSecurity.validateRequest(channel, workspaceId, null, permissions)
+        
+        if (!validation.valid) {
+            log.warn('IPC request rejected by security middleware', { channel, workspaceId, reason: validation.error })
+            return {
+                channel,
+                requestId,
+                success: false,
+                error: {
+                    code: 'SECURITY_ERROR',
+                    message: validation.error || 'Request rejected',
+                },
+                timestamp: new Date().toISOString(),
+            }
+        }
+
         const data = await dispatch(channel, payload)
         return {
             channel,
@@ -275,6 +296,38 @@ async function dispatch(channel: IPCChannel | DesktopIPCChannel, payload: unknow
 
         case 'workspace:duplicate':
             return workspaceIPC.duplicate(payload as any)
+
+        // ── Workspace Tabs channels ─────────────────────────────────────────────
+
+        case 'workspaceTabs:initialize':
+            return workspaceTabsIPC.initialize()
+
+        case 'workspaceTabs:create':
+            return workspaceTabsIPC.create((payload as { name: string }).name)
+
+        case 'workspaceTabs:close':
+            return workspaceTabsIPC.close(payload as any)
+
+        case 'workspaceTabs:switch':
+            return workspaceTabsIPC.switch(payload as any)
+
+        case 'workspaceTabs:rename':
+            return workspaceTabsIPC.rename(payload as any)
+
+        case 'workspaceTabs:list':
+            return workspaceTabsIPC.list()
+
+        case 'workspaceTabs:getCurrent':
+            return workspaceTabsIPC.getCurrent()
+
+        case 'workspaceTabs:addAgent':
+            return workspaceTabsIPC.addAgent(payload as any)
+
+        case 'workspaceTabs:removeAgent':
+            return workspaceTabsIPC.removeAgent(payload as any)
+
+        case 'workspaceTabs:getAgents':
+            return workspaceTabsIPC.getAgents(payload as any)
 
         default:
             throw new Error(`Unknown IPC channel: ${channel}`)

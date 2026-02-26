@@ -71,17 +71,17 @@ export function TestRunnerPage({ workspaceId }: IProps): React.JSX.Element {
     }
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col w-full h-full">
             <div className="px-6 pt-6 pb-4 border-b border-gray-700">
                 <div className="flex items-center justify-between">
                     <div>
                         <h1 className="text-2xl font-bold text-white">Test Runner</h1>
-                        <p className="text-gray-400 text-sm mt-1">Execute agent test scenarios and review results</p>
+                        <p className="mt-1 text-sm text-gray-400">Execute agent test scenarios and review results</p>
                     </div>
                     <button
                         onClick={() => void handleRunAll()}
                         disabled={runningAll || scenarios.length === 0}
-                        className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white rounded font-medium text-sm"
+                        className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded hover:bg-green-700 disabled:bg-gray-600"
                     >
                         {runningAll ? 'Running All…' : 'Run All'}
                     </button>
@@ -89,13 +89,13 @@ export function TestRunnerPage({ workspaceId }: IProps): React.JSX.Element {
 
                 {results && (
                     <div className="flex gap-4 mt-3">
-                        <span className="text-green-400 text-sm font-medium">
+                        <span className="text-sm font-medium text-green-400">
                             {results.totalPassed} passed
                         </span>
-                        <span className="text-red-400 text-sm font-medium">
+                        <span className="text-sm font-medium text-red-400">
                             {results.totalFailed} failed
                         </span>
-                        <span className="text-gray-400 text-sm">
+                        <span className="text-sm text-gray-400">
                             {results.totalDuration.toFixed(0)}ms total
                         </span>
                     </div>
@@ -104,9 +104,9 @@ export function TestRunnerPage({ workspaceId }: IProps): React.JSX.Element {
 
             <div className="flex flex-1 overflow-hidden">
                 {/* Scenario list */}
-                <div className="w-80 border-r border-gray-700 overflow-y-auto">
+                <div className="overflow-y-auto border-r border-gray-700 w-80">
                     {scenarios.length === 0 ? (
-                        <p className="p-4 text-gray-400 text-sm">No test scenarios found.</p>
+                        <p className="p-4 text-sm text-gray-400">No test scenarios found.</p>
                     ) : (
                         scenarios.map((s) => {
                             const result = results?.results.find((r) => r.scenarioId === s.id)
@@ -119,7 +119,7 @@ export function TestRunnerPage({ workspaceId }: IProps): React.JSX.Element {
                                     onClick={() => result && setSelectedResult(result)}
                                 >
                                     <div className="flex items-center justify-between">
-                                        <span className="text-white text-sm font-medium">{s.name}</span>
+                                        <span className="text-sm font-medium text-white">{s.name}</span>
                                         {result && (
                                             <span
                                                 className={`w-2 h-2 rounded-full ${
@@ -128,14 +128,14 @@ export function TestRunnerPage({ workspaceId }: IProps): React.JSX.Element {
                                             />
                                         )}
                                     </div>
-                                    <p className="text-gray-500 text-xs mt-1">Agent: {s.agentId}</p>
+                                    <p className="mt-1 text-xs text-gray-500">Agent: {s.agentId}</p>
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation()
                                             void handleRunScenario(s.id)
                                         }}
                                         disabled={running === s.id}
-                                        className="mt-2 px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded text-xs"
+                                        className="px-3 py-1 mt-2 text-xs text-white bg-blue-600 rounded hover:bg-blue-700 disabled:bg-gray-600"
                                     >
                                         {running === s.id ? 'Running…' : 'Run'}
                                     </button>
@@ -146,7 +146,7 @@ export function TestRunnerPage({ workspaceId }: IProps): React.JSX.Element {
                 </div>
 
                 {/* Result detail */}
-                <div className="flex-1 overflow-y-auto p-6">
+                <div className="flex-1 p-6 overflow-y-auto">
                     {selectedResult ? (
                         <div className="space-y-4">
                             <div className="flex items-center gap-3">
@@ -163,38 +163,38 @@ export function TestRunnerPage({ workspaceId }: IProps): React.JSX.Element {
                             </div>
 
                             <div className="grid grid-cols-3 gap-4">
-                                <div className="p-3 bg-gray-800 rounded border border-gray-700">
-                                    <p className="text-gray-400 text-xs">Latency</p>
-                                    <p className="text-white font-medium">{selectedResult.latency.toFixed(0)}ms</p>
+                                <div className="p-3 bg-gray-800 border border-gray-700 rounded">
+                                    <p className="text-xs text-gray-400">Latency</p>
+                                    <p className="font-medium text-white">{selectedResult.latency.toFixed(0)}ms</p>
                                 </div>
-                                <div className="p-3 bg-gray-800 rounded border border-gray-700">
-                                    <p className="text-gray-400 text-xs">Token Usage</p>
-                                    <p className="text-white font-medium">{selectedResult.tokenUsage.toLocaleString()}</p>
+                                <div className="p-3 bg-gray-800 border border-gray-700 rounded">
+                                    <p className="text-xs text-gray-400">Token Usage</p>
+                                    <p className="font-medium text-white">{selectedResult.tokenUsage.toLocaleString()}</p>
                                 </div>
-                                <div className="p-3 bg-gray-800 rounded border border-gray-700">
-                                    <p className="text-gray-400 text-xs">Executed</p>
-                                    <p className="text-white font-medium text-sm">{new Date(selectedResult.executedAt).toLocaleString()}</p>
+                                <div className="p-3 bg-gray-800 border border-gray-700 rounded">
+                                    <p className="text-xs text-gray-400">Executed</p>
+                                    <p className="text-sm font-medium text-white">{new Date(selectedResult.executedAt).toLocaleString()}</p>
                                 </div>
                             </div>
 
                             {selectedResult.error && (
-                                <div className="p-4 bg-red-900/20 border border-red-700 rounded">
-                                    <p className="text-red-400 font-medium text-sm">Error</p>
-                                    <pre className="text-red-300 text-xs mt-1 whitespace-pre-wrap">{selectedResult.error}</pre>
+                                <div className="p-4 border border-red-700 rounded bg-red-900/20">
+                                    <p className="text-sm font-medium text-red-400">Error</p>
+                                    <pre className="mt-1 text-xs text-red-300 whitespace-pre-wrap">{selectedResult.error}</pre>
                                 </div>
                             )}
 
                             {selectedResult.diff && (
                                 <div>
-                                    <h3 className="text-sm font-semibold text-gray-300 mb-2">Diff</h3>
-                                    <pre className="p-4 bg-gray-900 rounded border border-gray-700 text-xs text-gray-300 whitespace-pre-wrap overflow-x-auto">
+                                    <h3 className="mb-2 text-sm font-semibold text-gray-300">Diff</h3>
+                                    <pre className="p-4 overflow-x-auto text-xs text-gray-300 whitespace-pre-wrap bg-gray-900 border border-gray-700 rounded">
                                         {selectedResult.diff}
                                     </pre>
                                 </div>
                             )}
                         </div>
                     ) : (
-                        <p className="text-gray-400 text-center mt-12">Select a test result to view details</p>
+                        <p className="mt-12 text-center text-gray-400">Select a test result to view details</p>
                     )}
                 </div>
             </div>

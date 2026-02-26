@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, memo, useCallback, useMemo } from 'react'
 import { useAppStore, type IToastNotification } from '../../store/app-store.js'
 
 // ─── Per-level styles ────────────────────────────────────────────────────────
@@ -38,7 +38,7 @@ const LEVEL_ICONS: Record<IToastNotification['level'], React.JSX.Element> = {
 
 // ─── Single toast ─────────────────────────────────────────────────────────────
 
-function ToastItem({
+const ToastItem = memo(function ToastItem({
   notification: n,
   onDismiss,
 }: {
@@ -46,16 +46,28 @@ function ToastItem({
   onDismiss: () => void
 }): React.JSX.Element {
   const [visible, setVisible] = useState(false)
+  const [isExiting, setIsExiting] = useState(false)
   const setView = useAppStore((s) => s.setView)
   const styles = LEVEL_STYLES[n.level]
 
   // Error and warning details live in the Logs tab — don't duplicate them here.
   const isAlert = n.level === 'error' || n.level === 'warning'
 
+  // Animation entry
   useEffect(() => {
     const t = setTimeout(() => { setVisible(true) }, 16)
     return () => { clearTimeout(t) }
   }, [])
+
+  // Auto-dismiss after 4.5 seconds with exit animation
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setIsExiting(true)
+      // Allow exit animation to complete before dismissing
+      setTimeout(() => onDismiss(), 300)
+    }, 4200)
+    return () => { clearTimeout(t) }
+  }, [onDismiss])
 
   return (
     <div
@@ -68,7 +80,7 @@ function ToastItem({
       ].join(' ')}
     >
       <span className={`mt-0.5 shrink-0 ${styles.icon}`}>{LEVEL_ICONS[n.level]}</span>
-      <div className="min-w-0 flex-1">
+      <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold leading-tight text-[var(--color-text-primary)]">
           {n.title}
         </p>
@@ -97,7 +109,7 @@ function ToastItem({
       </button>
     </div>
   )
-}
+})
 
 // ─── Container ────────────────────────────────────────────────────────────────
 
@@ -109,16 +121,21 @@ export function ToastContainer(): React.JSX.Element {
   const notifications = useAppStore((s) => s.notifications)
   const dismissNotification = useAppStore((s) => s.dismissNotification)
 
+  // Create stable dismiss handler
+  const handleDismiss = useCallback((id: string) => {
+    dismissNotification(id)
+  }, [dismissNotification])
+
   return (
     <div
       aria-live="polite"
-      className="pointer-events-none fixed bottom-5 right-5 z-50 flex flex-col-reverse gap-2"
+      className="fixed z-50 flex flex-col-reverse gap-2 pointer-events-none bottom-5 right-5"
     >
       {notifications.map((n) => (
         <ToastItem
           key={n.id}
           notification={n}
-          onDismiss={() => { dismissNotification(n.id) }}
+          onDismiss={() => handleDismiss(n.id)}
         />
       ))}
     </div>

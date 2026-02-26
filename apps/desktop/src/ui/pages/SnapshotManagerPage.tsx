@@ -84,7 +84,7 @@ export function SnapshotManagerPage({ onReplayStarted }: IProps): React.JSX.Elem
     }
 
     return (
-        <div className="flex h-full flex-col overflow-hidden">
+        <div className="flex flex-col w-full h-full overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-[var(--color-border)] px-6 py-4">
                 <div>
@@ -116,7 +116,7 @@ export function SnapshotManagerPage({ onReplayStarted }: IProps): React.JSX.Elem
                             <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--color-accent)] border-t-transparent" />
                         </div>
                     ) : filtered.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+                        <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
                             <p className="text-sm text-[var(--color-text-muted)]">
                                 {search ? 'No snapshots match your search.' : 'No snapshots yet. Run an agent to create one.'}
                             </p>
@@ -134,7 +134,7 @@ export function SnapshotManagerPage({ onReplayStarted }: IProps): React.JSX.Elem
                                     }`}
                                 >
                                     <div className="flex items-start justify-between">
-                                        <div className="min-w-0 flex-1">
+                                        <div className="flex-1 min-w-0">
                                             <p className="text-xs font-mono text-[var(--color-text-primary)] truncate">{snap.executionId}</p>
                                             <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
                                                 Agent: {snap.agentId.slice(0, 12)}...
@@ -144,7 +144,7 @@ export function SnapshotManagerPage({ onReplayStarted }: IProps): React.JSX.Elem
                                             </p>
                                         </div>
                                     </div>
-                                    <div className="mt-2 flex items-center gap-2">
+                                    <div className="flex items-center gap-2 mt-2">
                                         <button
                                             onClick={(e) => { e.stopPropagation(); void handleReplay(snap.executionId) }}
                                             disabled={replaying === snap.executionId}
@@ -189,7 +189,7 @@ export function SnapshotManagerPage({ onReplayStarted }: IProps): React.JSX.Elem
                             <p className="text-sm text-[var(--color-text-muted)]">Select a snapshot to view details</p>
                         </div>
                     ) : (
-                        <div className="h-full flex flex-col">
+                        <div className="flex flex-col h-full">
                             {/* Detail tabs */}
                             <div className="flex border-b border-[var(--color-border)] px-4">
                                 {(['agent', 'graph', 'memory', 'execution'] as const).map(t => (
@@ -208,7 +208,7 @@ export function SnapshotManagerPage({ onReplayStarted }: IProps): React.JSX.Elem
                             </div>
 
                             {/* Detail content */}
-                            <div className="flex-1 overflow-auto p-4">
+                            <div className="flex-1 p-4 overflow-auto">
                                 <div className="mb-4 space-y-1">
                                     <p className="text-xs text-[var(--color-text-muted)]">
                                         Execution: <span className="font-mono text-[var(--color-text-secondary)]">{selectedSnapshot.executionId}</span>

@@ -324,7 +324,7 @@ function KeyRow({ apiKey, isDefault, onToggle, onSetDefault, onChangeModel, onDe
           <button
             onClick={() => void handleDelete()}
             disabled={busy}
-            className="shrink-0 rounded-lg bg-red-950/60 px-2 py-1 text-xs font-medium text-red-400 transition-colors hover:bg-red-900/60 disabled:opacity-50"
+            className="px-2 py-1 text-xs font-medium text-red-400 transition-colors rounded-lg shrink-0 bg-red-950/60 hover:bg-red-900/60 disabled:opacity-50"
           >
             Confirm
           </button>
@@ -413,7 +413,7 @@ export function APIKeysPanel({ onBack }: IAPIKeysPanelProps): React.JSX.Element 
   }
 
   return (
-    <div className="flex h-full flex-col bg-[var(--color-bg)]">
+    <div className="flex h-full w-full flex-col bg-[var(--color-bg)]">
       {/* Header */}
       <div className="flex shrink-0 items-center gap-3 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-3.5">
         <button
@@ -442,7 +442,7 @@ export function APIKeysPanel({ onBack }: IAPIKeysPanelProps): React.JSX.Element 
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-5">
+      <div className="flex-1 p-5 overflow-x-hidden overflow-y-auto">
         {showForm && (
           <div className="mb-4">
             <AddKeyForm

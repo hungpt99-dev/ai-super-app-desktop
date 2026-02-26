@@ -89,25 +89,25 @@ export function PluginManagerPage(): React.JSX.Element {
     }
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col w-full h-full">
             <div className="px-6 pt-6 pb-4 border-b border-gray-700">
                 <h1 className="text-2xl font-bold text-white">Plugin Manager</h1>
-                <p className="text-gray-400 text-sm mt-1">Install, manage, and configure plugins</p>
+                <p className="mt-1 text-sm text-gray-400">Install, manage, and configure plugins</p>
             </div>
 
             {/* Install bar */}
-            <div className="px-6 py-3 border-b border-gray-700 flex gap-3">
+            <div className="flex gap-3 px-6 py-3 border-b border-gray-700">
                 <input
                     type="text"
                     value={installPath}
                     onChange={(e) => setInstallPath(e.target.value)}
                     placeholder="Plugin path (.ahpkg)"
-                    className="flex-1 px-3 py-2 bg-gray-800 border border-gray-600 rounded text-white placeholder-gray-500 text-sm"
+                    className="flex-1 px-3 py-2 text-sm text-white placeholder-gray-500 bg-gray-800 border border-gray-600 rounded"
                 />
                 <button
                     onClick={() => void handleInstall()}
                     disabled={installing}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded font-medium text-sm"
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700 disabled:bg-gray-600"
                 >
                     {installing ? 'Installing…' : 'Install'}
                 </button>
@@ -115,9 +115,9 @@ export function PluginManagerPage(): React.JSX.Element {
 
             <div className="flex flex-1 overflow-hidden">
                 {/* Plugin list */}
-                <div className="w-80 border-r border-gray-700 overflow-y-auto">
+                <div className="overflow-y-auto border-r border-gray-700 w-80">
                     {plugins && plugins.plugins.length === 0 ? (
-                        <p className="p-4 text-gray-400 text-sm">No plugins installed.</p>
+                        <p className="p-4 text-sm text-gray-400">No plugins installed.</p>
                     ) : (
                         plugins?.plugins.map((p) => (
                             <button
@@ -128,7 +128,7 @@ export function PluginManagerPage(): React.JSX.Element {
                                 }`}
                             >
                                 <div className="flex items-center justify-between">
-                                    <span className="text-white font-medium">{p.name}</span>
+                                    <span className="font-medium text-white">{p.name}</span>
                                     <span
                                         className={`px-2 py-0.5 rounded text-xs ${
                                             p.status === 'active'
@@ -139,22 +139,22 @@ export function PluginManagerPage(): React.JSX.Element {
                                         {p.status}
                                     </span>
                                 </div>
-                                <p className="text-gray-400 text-xs mt-1">v{p.version}</p>
-                                <p className="text-gray-500 text-xs mt-1 line-clamp-2">{p.description}</p>
+                                <p className="mt-1 text-xs text-gray-400">v{p.version}</p>
+                                <p className="mt-1 text-xs text-gray-500 line-clamp-2">{p.description}</p>
                             </button>
                         ))
                     )}
                 </div>
 
                 {/* Plugin detail */}
-                <div className="flex-1 overflow-y-auto p-6">
+                <div className="flex-1 p-6 overflow-y-auto">
                     {selectedPlugin ? (
                         <div className="space-y-4">
                             <div className="flex items-start justify-between">
                                 <div>
                                     <h2 className="text-xl font-bold text-white">{selectedPlugin.name}</h2>
-                                    <p className="text-gray-400 text-sm">v{selectedPlugin.version} · {selectedPlugin.status}</p>
-                                    <p className="text-gray-300 mt-2">{selectedPlugin.description}</p>
+                                    <p className="text-sm text-gray-400">v{selectedPlugin.version} · {selectedPlugin.status}</p>
+                                    <p className="mt-2 text-gray-300">{selectedPlugin.description}</p>
                                 </div>
                                 <div className="flex gap-2">
                                     {selectedPlugin.status === 'active' ? (
@@ -186,10 +186,10 @@ export function PluginManagerPage(): React.JSX.Element {
 
                             {selectedPlugin.permissions.length > 0 && (
                                 <div>
-                                    <h3 className="text-sm font-semibold text-gray-300 mb-2">Permissions</h3>
+                                    <h3 className="mb-2 text-sm font-semibold text-gray-300">Permissions</h3>
                                     <div className="flex flex-wrap gap-2">
                                         {selectedPlugin.permissions.map((perm) => (
-                                            <span key={perm} className="px-2 py-1 bg-gray-700 rounded text-xs text-gray-300">
+                                            <span key={perm} className="px-2 py-1 text-xs text-gray-300 bg-gray-700 rounded">
                                                 {perm}
                                             </span>
                                         ))}
@@ -199,12 +199,12 @@ export function PluginManagerPage(): React.JSX.Element {
 
                             {selectedPlugin.tools.length > 0 && (
                                 <div>
-                                    <h3 className="text-sm font-semibold text-gray-300 mb-2">Tools ({selectedPlugin.tools.length})</h3>
+                                    <h3 className="mb-2 text-sm font-semibold text-gray-300">Tools ({selectedPlugin.tools.length})</h3>
                                     <div className="space-y-2">
                                         {selectedPlugin.tools.map((t) => (
-                                            <div key={t.name} className="p-3 bg-gray-800 rounded border border-gray-700">
-                                                <p className="text-white text-sm font-medium">{t.name}</p>
-                                                <p className="text-gray-400 text-xs mt-1">{t.description}</p>
+                                            <div key={t.name} className="p-3 bg-gray-800 border border-gray-700 rounded">
+                                                <p className="text-sm font-medium text-white">{t.name}</p>
+                                                <p className="mt-1 text-xs text-gray-400">{t.description}</p>
                                             </div>
                                         ))}
                                     </div>
@@ -213,12 +213,12 @@ export function PluginManagerPage(): React.JSX.Element {
 
                             {selectedPlugin.skills.length > 0 && (
                                 <div>
-                                    <h3 className="text-sm font-semibold text-gray-300 mb-2">Skills ({selectedPlugin.skills.length})</h3>
+                                    <h3 className="mb-2 text-sm font-semibold text-gray-300">Skills ({selectedPlugin.skills.length})</h3>
                                     <div className="space-y-2">
                                         {selectedPlugin.skills.map((s) => (
-                                            <div key={s.name} className="p-3 bg-gray-800 rounded border border-gray-700">
-                                                <p className="text-white text-sm font-medium">{s.name}</p>
-                                                <p className="text-gray-400 text-xs mt-1">{s.description}</p>
+                                            <div key={s.name} className="p-3 bg-gray-800 border border-gray-700 rounded">
+                                                <p className="text-sm font-medium text-white">{s.name}</p>
+                                                <p className="mt-1 text-xs text-gray-400">{s.description}</p>
                                             </div>
                                         ))}
                                     </div>
@@ -226,7 +226,7 @@ export function PluginManagerPage(): React.JSX.Element {
                             )}
                         </div>
                     ) : (
-                        <p className="text-gray-400 text-center mt-12">Select a plugin to view details</p>
+                        <p className="mt-12 text-center text-gray-400">Select a plugin to view details</p>
                     )}
                 </div>
             </div>

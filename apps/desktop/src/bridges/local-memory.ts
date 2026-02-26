@@ -21,11 +21,15 @@ import type {
   IMemoryUpsertInput,
 } from '@agenthub/sdk'
 
+import { logger } from '@agenthub/shared'
+
+const log = logger.child('LocalMemory')
+
 /**
  * Insert or update a memory entry.
  */
 export async function memoryUpsert(input: IMemoryUpsertInput): Promise<IMemoryEntry> {
-  console.warn('Memory storage not yet available in renderer.')
+  log.warn('Memory storage not yet available in renderer - using mock')
   return {
     id: 'stub',
     type: input.type || 'fact',

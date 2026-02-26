@@ -91,7 +91,7 @@ function LogRow({ entry, style }: { entry: ILogEntry; style?: React.CSSPropertie
         </span>
 
         {/* Actions */}
-        <div className="flex shrink-0 items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex items-center gap-1 transition-opacity opacity-0 shrink-0 group-hover:opacity-100">
           {entry.detail && (
             <span className="text-[10px] text-[var(--color-text-muted)]">
               {expanded ? '▲' : '▼'}
@@ -172,7 +172,7 @@ export function LogsPanel(): React.JSX.Element {
   const warnCount = useMemo(() => entries.filter((e) => e.level === 'warn').length, [entries])
 
   return (
-    <div className="flex h-full flex-col bg-[var(--color-bg)]">
+    <div className="flex h-full w-full flex-col bg-[var(--color-bg)]">
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="shrink-0 border-b border-[var(--color-border)] bg-[var(--color-surface)]">
@@ -231,7 +231,7 @@ export function LogsPanel(): React.JSX.Element {
         <div className="flex items-center gap-2 overflow-x-auto border-t border-[var(--color-border)]/50 px-5 py-2 scrollbar-none">
 
           {/* Level filter */}
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="flex items-center gap-1 shrink-0">
             <button
               onClick={() => { setLevelFilter('all') }}
               className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors ${levelFilter === 'all'
@@ -259,7 +259,7 @@ export function LogsPanel(): React.JSX.Element {
           <div className="mx-1 h-4 w-px shrink-0 bg-[var(--color-border)]" />
 
           {/* Source filter */}
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="flex items-center gap-1 shrink-0">
             {ALL_SOURCES.map((src) => {
               const meta = SOURCE_META[src]
               return (
@@ -294,7 +294,7 @@ export function LogsPanel(): React.JSX.Element {
       <div
         ref={listRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto font-mono"
+        className="flex-1 overflow-x-hidden overflow-y-auto font-mono"
       >
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">

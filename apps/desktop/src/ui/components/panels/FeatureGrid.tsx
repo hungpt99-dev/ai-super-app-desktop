@@ -48,7 +48,7 @@ function AgentInstanceRow({ agent, runningAgentIds, templateIcon, templateName, 
             : 'bg-yellow-400'
           }`}
       />
-      {templateIcon && <span className="shrink-0 text-base">{templateIcon}</span>}
+      {templateIcon && <span className="text-base shrink-0">{templateIcon}</span>}
       <span className="min-w-0 flex-1 truncate text-sm text-[var(--color-text-primary)]">
         {agent.name}
       </span>
@@ -106,7 +106,7 @@ function AgentTypeCard({
         : 'border-[var(--color-border)] hover:border-[var(--color-accent)] hover:shadow-[0_0_0_1px_var(--color-accent-dim)]'
         }`}
     >
-      <div className="mb-3 flex items-start justify-between gap-2">
+      <div className="flex items-start justify-between gap-2 mb-3">
         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--color-surface-2)] text-2xl">
           {icon}
         </div>
@@ -222,7 +222,7 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
   const isEmpty = visibleTemplates.length === 0 && visibleAllAgents.length === 0
 
   return (
-    <div className="flex h-full flex-col bg-[var(--color-bg)]">
+    <div className="flex h-full w-full flex-col bg-[var(--color-bg)]">
 
       {/* Header */}
       <div className="shrink-0 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-8 py-5">
@@ -259,8 +259,8 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
       </div>
 
       {/* Body */}
-      <div className="flex-1 overflow-y-auto px-8 py-6">
-        <div className="mx-auto max-w-3xl space-y-8">
+      <div className="flex-1 px-8 py-6 overflow-x-hidden overflow-y-auto">
+        <div className="max-w-3xl mx-auto space-y-8">
 
           {/* Search */}
           <div className="relative">
@@ -283,7 +283,7 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
           {/* All Agent Types */}
           {visibleTemplates.length > 0 && (
             <section>
-              <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center justify-between mb-4">
                 <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
                   All Agent Types
                 </p>
@@ -371,7 +371,7 @@ export function FeatureGrid({ onOpenModule }: IFeatureGridProps): React.JSX.Elem
 
       {/* Dev mode: sideloaded module count banner */}
       {devEnabled && sideloadedModules.length > 0 && (
-        <div className="shrink-0 border-t border-amber-900/30 bg-amber-950/20 px-8 py-2">
+        <div className="px-8 py-2 border-t shrink-0 border-amber-900/30 bg-amber-950/20">
           <p className="text-[11px] text-amber-400">
             📦 {String(sideloadedModules.length)} sideloaded agent package{sideloadedModules.length !== 1 ? 's' : ''} active.
             {' '}

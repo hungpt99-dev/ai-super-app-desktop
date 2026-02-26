@@ -28,6 +28,7 @@ import type {
 } from '@agenthub/observability'
 import { FileMetricsStore } from '@agenthub/infrastructure/node'
 
+// Use proper typing - TokenTracker expects IMetricsStore
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const store: any = new FileMetricsStore()
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -245,8 +246,6 @@ export const metricsIPC = {
 
     async getSummary(_payload: IMetricsFilters): Promise<IMetricsSummary> {
         const today = formatDateStr(new Date())
-        const weekAgo = formatDateStr(getDaysAgo(7))
-        const monthAgo = formatDateStr(getDaysAgo(30))
 
         // Get today's data
         const todayData = await tracker.getDailyUsage(today).catch(() => ({
@@ -258,20 +257,39 @@ export const metricsIPC = {
             models: [],
         }))
 
-        // Get week data
+        // CRITICAL FIX: Parallelize week and month data fetching
+        const [weekData, monthData] = await Promise.all([
+            // Get week data in parallel
+            Promise.all(
+                Array.from({ length: 7 }, async (_, i) => {
+                    const date = formatDateStr(getDaysAgo(i))
+                    return tracker.getDailyUsage(date).catch(() => ({
+                        totalTokens: 0,
+                        totalCost: 0,
+                        executionCount: 0,
+                        agents: [],
+                    }))
+                })
+            ),
+            // Get month data in parallel
+            Promise.all(
+                Array.from({ length: 30 }, async (_, i) => {
+                    const date = formatDateStr(getDaysAgo(i))
+                    return tracker.getDailyUsage(date).catch(() => ({
+                        totalTokens: 0,
+                        totalCost: 0,
+                    }))
+                })
+            ),
+        ])
+
+        // Aggregate week data
         let weekTokens = 0
         let weekCost = 0
         let weekExecutions = 0
         const weekAgents = new Set<string>()
 
-        for (let i = 0; i < 7; i++) {
-            const date = formatDateStr(getDaysAgo(i))
-            const data = await tracker.getDailyUsage(date).catch(() => ({
-                totalTokens: 0,
-                totalCost: 0,
-                executionCount: 0,
-                agents: [],
-            }))
+        for (const data of weekData) {
             weekTokens += data.totalTokens
             weekCost += data.totalCost
             weekExecutions += data.executionCount
@@ -280,16 +298,11 @@ export const metricsIPC = {
             }
         }
 
-        // Get month data
+        // Aggregate month data
         let monthTokens = 0
         let monthCost = 0
 
-        for (let i = 0; i < 30; i++) {
-            const date = formatDateStr(getDaysAgo(i))
-            const data = await tracker.getDailyUsage(date).catch(() => ({
-                totalTokens: 0,
-                totalCost: 0,
-            }))
+        for (const data of monthData) {
             monthTokens += data.totalTokens
             monthCost += data.totalCost
         }
@@ -315,14 +328,20 @@ export const metricsIPC = {
         const tokensPerExecution: { executionId: string; tokens: number }[] = []
         const planningVsExecution: { planning: number; execution: number; micro: number }[] = []
 
-        // Get last 7 days
-        for (let i = 0; i < 7; i++) {
-            const date = formatDateStr(getDaysAgo(i))
-            const data = await tracker.getDailyUsage(date).catch(() => ({
-                totalTokens: 0,
-                agents: [],
-                models: [],
-            }))
+        // CRITICAL FIX: Get last 7 days in parallel
+        const dailyData = await Promise.all(
+            Array.from({ length: 7 }, async (_, i) => {
+                const date = formatDateStr(getDaysAgo(i))
+                const data = await tracker.getDailyUsage(date).catch(() => ({
+                    totalTokens: 0,
+                    agents: [],
+                    models: [],
+                }))
+                return { date, data }
+            })
+        )
+
+        for (const { date, data } of dailyData) {
             tokensPerDay.push({ date, tokens: data.totalTokens })
 
             // Aggregations
@@ -334,14 +353,21 @@ export const metricsIPC = {
             }
         }
 
-        // Get execution summaries
+        // Get execution summaries in parallel
         const execIds = await store.getAllExecutionIds()
         const recentExecs = execIds.slice(-50)
-        for (const execId of recentExecs) {
-            const summary = await tracker.getExecutionSummary(execId).catch(() => ({
-                totalTokens: 0,
-                phases: { planning: { tokens: 0 }, execution: { tokens: 0 }, micro: { tokens: 0 } },
-            }))
+
+        const executionData = await Promise.all(
+            recentExecs.map(async (execId: string) => {
+                const summary = await tracker.getExecutionSummary(execId).catch(() => ({
+                    totalTokens: 0,
+                    phases: { planning: { tokens: 0 }, execution: { tokens: 0 }, micro: { tokens: 0 } },
+                }))
+                return { execId, summary }
+            })
+        )
+
+        for (const { execId, summary } of executionData) {
             tokensPerExecution.push({ executionId: execId, tokens: summary.totalTokens })
             planningVsExecution.push({
                 planning: summary.phases?.planning?.tokens ?? 0,
@@ -366,14 +392,20 @@ export const metricsIPC = {
         const costPerExecution: { executionId: string; cost: number }[] = []
         const topExpensiveExecutions: { executionId: string; cost: number }[] = []
 
-        // Get last 7 days
-        for (let i = 0; i < 7; i++) {
-            const date = formatDateStr(getDaysAgo(i))
-            const data = await tracker.getDailyUsage(date).catch(() => ({
-                totalCost: 0,
-                agents: [],
-                models: [],
-            }))
+        // CRITICAL FIX: Get last 7 days in parallel
+        const dailyData = await Promise.all(
+            Array.from({ length: 7 }, async (_, i) => {
+                const date = formatDateStr(getDaysAgo(i))
+                const data = await tracker.getDailyUsage(date).catch(() => ({
+                    totalCost: 0,
+                    agents: [],
+                    models: [],
+                }))
+                return { date, data }
+            })
+        )
+
+        for (const { date, data } of dailyData) {
             costPerDay.push({ date, cost: data.totalCost })
 
             for (const agent of data.agents) {
@@ -384,13 +416,20 @@ export const metricsIPC = {
             }
         }
 
-        // Get execution summaries
+        // Get execution summaries in parallel
         const execIds = await store.getAllExecutionIds()
         const recentExecs = execIds.slice(-50)
-        for (const execId of recentExecs) {
-            const summary = await tracker.getExecutionSummary(execId).catch(() => ({
-                totalCost: 0,
-            }))
+
+        const executionData = await Promise.all(
+            recentExecs.map(async (execId: string) => {
+                const summary = await tracker.getExecutionSummary(execId).catch(() => ({
+                    totalCost: 0,
+                }))
+                return { execId, summary }
+            })
+        )
+
+        for (const { execId, summary } of executionData) {
             costPerExecution.push({ executionId: execId, cost: summary.totalCost })
             topExpensiveExecutions.push({ executionId: execId, cost: summary.totalCost })
         }
@@ -416,14 +455,19 @@ export const metricsIPC = {
             successfulExecutions: number
         }>()
 
-        // Get last 7 days
-        for (let i = 0; i < 7; i++) {
-            const date = formatDateStr(getDaysAgo(i))
-            const data = await tracker.getDailyUsage(date).catch(() => ({
-                agents: [],
-            }))
+        // CRITICAL FIX: Get last 7 days in parallel
+        const dailyData = await Promise.all(
+            Array.from({ length: 7 }, async (_, i) => {
+                const date = formatDateStr(getDaysAgo(i))
+                const data = await tracker.getDailyUsage(date).catch(() => ({
+                    agents: [],
+                }))
+                return { date, agents: data.agents }
+            })
+        )
 
-            for (const agent of data.agents) {
+        for (const { agents } of dailyData) {
+            for (const agent of agents) {
                 const existing = agentMap.get(agent.agentId) ?? {
                     executions: 0,
                     totalTokens: 0,
@@ -434,7 +478,7 @@ export const metricsIPC = {
                 existing.executions += 1
                 existing.totalTokens += agent.tokens
                 existing.totalCost += agent.cost
-                existing.lastActive = Math.max(existing.lastActive, new Date(date).getTime())
+                existing.lastActive = Math.max(existing.lastActive, Date.now())
                 // Assume 80% success rate as we don't track failures directly
                 existing.successfulExecutions = Math.floor(existing.executions * 0.8)
                 agentMap.set(agent.agentId, existing)
@@ -461,8 +505,9 @@ export const metricsIPC = {
         const execIds = await store.getAllExecutionIds()
         const recentExecs = execIds.slice(-100).reverse() // Most recent first
 
+        // CRITICAL FIX: Get execution data in parallel
         const executions = await Promise.all(
-            recentExecs.slice(0, 50).map(async (execId) => {
+            recentExecs.slice(0, 50).map(async (execId: string) => {
                 const summary = await tracker.getExecutionSummary(execId).catch(() => ({
                     executionId: execId,
                     totalTokens: 0,
@@ -481,7 +526,7 @@ export const metricsIPC = {
                     tokens: summary.totalTokens,
                     cost: summary.totalCost,
                     duration: 0, // Would need to calculate from timestamps
-                    toolsUsed: tools.map((t: any) => t.toolName).slice(0, 5),
+                    toolsUsed: tools.map((t: unknown) => (t as { toolName: string }).toolName).slice(0, 5),
                     status: 'completed' as const,
                 }
             })

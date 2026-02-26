@@ -1,6 +1,5 @@
 import React, { useCallback, useRef, useEffect, useState } from 'react'
-import { useChat } from '../../hooks/use-chat.js'
-import type { IChatMessage } from '../../hooks/use-chat.js'
+import { useChat, type IChatMessage } from '../../hooks/use-chat.js'
 
 /** ChatWindow — chat-first interface, the core UX surface. */
 export function ChatWindow(): React.JSX.Element {
@@ -9,9 +8,16 @@ export function ChatWindow(): React.JSX.Element {
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
+  // Auto-scroll to bottom when new messages are added
+  // Use messages.length as dependency to only scroll on actual new messages, not content updates
+  const prevMessagesLength = useRef(messages.length)
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    // Only scroll if a new message was added (not when content updates)
+    if (messages.length > prevMessagesLength.current) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+    prevMessagesLength.current = messages.length
+  }, [messages.length])
 
   const submit = useCallback(
     async (text: string) => {
@@ -23,17 +29,19 @@ export function ChatWindow(): React.JSX.Element {
     [isLoading, sendMessage],
   )
 
-  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
+  const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault()
-    await submit(input)
-  }
+    if (!input.trim() || isLoading) return
+    submit(input)
+  }, [input, isLoading, submit])
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      void submit(input)
+      if (!input.trim() || isLoading) return
+      submit(input)
     }
-  }
+  }, [input, isLoading, submit])
 
   return (
     <div className="flex h-full flex-col bg-[var(--color-bg)]">
@@ -68,9 +76,9 @@ export function ChatWindow(): React.JSX.Element {
       </div>
 
       {/* Messages */}
-      <div className="flex flex-1 flex-col overflow-y-auto px-6 py-6">
+      <div className="flex flex-col flex-1 px-6 py-6 overflow-x-hidden overflow-y-auto">
         {messages.length === 0 ? (
-          <EmptyState onSuggest={(text) => void submit(text)} />
+          <EmptyState onSuggest={submit} />
         ) : (
           <div className="flex flex-col gap-5">
             {messages.map((msg) => (
@@ -94,7 +102,7 @@ export function ChatWindow(): React.JSX.Element {
 
       {/* Input bar */}
       <div className="shrink-0 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-6 py-4">
-        <form onSubmit={(e) => { void handleSubmit(e) }}>
+        <form onSubmit={handleSubmit}>
           <div className="flex items-end gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-3 transition-colors focus-within:border-[var(--color-accent)]">
             <textarea
               ref={textareaRef}
@@ -142,7 +150,7 @@ const SUGGESTIONS = [
 
 function EmptyState({ onSuggest }: { onSuggest: (text: string) => void }): React.JSX.Element {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center py-16 text-center">
+    <div className="flex flex-col items-center justify-center flex-1 py-16 text-center">
       <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--color-accent-dim)]">
         <span className="text-3xl text-[var(--color-accent)]">✦</span>
       </div>
@@ -150,9 +158,9 @@ function EmptyState({ onSuggest }: { onSuggest: (text: string) => void }): React
         How can I help you today?
       </h2>
       <p className="mt-1.5 max-w-xs text-sm text-[var(--color-text-secondary)]">
-        Ask me anything — I&apos;ll automatically use the right tools for you.
+        Ask me anything — I'll automatically use the right tools for you.
       </p>
-      <div className="mt-6 flex flex-wrap justify-center gap-2">
+      <div className="flex flex-wrap justify-center gap-2 mt-6">
         {SUGGESTIONS.map((s) => (
           <button
             key={s}

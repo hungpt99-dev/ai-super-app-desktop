@@ -1,6 +1,7 @@
 import type { IDesktopBridge, IAiRequestOptions, IToastNotification, IAgentPollResult, IAgentRunUpdate } from '../../bridges/bridge-types.js'
 import { getAgentRuntime, getActiveModules } from '../../app/module-bootstrap.js'
 import { useDevSettingsStore } from '../store/dev/dev-settings-store.js'
+import { logger } from '@agenthub/shared'
 
 /** True when running inside the Tauri WebView runtime. */
 import { IS_TAURI } from '../../bridges/runtime.js'
@@ -10,7 +11,29 @@ import { IS_TAURI } from '../../bridges/runtime.js'
  * In Tauri, all HTTP calls are made by Rust commands — this constant is unused.
  */
 const DEV_GATEWAY: string = import.meta.env.VITE_GATEWAY_URL ?? 'http://localhost:3000'
-const DEV_TOKEN: string = import.meta.env.VITE_DEV_TOKEN ?? 'dev-token'
+
+/**
+ * Get developer token from environment or session storage.
+ * NEVER hardcode tokens in source code.
+ */
+function getDevToken(): string {
+  // Check environment first
+  const envToken = import.meta.env.VITE_DEV_TOKEN
+  if (envToken && envToken !== 'dev-token') {
+    return envToken
+  }
+  // Check session storage (set by auth flow)
+  try {
+    const sessionToken = sessionStorage.getItem('agenthub:dev-token')
+    if (sessionToken) {
+      return sessionToken
+    }
+  } catch {
+    // SessionStorage not available
+  }
+  // Return placeholder - actual auth should come from environment or session
+  return ''
+}
 
 /** Returns the effective gateway base URL, honouring the developer-mode URL override. */
 function getGatewayBase(): string {
@@ -216,6 +239,311 @@ const tauriBridge: IDesktopBridge = {
     exportData: (payload: { fromDate: string; toDate: string }) =>
       invoke<unknown>('metrics:export', payload),
   },
+
+  // ── Workspace ────────────────────────────────────────────────────────────────
+  workspace: {
+    initialize: (): Promise<unknown> =>
+      invoke<unknown>('workspace:initialize'),
+    create: (payload: { name: string }): Promise<unknown> =>
+      invoke<unknown>('workspace:create', payload),
+    delete: (payload: { workspaceId: string }): Promise<void> =>
+      invoke('workspace:delete', payload),
+    rename: (payload: { workspaceId: string; newName: string }): Promise<unknown> =>
+      invoke<unknown>('workspace:rename', payload),
+    switch: (payload: { workspaceId: string }): Promise<unknown> =>
+      invoke<unknown>('workspace:switch', payload),
+    list: (): Promise<unknown> =>
+      invoke<unknown>('workspace:list'),
+    getActive: (): Promise<unknown> =>
+      invoke<unknown>('workspace:getActive'),
+    duplicate: (payload: { sourceWorkspaceId: string; newName: string }): Promise<unknown> =>
+      invoke<unknown>('workspace:duplicate', payload),
+  },
+
+  // ── Workspace Tabs ─────────────────────────────────────────────────────────────
+  workspaceTabs: (() => {
+    const STORAGE_KEY = 'dev-workspace-tabs'
+    const AGENTS_STORAGE_KEY = 'dev-workspace-agents'
+    const LOG_PREFIX = '[WorkspaceTabs]'
+
+    // In-memory cache to reduce localStorage reads
+    let tabsCache: Array<{ id: string; name: string; isDefault: boolean; createdAt: number; closedAt: number | null }> | null = null
+    let agentsCache: Record<string, string[]> | null = null
+    let cacheDirty = false
+
+    // Use proper logger for security and production quality
+    const workspaceLog = logger.child('WorkspaceTabs')
+
+    function loadTabs(): Array<{ id: string; name: string; isDefault: boolean; createdAt: number; closedAt: number | null }> {
+      // Return cached tabs if available
+      if (tabsCache !== null) {
+        return tabsCache
+      }
+
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY)
+        if (stored) {
+          const parsed = JSON.parse(stored)
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            tabsCache = parsed
+            return parsed
+          }
+        }
+      } catch (error) {
+        workspaceLog.error('Failed to load tabs', { error: String(error) })
+      }
+      // Default tab
+      const defaultTab = {
+        id: 'main-workspace',
+        name: 'Main Workspace',
+        isDefault: true,
+        createdAt: Date.now(),
+        closedAt: null,
+      }
+      tabsCache = [defaultTab]
+      return tabsCache
+    }
+
+    function loadAgents(): Record<string, string[]> {
+      // Return cached agents if available
+      if (agentsCache !== null) {
+        return agentsCache
+      }
+
+      try {
+        const stored = localStorage.getItem(AGENTS_STORAGE_KEY)
+        if (stored) {
+          const parsed = JSON.parse(stored)
+          agentsCache = parsed
+          return parsed
+        }
+      } catch (error) {
+        workspaceLog.error('Failed to load agents', { error: String(error) })
+      }
+      agentsCache = {}
+      return agentsCache
+    }
+
+    function saveTabs(tabs: Array<{ id: string; name: string; isDefault: boolean; createdAt: number; closedAt: number | null }>): boolean {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(tabs))
+        tabsCache = tabs // Update cache
+        return true
+      } catch (error) {
+        workspaceLog.error('Failed to save tabs', { error: String(error) })
+        return false
+      }
+    }
+
+    function saveAgents(agents: Record<string, string[]>): boolean {
+      try {
+        localStorage.setItem(AGENTS_STORAGE_KEY, JSON.stringify(agents))
+        agentsCache = agents // Update cache
+        return true
+      } catch (error) {
+        workspaceLog.error('Failed to save agents', { error: String(error) })
+        return false
+      }
+    }
+
+    let currentTabId: string | null = null
+
+    return {
+      initialize: async (): Promise<unknown> => {
+        workspaceLog.debug('Initializing workspace tabs')
+        try {
+          const tabs = loadTabs()
+          const agents = loadAgents()
+          // Find the first non-closed tab or default to first
+          const activeTab = tabs.find(t => !t.closedAt) || tabs[0]
+          currentTabId = activeTab?.id || null
+          
+          const result = {
+            tabs: tabs.filter(t => !t.closedAt),
+            currentTabId,
+            agents,
+          }
+          workspaceLog.debug('Initialized', { tabCount: result.tabs.length, currentTabId: currentTabId })
+          return result
+        } catch (error) {
+          workspaceLog.error('Initialization failed', { error: String(error) })
+          // Return default state on error
+          const defaultTab = {
+            id: 'main-workspace',
+            name: 'Main Workspace',
+            isDefault: true,
+            createdAt: Date.now(),
+            closedAt: null,
+          }
+          currentTabId = defaultTab.id
+          return {
+            tabs: [defaultTab],
+            currentTabId,
+            agents: {},
+          }
+        }
+      },
+
+      create: async (name: string): Promise<unknown> => {
+        workspaceLog.debug('Creating tab', { name })
+        try {
+          const tabs = loadTabs()
+          const newTab = {
+            id: `workspace-${Date.now()}`,
+            name,
+            isDefault: false,
+            createdAt: Date.now(),
+            closedAt: null,
+          }
+          tabs.push(newTab)
+          saveTabs(tabs)
+          currentTabId = newTab.id
+          workspaceLog.debug('Tab created', { tabId: newTab.id })
+          return { tab: newTab, currentTabId }
+        } catch (error) {
+          workspaceLog.error('Failed to create tab', { error: String(error) })
+          throw error
+        }
+      },
+
+      close: async (tabId: string): Promise<void> => {
+        workspaceLog.debug('Closing tab', { tabId })
+        try {
+          const tabs = loadTabs()
+          const tabIndex = tabs.findIndex(t => t.id === tabId)
+          if (tabIndex >= 0 && !tabs[tabIndex].isDefault) {
+            tabs[tabIndex].closedAt = Date.now()
+            saveTabs(tabs)
+            // Switch to another tab if closing current
+            if (currentTabId === tabId) {
+              const nextTab = tabs.find(t => t.id !== tabId && !t.closedAt)
+              currentTabId = nextTab?.id || tabs[0]?.id || null
+            }
+            workspaceLog.debug('Tab closed', { tabId })
+          } else {
+            workspaceLog.debug('Tab not found or is default', { tabId })
+          }
+        } catch (error) {
+          workspaceLog.error('Failed to close tab', { error: String(error) })
+          throw error
+        }
+      },
+
+      switch: async (tabId: string): Promise<unknown> => {
+        workspaceLog.debug('Switching tab', { tabId })
+        try {
+          const tabs = loadTabs()
+          const tab = tabs.find(t => t.id === tabId && !t.closedAt)
+          if (tab) {
+            currentTabId = tabId
+            workspaceLog.debug('Tab switched', { tabId })
+            return { success: true, currentTabId }
+          }
+          workspaceLog.warn('Tab not found', { tabId })
+          return { success: false, error: 'Tab not found' }
+        } catch (error) {
+          workspaceLog.error('Failed to switch tab', { error: String(error) })
+          throw error
+        }
+      },
+
+      rename: async (tabId: string, newName: string): Promise<unknown> => {
+        workspaceLog.debug('Renaming tab', { tabId, newName })
+        try {
+          const tabs = loadTabs()
+          const tab = tabs.find(t => t.id === tabId)
+          if (tab) {
+            tab.name = newName
+            saveTabs(tabs)
+            workspaceLog.debug('Tab renamed', { tabId })
+            return { tab }
+          }
+          workspaceLog.warn('Tab not found for rename', { tabId })
+          return { error: 'Tab not found' }
+        } catch (error) {
+          workspaceLog.error('Failed to rename tab', { error: String(error) })
+          throw error
+        }
+      },
+
+      list: async (): Promise<unknown> => {
+        workspaceLog.debug('Listing tabs')
+        try {
+          const tabs = loadTabs()
+          const result = { tabs: tabs.filter(t => !t.closedAt) }
+          workspaceLog.debug('Tabs listed', { count: result.tabs.length })
+          return result
+        } catch (error) {
+          workspaceLog.error('Failed to list tabs', { error: String(error) })
+          return { tabs: [] }
+        }
+      },
+
+      getCurrent: async (): Promise<unknown> => {
+        workspaceLog.debug('Getting current tab')
+        try {
+          const tabs = loadTabs()
+          const tab = tabs.find(t => t.id === currentTabId && !t.closedAt)
+          const result = { tab: tab || null }
+          workspaceLog.debug('Current tab retrieved', { tabId: result.tab?.id || 'none' })
+          return result
+        } catch (error) {
+          workspaceLog.error('Failed to get current tab', { error: String(error) })
+          return { tab: null }
+        }
+      },
+
+      addAgent: async (tabId: string, agentId: string): Promise<void> => {
+        workspaceLog.debug('Adding agent to tab', { tabId, agentId })
+        try {
+          const agents = loadAgents()
+          if (!agents[tabId]) {
+            agents[tabId] = []
+          }
+          if (!agents[tabId].includes(agentId)) {
+            agents[tabId].push(agentId)
+            saveAgents(agents)
+            workspaceLog.debug('Agent added to tab', { tabId })
+          } else {
+            workspaceLog.debug('Agent already exists in tab', { tabId, agentId })
+          }
+        } catch (error) {
+          workspaceLog.error('Failed to add agent to tab', { error: String(error) })
+          throw error
+        }
+      },
+
+      removeAgent: async (tabId: string, agentId: string): Promise<void> => {
+        workspaceLog.debug('Removing agent from tab', { tabId, agentId })
+        try {
+          const agents = loadAgents()
+          if (agents[tabId]) {
+            agents[tabId] = agents[tabId].filter(id => id !== agentId)
+            saveAgents(agents)
+            workspaceLog.debug('Agent removed from tab', { tabId })
+          } else {
+            workspaceLog.debug('No agents for tab', { tabId })
+          }
+        } catch (error) {
+          workspaceLog.error('Failed to remove agent from tab', { error: String(error) })
+          throw error
+        }
+      },
+
+      getAgents: async (tabId: string): Promise<unknown> => {
+        workspaceLog.debug('Getting agents for tab', { tabId })
+        try {
+          const agents = loadAgents()
+          const result = { agentIds: agents[tabId] || [] }
+          workspaceLog.debug('Agents retrieved', { tabId, count: result.agentIds.length })
+          return result
+        } catch (error) {
+          workspaceLog.error('Failed to get agents for tab', { error: String(error) })
+          return { agentIds: [] }
+        }
+      },
+    }
+  })(),
 }
 
 // ─── Dev bridge (browser-only mode) ──────────────────────────────────────────
@@ -574,22 +902,180 @@ const devBridge: IDesktopBridge = {
   // ── Workspace ────────────────────────────────────────────────────────────────
   workspace: {
     initialize: (): Promise<unknown> =>
-      invoke<unknown>('workspace:initialize', {}),
+      Promise.resolve({ workspaces: [], activeWorkspaceId: null }),
     create: (payload: { name: string }): Promise<unknown> =>
-      invoke<unknown>('workspace:create', payload),
-    delete: (payload: { workspaceId: string }): Promise<unknown> =>
-      invoke<unknown>('workspace:delete', payload),
-    rename: (payload: { workspaceId: string; newName: string }): Promise<unknown> =>
-      invoke<unknown>('workspace:rename', payload),
-    switch: (payload: { workspaceId: string }): Promise<unknown> =>
-      invoke<unknown>('workspace:switch', payload),
+      Promise.resolve({ workspace: { id: `ws-${Date.now()}`, name: payload.name } }),
+    delete: (_payload: { workspaceId: string }): Promise<void> =>
+      Promise.resolve(),
+    rename: (_payload: { workspaceId: string; newName: string }): Promise<unknown> =>
+      Promise.resolve({ success: true }),
+    switch: (_payload: { workspaceId: string }): Promise<unknown> =>
+      Promise.resolve({ success: true }),
     list: (): Promise<unknown> =>
-      invoke<unknown>('workspace:list', {}),
+      Promise.resolve({ workspaces: [] }),
     getActive: (): Promise<unknown> =>
-      invoke<unknown>('workspace:getActive', {}),
-    duplicate: (payload: { sourceWorkspaceId: string; newName: string }): Promise<unknown> =>
-      invoke<unknown>('workspace:duplicate', payload),
+      Promise.resolve({ workspace: null }),
+    duplicate: (_payload: { sourceWorkspaceId: string; newName: string }): Promise<unknown> =>
+      Promise.resolve({ workspace: { id: `ws-${Date.now()}`, name: _payload.newName } }),
   },
+
+  // ── Workspace Tabs (dev mode - localStorage) ───────────────────────────────────
+  workspaceTabs: (() => {
+    const STORAGE_KEY = 'dev-workspace-tabs'
+    const AGENTS_STORAGE_KEY = 'dev-workspace-agents'
+
+    function loadTabs(): Array<{ id: string; name: string; isDefault: boolean; createdAt: number; closedAt: number | null }> {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY)
+        if (stored) {
+          const parsed = JSON.parse(stored)
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed
+          }
+        }
+      } catch {
+        // Ignore parse errors
+      }
+      // Default tab
+      return [{
+        id: 'main-workspace',
+        name: 'Main Workspace',
+        isDefault: true,
+        createdAt: Date.now(),
+        closedAt: null,
+      }]
+    }
+
+    function loadAgents(): Record<string, string[]> {
+      try {
+        const stored = localStorage.getItem(AGENTS_STORAGE_KEY)
+        if (stored) {
+          return JSON.parse(stored)
+        }
+      } catch {
+        // Ignore parse errors
+      }
+      return {}
+    }
+
+    function saveTabs(tabs: Array<{ id: string; name: string; isDefault: boolean; createdAt: number; closedAt: number | null }>): void {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(tabs))
+      } catch {
+        // Ignore storage errors
+      }
+    }
+
+    function saveAgents(agents: Record<string, string[]>): void {
+      try {
+        localStorage.setItem(AGENTS_STORAGE_KEY, JSON.stringify(agents))
+      } catch {
+        // Ignore storage errors
+      }
+    }
+
+    let currentTabId: string | null = null
+
+    return {
+      initialize: async (): Promise<unknown> => {
+        const tabs = loadTabs()
+        const agents = loadAgents()
+        // Find the first non-closed tab or default to first
+        const activeTab = tabs.find(t => !t.closedAt) || tabs[0]
+        currentTabId = activeTab?.id || null
+        return {
+          tabs: tabs.filter(t => !t.closedAt),
+          currentTabId,
+          agents,
+        }
+      },
+
+      create: async (name: string): Promise<unknown> => {
+        const tabs = loadTabs()
+        const newTab = {
+          id: `workspace-${Date.now()}`,
+          name,
+          isDefault: false,
+          createdAt: Date.now(),
+          closedAt: null,
+        }
+        tabs.push(newTab)
+        saveTabs(tabs)
+        currentTabId = newTab.id
+        return { tab: newTab, currentTabId }
+      },
+
+      close: async (tabId: string): Promise<void> => {
+        const tabs = loadTabs()
+        const tabIndex = tabs.findIndex(t => t.id === tabId)
+        if (tabIndex >= 0 && !tabs[tabIndex].isDefault) {
+          tabs[tabIndex].closedAt = Date.now()
+          saveTabs(tabs)
+          // Switch to another tab if closing current
+          if (currentTabId === tabId) {
+            const nextTab = tabs.find(t => t.id !== tabId && !t.closedAt)
+            currentTabId = nextTab?.id || tabs[0]?.id || null
+          }
+        }
+      },
+
+      switch: async (tabId: string): Promise<unknown> => {
+        const tabs = loadTabs()
+        const tab = tabs.find(t => t.id === tabId && !t.closedAt)
+        if (tab) {
+          currentTabId = tabId
+          return { success: true, currentTabId }
+        }
+        return { success: false, error: 'Tab not found' }
+      },
+
+      rename: async (tabId: string, newName: string): Promise<unknown> => {
+        const tabs = loadTabs()
+        const tab = tabs.find(t => t.id === tabId)
+        if (tab) {
+          tab.name = newName
+          saveTabs(tabs)
+          return { tab }
+        }
+        return { error: 'Tab not found' }
+      },
+
+      list: async (): Promise<unknown> => {
+        const tabs = loadTabs()
+        return { tabs: tabs.filter(t => !t.closedAt) }
+      },
+
+      getCurrent: async (): Promise<unknown> => {
+        const tabs = loadTabs()
+        const tab = tabs.find(t => t.id === currentTabId && !t.closedAt)
+        return { tab: tab || null }
+      },
+
+      addAgent: async (tabId: string, agentId: string): Promise<void> => {
+        const agents = loadAgents()
+        if (!agents[tabId]) {
+          agents[tabId] = []
+        }
+        if (!agents[tabId].includes(agentId)) {
+          agents[tabId].push(agentId)
+          saveAgents(agents)
+        }
+      },
+
+      removeAgent: async (tabId: string, agentId: string): Promise<void> => {
+        const agents = loadAgents()
+        if (agents[tabId]) {
+          agents[tabId] = agents[tabId].filter(id => id !== agentId)
+          saveAgents(agents)
+        }
+      },
+
+      getAgents: async (tabId: string): Promise<unknown> => {
+        const agents = loadAgents()
+        return { agentIds: agents[tabId] || [] }
+      },
+    }
+  })(),
 }
 
 /**

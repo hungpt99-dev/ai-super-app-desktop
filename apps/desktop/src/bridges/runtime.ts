@@ -11,6 +11,10 @@
  * should import from here instead.
  */
 
+import { logger } from '@agenthub/shared'
+
+const log = logger.child('Runtime')
+
 // ── Tauri detection ──────────────────────────────────────────────────────────
 
 /** True when running inside the Tauri WebView runtime. */
@@ -53,7 +57,7 @@ export function safeJsonParse<T>(
         const parsed: unknown = JSON.parse(raw)
         return migrate ? migrate(parsed) : (parsed as T)
     } catch (err) {
-        console.warn('[runtime] JSON parse failed, returning fallback:', err)
+        log.warn('JSON parse failed, returning fallback', { error: String(err) })
         return fallback
     }
 }

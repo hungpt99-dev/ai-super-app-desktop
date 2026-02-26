@@ -13,6 +13,9 @@
 import type { ToolCallRecord, CapabilityCheck } from './ActingTypes.js'
 import { CapabilityGuard } from './CapabilityGuard.js'
 import { getToolRegistry } from './ToolRegistry.js'
+import { logger } from '@agenthub/shared'
+
+const log = logger.child('ToolExecutor')
 
 export interface ToolExecutionEvent {
     readonly type: 'tool:executed' | 'tool:failed' | 'tool:capability_denied'
@@ -123,5 +126,13 @@ export class ToolExecutor {
 
     removeAllListeners(): void {
         this.eventListeners.clear()
+    }
+
+    /**
+     * Dispose of all resources - prevents memory leaks
+     */
+    dispose(): void {
+        this.removeAllListeners()
+        log.info('ToolExecutor disposed')
     }
 }

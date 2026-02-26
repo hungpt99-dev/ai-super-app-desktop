@@ -61,7 +61,7 @@ export function AgentDetailPage({ agentId, onBack }: AgentDetailPageProps) {
     }
 
     return (
-        <div className="flex flex-col h-full overflow-hidden">
+        <div className="flex flex-col w-full h-full overflow-hidden">
             <div className="flex items-center gap-3 px-6 py-4 border-b border-[var(--border)]">
                 <button type="button" onClick={onBack} className="text-sm text-[var(--accent)] hover:underline">&larr; Back</button>
                 <div className="flex-1" />
